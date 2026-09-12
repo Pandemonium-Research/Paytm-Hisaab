@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="kn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hisaab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Kannada:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0e1116; --phone:#f6f4ef; --head:#12603f; --head2:#0d4c32;
+    --them:#ffffff; --me:#d6f2c8; --ink:#16181d; --muted:#6b7280;
+    --line:#e4e0d8; --accent:#12603f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;background:var(--bg);
+       font-family:"Inter","Noto Sans Kannada",system-ui,sans-serif;
+       display:flex;align-items:center;justify-content:center;padding:24px 16px}
+  .phone{width:100%;max-width:430px;height:min(860px,94vh);background:var(--phone);
+         border-radius:28px;overflow:hidden;display:flex;flex-direction:column;
+         box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  header{background:var(--head);color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center;flex:0 0 auto}
+  .avatar{width:40px;height:40px;border-radius:50%;background:var(--head2);
+          display:grid;place-items:center;font-weight:600;font-size:15px}
+  .who{font-weight:600;font-size:15px;line-height:1.25}
+  .sub{font-size:11.5px;opacity:.75;margin-top:1px}
+  #log{flex:1;overflow-y:auto;padding:18px 14px 8px;display:flex;flex-direction:column;gap:10px}
+  .row{display:flex}
+  .row.me{justify-content:flex-end}
+  .msg{max-width:84%;padding:9px 12px;border-radius:14px;font-size:15px;line-height:1.55;
+       white-space:pre-wrap;word-wrap:break-word;
+       font-family:"Noto Sans Kannada","Inter",system-ui,sans-serif;
+       box-shadow:0 1px 1px rgba(0,0,0,.06)}
+  .them .msg{background:var(--them);border-top-left-radius:4px}
+  .me .msg{background:var(--me);border-top-right-radius:4px}
+  .msg strong{font-weight:600}
+  .sys{align-self:center;font-size:12px;color:var(--muted);background:#00000008;
+       padding:5px 11px;border-radius:20px;font-family:"Inter",sans-serif;text-align:center}
+  .sys.err{background:#fdecec;color:#a32020}
+  .opts{display:flex;flex-wrap:wrap;gap:7px;padding:2px 2px 6px}
+  .opt{border:1px solid var(--line);background:#fff;color:var(--accent);
+       padding:8px 13px;border-radius:18px;font-size:13.5px;cursor:pointer;
+       font-family:"Noto Sans Kannada","Inter",sans-serif;font-weight:500;
+       transition:.12s}
+  .opt:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .opt:disabled{opacity:.4;cursor:default;background:#fff;color:var(--muted)}
+  .opt.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .opt.primary:hover{filter:brightness(1.12)}
+  .dots{display:inline-flex;gap:4px;padding:4px 2px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:#b9b9b9;animation:b 1.2s infinite}
+  .dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
+  @keyframes b{0%,60%,100%{opacity:.28;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+  footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:9px 10px}
+  .bar{display:flex;gap:8px;align-items:center}
+  input{flex:1;border:1px solid var(--line);border-radius:20px;padding:10px 14px;font-size:14.5px;
+        outline:none;font-family:"Noto Sans Kannada","Inter",sans-serif}
+  input:focus{border-color:var(--accent)}
+  button.send{border:0;background:var(--accent);color:#fff;width:40px;height:40px;border-radius:50%;
+              cursor:pointer;font-size:16px;flex:0 0 auto}
+  button.send:disabled{opacity:.45;cursor:default}
+  .foot{font-size:10.5px;color:var(--muted);text-align:center;padding:6px 4px 0;font-family:"Inter",sans-serif}
+</style>
+</head>
+<body>
+<div class="phone">
+  <header>
+    <div class="avatar">ಹಿ</div>
+    <div>
+      <div class="who">Hisaab</div>
+      <div class="sub" id="sub">connecting…</div>
+    </div>
+  </header>
+  <div id="log"></div>
+  <footer>
+    <div class="bar">
+      <input id="text" placeholder="ಇಲ್ಲಿ ಬರೆಯಿರಿ…" autocomplete="off" disabled>
+      <button class="send" id="send" disabled>↑</button>
+    </div>
+    <div class="foot" id="foot"></div>
+  </footer>
+</div>
+<script>
+const log = document.getElementById('log');
+const input = document.getElementById('text');
+const sendBtn = document.getElementById('send');
+let sessionId = null, busy = false;
+
+const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+function scroll(){ log.scrollTop = log.scrollHeight; }
+
+function sys(text, isErr){
+  const d = document.createElement('div');
+  d.className = 'sys' + (isErr ? ' err' : '');
+  d.textContent = text;
+  log.appendChild(d); scroll();
+}
+
+function bubble(text, mine){
+  const row = document.createElement('div');
+  row.className = 'row ' + (mine ? 'me' : 'them');
+  const m = document.createElement('div');
+  m.className = 'msg';
+  m.innerHTML = fmt(text);
+  row.appendChild(m); log.appendChild(row); scroll();
+  return m;
+}
+
+let typingEl = null;
+function typing(on){
+  if (on && !typingEl){
+    const row = document.createElement('div');
+    row.className = 'row them';
+    row.innerHTML = '<div class="msg"><span class="dots"><i></i><i></i><i></i></span></div>';
+    log.appendChild(row); typingEl = row; scroll();
+  } else if (!on && typingEl){ typingEl.remove(); typingEl = null; }
+}
+
+// The agent offers one-tap answers as a pipe-separated line, e.g.
+//   "ಆಯ್ಕೆ: Confirm personal transfer | own account | sale | refund | ..."
+// Turn that into buttons; the merchant taps rather than types, which is the
+// whole point of the attestation loop.
+function renderOptions(text){
+  const line = text.split('\n').reverse().find(l => (l.match(/\|/g) || []).length >= 2);
+  if (!line) return;
+  let parts = line.split('|').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return;
+  const first = parts[0];
+  const colon = first.indexOf(':');
+  if (colon > -1 && colon < 24) parts[0] = first.slice(colon + 1).trim();
+  parts = parts.map(p => p.replace(/\*\*/g, '').trim()).filter(Boolean);
+  if (parts.length < 2) return;
+
+  const box = document.createElement('div');
+  box.className = 'opts';
+  parts.forEach((p, i) => {
+    const b = document.createElement('button');
+    b.className = 'opt' + (i === 0 ? ' primary' : '');
+    b.textContent = p;
+    b.onclick = () => {
+      box.querySelectorAll('button').forEach(x => x.disabled = true);
+      send(p);
+    };
+    box.appendChild(b);
+  });
+  log.appendChild(box); scroll();
+}
+
+function lock(on){
+  busy = on;
+  input.disabled = on || !sessionId;
+  sendBtn.disabled = on || !sessionId;
+  if (!on) input.focus();
+}
+
+async function start(){
+  let cfg = {};
+  try { cfg = await (await fetch('/api/config')).json(); } catch(e){}
+  document.getElementById('foot').textContent =
+    (cfg.base || 'no PHINITE_BASE') + ' · ' + (cfg.env || '?');
+  if (!cfg.ready){
+    document.getElementById('sub').textContent = 'not configured';
+    sys('Set PHINITE_BASE, PHINITE_TOKEN and PHINITE_INTEGRATION_ID, then restart.', true);
+    return;
+  }
+  typing(true);
+  try{
+    const r = await fetch('/api/start', {method:'POST'});
+    const j = await r.json();
+    typing(false);
+    if (!r.ok) { document.getElementById('sub').textContent = 'failed';
+                 sys(j.detail || 'could not start', true); return; }
+    sessionId = j.session_id;
+    document.getElementById('sub').textContent = 'ಆನ್‌ಲೈನ್';
+    const greeting = (j.response && j.response.query) || '';
+    if (greeting){ bubble(greeting, false); renderOptions(greeting); }
+    lock(false);
+  } catch(e){ typing(false); sys('cannot reach the proxy: ' + e.message, true); }
+}
+
+async function send(text){
+  if (!text || busy || !sessionId) return;
+  bubble(text, true);
+  input.value = '';
+  lock(true); typing(true);
+
+  try{
+    const r = await fetch('/api/send/' + encodeURIComponent(sessionId), {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({message: text})
+    });
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', last = '';
+
+    const handle = (obj) => {
+      if (obj.error){ typing(false); sys(obj.error, true); return; }
+      const q = obj.response && (obj.response.query ?? obj.response);
+      if (typeof q === 'string' && q.trim() && q !== last){
+        typing(false); bubble(q, false); last = q;
+        if (obj.status === 'completed' || obj.status === 'resolved') renderOptions(q);
+        if (obj.status !== 'completed' && obj.status !== 'resolved') typing(true);
+      }
+      if (obj.status === 'transferred') sys('ಮಾನವ ಸಹಾಯಕರಿಗೆ ವರ್ಗಾಯಿಸಲಾಗಿದೆ');
+      if (obj.status === 'error') sys('the flow returned an error', true);
+    };
+
+    while (true){
+      const {done, value} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream:true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const l of lines){
+        if (!l.trim()) continue;
+        try { handle(JSON.parse(l)); } catch(e){}
+      }
+    }
+    if (buf.trim()){ try { handle(JSON.parse(buf)); } catch(e){} }
+  } catch(e){ sys('send failed: ' + e.message, true); }
+
+  typing(false); lock(false);
+}
+
+sendBtn.onclick = () => send(input.value.trim());
+input.onkeydown = e => { if (e.key === 'Enter') send(input.value.trim()); };
+start();
+</script>
+</body>
+</html>
