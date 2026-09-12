@@ -50,16 +50,17 @@ def main():
     print("checking the four beats for %s via %s\n" % (mid, ENV["HISAAB_API"]))
 
     # ---- Beat 1: the ordinary Tuesday --------------------------------------------------
-    print("beat 1  attestation queue for 8-9 Mar 2026")
+    print("beat 1  attestation queue asked on 10 Mar 2026, covering the weekend")
     seeded = {c["txn_id"]: c for c in key["beat1_ordinary_tuesday"]["seeded_credits"]}
-    queued = {}
-    for day in ("2026-03-08", "2026-03-09"):
-        for item in run(get_attestation_queue, merchant_id=mid, day=day, max_items=3)["items"]:
-            queued[item["txn_id"]] = item
+    asked_on = key["beat1_ordinary_tuesday"]["attestation_date"]
+    queue = run(get_attestation_queue, merchant_id=mid, date=asked_on, lookback_days=2, max_items=3)
+    queued = {item["txn_id"]: item for item in queue["items"]}
     check("seeded credits surfaced", set(seeded) <= set(queued),
           "%d of %d (%s)" % (len(set(seeded) & set(queued)), len(seeded),
                              ", ".join(sorted(set(seeded) - set(queued))) or "all"))
-    check("nothing else surfaced", len(queued) <= 3, "%d questions for the two days" % len(queued))
+    check("stays inside the daily budget", len(queued) <= 3,
+          "%d questions covering %s (%d pending in total)"
+          % (len(queued), queue["covering"], queue["pending_total"]))
     for txn_id, item in sorted(queued.items()):
         truth = seeded.get(txn_id, {}).get("true_label", "?")
         print("        %s  %-40s proposed=%s truth=%s" % (
@@ -96,6 +97,13 @@ def main():
           "computed %s vs truth %s (%.1f%% out)" % (lakh(computed), lakh(truth["aggregate_turnover"]), err * 100))
     check("gross credits match notice", t["gross_credits"] == truth["claimed_turnover"],
           "%s claimed, %s in the ledger" % (lakh(truth["claimed_turnover"]), lakh(t["gross_credits"])))
+    # Understating taxable turnover is the one error this product cannot afford, so the
+    # apportioned split is checked against truth, not just the total.
+    split_err = abs(t["taxable_supplies"] - truth["taxable_turnover"]) / float(truth["taxable_turnover"])
+    check("exempt/taxable split", split_err <= 0.25,
+          "taxable %s vs truth %s (%.0f%% out); exempt %s vs %s"
+          % (lakh(t["taxable_supplies"]), lakh(truth["taxable_turnover"]), split_err * 100,
+             lakh(t["exempt_supplies"]), lakh(truth["exempt_turnover"])))
     pack = run(build_evidence_pack, merchant_id=mid, kind="tax", turnover=t, threshold=full)
     body = pack["pack"]
     check("tax pack assembles", bool(body.get("lines")) and body.get("difference") is not None,
