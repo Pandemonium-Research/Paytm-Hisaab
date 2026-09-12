@@ -1,55 +1,74 @@
-"""Phinite custom tool: propose_tag.
+"""Phinite custom tool 4/13 — propose_tag.
 
 Writes a *proposed* provenance tag. The Provenance agent may call this; its tool policy
-must deny commit_attestation, so nothing it writes can reach an evidence pack until the
-merchant confirms it.
+must deny commit_attestation, so nothing it writes reaches an evidence pack until the
+merchant has confirmed it.
 
-Parameters: txn_id (string, required), label (string, required), reason (string, required),
-confidence (number 0-1, required), ask (boolean, default false - put it in front of the
-merchant, which classify_credit_rules decides via ask_merchant).
-Self-contained: paste this whole file into Dev Studio. Standard library only.
+`ask` is what puts the credit in front of the merchant. classify_credit_rules decides it:
+low confidence, or enough money at stake that a confident guess still isn't good enough.
+
+Inputs
+    txn_id     (string, required)
+    label      (string, required)  one of the seven labels, or unclassified
+    reason     (string, required)  what the merchant and a CA will read
+    confidence (number, required)  0-1
+    ask        (boolean, optional) surface it in the merchant's daily queue
+
+Env
+    HISAAB_API, HISAAB_KEY
+
+Paste the whole file into Dev Studio. Standard library only.
 """
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 
 LABELS = ("taxable_supply", "exempt_supply", "personal_transfer", "refund_reversal",
           "duplicate", "inter_account", "non_business", "unclassified")
+TIMEOUT = 20
 
 
-def _api(env, path, params=None, body=None, key="HISAAB_KEY"):
-    base = (env.get("HISAAB_API") or "http://127.0.0.1:8000").rstrip("/")
-    url = base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-    data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method="POST" if body is not None else "GET",
-                                 headers={"X-API-Key": env.get(key) or "", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return json.loads(r.read())
+def _post(env, path, body, key="HISAAB_KEY"):
+    base = (env.get("HISAAB_API") or "").rstrip("/")
+    req = urllib.request.Request(
+        base + path, data=json.dumps(body).encode("utf-8"), method="POST",
+        headers={"X-Hisaab-Key": env.get(key) or "", "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def main(inputs, env_variables):
-    txn_id = (inputs.get("txn_id") or "").strip()
-    label = (inputs.get("label") or "").strip()
-    reason = (inputs.get("reason") or "").strip()
+    txn_id = str(inputs.get("txn_id") or "").strip()
+    label = str(inputs.get("label") or "").strip()
+    reason = str(inputs.get("reason") or "").strip()
     try:
         confidence = float(inputs.get("confidence", 0.5))
     except (TypeError, ValueError):
         confidence = 0.5
+    ask = inputs.get("ask")
+    ask = bool(ask) and str(ask).strip().lower() not in ("false", "0", "no", "")
+
     if not txn_id or label not in LABELS:
-        return {"output": {"error": "txn_id required and label must be one of %s" % (LABELS,)},
-                "captured_variables": {}}
+        return {"output": {"ok": False, "error": "txn_id required and label must be one of %s"
+                                                 % (LABELS,)}, "captured_variables": {}}
     if not reason:
-        return {"output": {"error": "a reason is required: it is what the merchant and a CA read"},
+        return {"output": {"ok": False,
+                           "error": "a reason is required: it is what the merchant and a CA read"},
                 "captured_variables": {}}
 
-    ask = inputs.get("ask")
-    ask = bool(ask) and str(ask).lower() not in ("false", "0", "no")
-    res = _api(env_variables, "/ledger/propose", body={
-        "txn_id": txn_id, "label": label, "reason": reason,
-        "confidence": max(0.0, min(1.0, confidence)), "ask": ask})
-    tag = res.get("tag") or {}
+    try:
+        tag = _post(env_variables, "/ledger/propose", {
+            "txn_id": txn_id, "label": label, "reason": reason,
+            "confidence": max(0.0, min(1.0, confidence)), "ask": ask})
+    except urllib.error.HTTPError as e:
+        return {"output": {"ok": False, "error": "HTTP %s proposing %s" % (e.code, txn_id)},
+                "captured_variables": {}}
+
+    already_attested = tag.get("status") == "attested"
     return {
-        "output": {"tag": tag, "note": res.get("note", ""),
-                   "awaiting_attestation": tag.get("status") == "proposed"},
+        "output": {"ok": True, "tag": tag, "queued_for_merchant": ask and not already_attested,
+                   "note": "the merchant has already attested this credit; the proposal was ignored"
+                           if already_attested else ""},
         "captured_variables": {"proposed_label": tag.get("label"), "tag_status": tag.get("status")},
     }
