@@ -51,6 +51,11 @@ def index():
     return FileResponse(HERE / "index.html")
 
 
+@app.get("/logo.png")
+def logo():
+    return FileResponse(HERE / "logo.png", media_type="image/png")
+
+
 @app.get("/api/config")
 def config():
     """What the page shows in its footer, so a misconfig is visible not mysterious."""
