@@ -198,8 +198,31 @@ def events(
 
 
 @app.get("/hsn")
-def hsn(_: str = Depends(require_read)) -> dict:
+def hsn(_: str = Depends(require_read)):
+    # data/reference/hsn_catalog.json is a JSON array, so this must not be annotated as a
+    # dict: FastAPI validates its own response and 500s on the mismatch.
     return _store().hsn
+
+
+@app.get("/merchant_mix")
+def merchant_mix(
+    merchant_id: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    _: str = Depends(require_read),
+) -> dict:
+    return _store().mix(merchant_id, date_from, date_to)
+
+
+@app.get("/untagged")
+def untagged(
+    merchant_id: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    limit: int = Query(500, le=2000),
+    _: str = Depends(require_read),
+) -> dict:
+    return _store().untagged(merchant_id, date_from, date_to, limit)
 
 
 # ---------- ledger ----------
@@ -210,6 +233,7 @@ class ProposeIn(BaseModel):
     label: str
     reason: str = ""
     confidence: float = Field(0.0, ge=0.0, le=1.0)
+    ask: bool = False
 
 
 class AttestIn(BaseModel):
@@ -247,7 +271,7 @@ def ledger_rollup(
 def propose(body: ProposeIn, _: str = Depends(require_read)) -> dict:
     try:
         return _store().propose(
-            body.txn_id, body.label, body.reason, body.confidence
+            body.txn_id, body.label, body.reason, body.confidence, body.ask
         )
     except KeyError:
         raise HTTPException(404, f"no transaction {body.txn_id}")

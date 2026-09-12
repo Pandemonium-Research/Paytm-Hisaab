@@ -115,13 +115,18 @@ class Store:
                 source      TEXT,
                 note        TEXT,
                 proposed_at TEXT,
-                attested_at TEXT
+                attested_at TEXT,
+                ask         INTEGER DEFAULT 0
             )
             """
         )
         self.db.execute(
             "CREATE INDEX IF NOT EXISTS ledger_merchant ON ledger (merchant_id, status)"
         )
+        try:  # ledgers created before `ask` existed
+            self.db.execute("ALTER TABLE ledger ADD COLUMN ask INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
         self.db.commit()
 
     def propose(
@@ -130,6 +135,7 @@ class Store:
         label: str,
         reason: str,
         confidence: float,
+        ask: bool = False,
     ) -> dict:
         txn = self.by_txn_id.get(txn_id)
         if txn is None:
@@ -145,13 +151,14 @@ class Store:
             self.db.execute(
                 """
                 INSERT INTO ledger (txn_id, merchant_id, label, status, reason,
-                                    confidence, proposed_at)
-                VALUES (?, ?, ?, 'proposed', ?, ?, ?)
+                                    confidence, proposed_at, ask)
+                VALUES (?, ?, ?, 'proposed', ?, ?, ?, ?)
                 ON CONFLICT(txn_id) DO UPDATE SET
                     label=excluded.label, status='proposed', reason=excluded.reason,
-                    confidence=excluded.confidence, proposed_at=excluded.proposed_at
+                    confidence=excluded.confidence, proposed_at=excluded.proposed_at,
+                    ask=excluded.ask
                 """,
-                (txn_id, txn["merchant_id"], label, reason, confidence, now),
+                (txn_id, txn["merchant_id"], label, reason, confidence, now, 1 if ask else 0),
             )
             self.db.commit()
         return self.ledger_row(txn_id)
@@ -254,12 +261,21 @@ class Store:
                 untagged["count"] += 1
                 untagged["amount"] += txn["amount"]
 
+        gross = {"count": 0, "amount": 0}
+        for txn in self.credits_by_merchant.get(merchant_id, []):
+            d = _day(txn["ts"])
+            if (date_from and d < date_from) or (date_to and d > date_to):
+                continue
+            gross["count"] += 1
+            gross["amount"] += txn["amount"]
+
         out = {
             "merchant_id": merchant_id,
             "date_from": date_from,
             "date_to": date_to,
             "by_label": {k: dict(v) for k, v in by_label.items()},
             "untagged": untagged,
+            "gross_credits": gross,
         }
         if by_day:
             out["by_day"] = {d: dict(v) for d, v in sorted(daily.items())}
@@ -320,6 +336,29 @@ class Store:
             "rows": [dict(r) for r in sel[offset : offset + limit]],
         }
 
+    def untagged(
+        self,
+        merchant_id: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+        limit: int = 500,
+    ) -> dict:
+        """Credits with no provenance tag yet: the nightly pass's work queue."""
+        tagged = {
+            r["txn_id"]
+            for r in self.db.execute(
+                "SELECT txn_id FROM ledger WHERE merchant_id = ?", (merchant_id,)
+            ).fetchall()
+        }
+        out = []
+        for txn in self.credits_by_merchant.get(merchant_id, []):
+            d = _day(txn["ts"])
+            if (date_from and d < date_from) or (date_to and d > date_to):
+                continue
+            if txn["txn_id"] not in tagged:
+                out.append(dict(txn))
+        return {"total": len(out), "limit": limit, "rows": out[:limit]}
+
     def payer_history(self, merchant_id: str, counterparty_id: str) -> dict:
         """Compact aggregate for one counterparty. Aggregation only, no judgment."""
         rows = sorted(
@@ -359,6 +398,56 @@ class Store:
             "merchant_paid_total": sum(r["amount"] for r in debits),
             "handle_is_linked_own_account": bool(handles & linked),
             "recent": [dict(r) for r in credits[-10:]],
+        }
+
+    def mix(
+        self,
+        merchant_id: str,
+        date_from: str | None = None,
+        date_to: str | None = None,
+    ) -> dict:
+        """Billed value split exactly, and how much sale value has no bill to split.
+
+        A QR sale carries no item list, so exempt vs taxable cannot be decided per credit.
+        Labelling each unbilled sale by the shop's dominant side pushes the whole estimate
+        to that side; apportioning the unbilled *value* by the billed ratio does not. The
+        tool does that arithmetic, this returns the pieces.
+        """
+        exempt_by_item = {
+            (h["item"], h["hsn"]): bool(h["exempt"])
+            for h in (self.hsn if isinstance(self.hsn, list) else [])
+        }
+        supply = {"taxable_supply", "exempt_supply"}
+        labels = {
+            r["txn_id"]: r["label"]
+            for r in self.db.execute(
+                "SELECT txn_id, label FROM ledger WHERE merchant_id = ?", (merchant_id,)
+            ).fetchall()
+        }
+        exempt = total = bills = unbilled = unbilled_txns = 0
+        for txn in self.credits_by_merchant.get(merchant_id, []):
+            d = _day(txn["ts"])
+            if (date_from and d < date_from) or (date_to and d > date_to):
+                continue
+            lines = self.bill_lines.get(txn["pos_bill_id"], []) if txn["pos_bill_id"] else []
+            if lines:
+                bills += 1
+                for ln in lines:
+                    total += ln["line_amount"]
+                    if exempt_by_item.get((ln["item"], ln["hsn"])):
+                        exempt += ln["line_amount"]
+            elif labels.get(txn["txn_id"]) in supply:
+                unbilled += txn["amount"]
+                unbilled_txns += 1
+        return {
+            "merchant_id": merchant_id,
+            "billed_txns": bills,
+            "billed_exempt_value": exempt,
+            "billed_taxable_value": total - exempt,
+            "billed_total_value": total,
+            "unbilled_supply_value": unbilled,
+            "unbilled_supply_txns": unbilled_txns,
+            "exempt_share_of_billed_value": round(exempt / total, 4) if total else None,
         }
 
     def twins(self, txn_id: str, window_minutes: int = 30) -> list[dict]:
@@ -406,6 +495,10 @@ class Store:
         days *before* it: the demo asks on 10 Mar about credits from 8-9 Mar, so a
         single-date filter would surface nothing.
 
+        Only proposals the classifier flagged with `ask` appear. It weighs confidence
+        against what is at stake, so a Rs 23 payment nobody can place is left alone
+        while a confident Rs 15,000 own-account transfer is still put to the merchant.
+
         The cap is the product: PLAN says if the agent asks about more than ~3
         credits a day, nobody uses it.
         """
@@ -414,7 +507,7 @@ class Store:
         window_to = (asked_on - timedelta(days=1)).isoformat()
 
         rows = self.db.execute(
-            "SELECT * FROM ledger WHERE merchant_id = ? AND status = 'proposed'",
+            "SELECT * FROM ledger WHERE merchant_id = ? AND status = 'proposed' AND ask = 1",
             (merchant_id,),
         ).fetchall()
         out = []
