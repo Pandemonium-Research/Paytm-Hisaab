@@ -20,6 +20,23 @@ Two Agent Graphs, not four separate agents:
 
 PLAN's four agents become agent nodes across these two graphs. PLAN's permission boundaries become **tool policies** bound to a single agent node.
 
+Only the Merchant Agent is conversational: beat 1 is a real multi-turn dialogue with a person
+present, deploying to a channel. Provenance, Evidence and Escalation have nobody waiting at the
+other end — nightly pass and threshold watch on Cron, freeze response and notice pack on API
+trigger.
+
+**How the two graphs hand off.** The autonomous pass writes its queue of ambiguous credits to the
+data service; the conversational graph reads it with `get_attestation_queue` when the merchant
+opens the chat. Deliberately *not* a direct graph-to-graph call — the queue outliving either run is
+what makes the handoff demo-safe. Two alternatives, both deferred: a WhatsApp template message that
+starts the conversation (needs credentials we decided against), and exposing Evidence as an A2A
+Agent Card (the production shape, and the better registry story — wire it only if the identity
+pitch needs it).
+
+**API triggers are synchronous with a ~120–150s cap.** Pack assembly for beat 4 can exceed that.
+Fire the freeze response as a background task and poll for status; do not put `build_evidence_pack`
+on the synchronous path.
+
 ## Tracks
 
 - **Track A — Phinite (teammate).** Workspace, graphs, publishing tools, policies, channel, builds, registry, observability, demo rehearsal.
