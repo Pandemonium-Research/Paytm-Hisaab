@@ -1,0 +1,27 @@
+# Render blueprint for the Hisaab data service.
+#
+# The dataset is generated at build time rather than committed, so the demo txn_ids
+# always match DATA.md and no synthetic ledger lands in git.
+#
+# Caveat for the demo: on the free plan the disk is ephemeral and the instance sleeps
+# after inactivity, so ledger.db resets. Proposals must be re-seeded before the demo
+# (the nightly Cron pass does this), or attach a persistent disk.
+services:
+  - type: web
+    name: hisaab-data-service
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && python -m synth.generate --only demo"
+    startCommand: "uvicorn service.app:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    envVars:
+      - key: HISAAB_SPLIT
+        value: demo
+      - key: HISAAB_DATA
+        value: data
+      - key: HISAAB_LEDGER_DB
+        value: /tmp/ledger.db
+      - key: HISAAB_KEY
+        generateValue: true
+      - key: HISAAB_ATTEST_KEY
+        generateValue: true

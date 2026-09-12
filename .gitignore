@@ -49,3 +49,6 @@ desktop.ini
 *.log
 tmp/
 scratch/
+
+# SQLite provenance ledger, rebuilt by the nightly pass
+*.db
