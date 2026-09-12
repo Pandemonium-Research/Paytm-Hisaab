@@ -207,6 +207,29 @@ containing it, so ground truth stays out of the runtime path.
 
 Expected values are in `data/demo/hidden/demo_scenario.json`. Every beat needs a static fallback.
 
+### Before the demo, not before that
+
+Two things deliberately left for later. Both are easy to forget and both break beat 1.
+
+1. **Scope `HISAAB_ATTEST_KEY` to `hisaab-merchant`.** It is currently set workspace-wide,
+   because until the merchant graph exists there is nowhere else to put it. While it stays
+   that way `hisaab-watch` can commit attestations: a Provenance test run that calls
+   `commit_attestation` will succeed and silently spend credits out of the beat-1 queue. If
+   beat 1 starts surfacing two credits instead of three, this is why.
+2. **Restore the queue.** Render → Manual Deploy → **Clear build cache & deploy** (3–5 min)
+   re-runs the seed and puts all three 8–9 Mar credits back as `proposed`. Needed after any
+   rehearsal that taps through beat 1, and needed now: a connectivity probe attested
+   `DM0012559` on 12 Sep.
+
+Check the queue is whole before going on stage:
+
+```bash
+curl -s -H "X-Hisaab-Key: $HISAAB_KEY" \
+  "$HISAAB_API/attestation_queue?merchant_id=MID_DEMO_SAHANA&date=2026-03-10&lookback_days=2&max_items=3"
+```
+
+`pending_total` must be 3.
+
 ## Track A setup checklist
 
 1. Workspace + roles (PROD promotion may need Admin/SuperAdmin).
