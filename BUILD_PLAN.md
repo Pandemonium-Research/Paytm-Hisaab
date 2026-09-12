@@ -94,11 +94,31 @@ on the synchronous path.
 Every Phinite custom tool is Python with this shape:
 
 ```python
+# ENV_VARS: ["HISAAB_API", "HISAAB_KEY"]
+
 def main(inputs, env_variables):
-    return {"output": {...}, "captured_variables": {...}}
+    return {"output": {...}, "capture_variables": {...}, "captured_variables": {...}}
 ```
 
 Track B writes each handler in `tools/<tool_name>.py` with exactly that signature, tested locally. Track A pastes it into Dev Studio, sets the parameter schema, tests, publishes.
+
+Three things about the contract, measured in the sandbox rather than assumed (`tools/_sandbox_check.py`,
+published and tested in Dev Studio):
+
+- **Egress works.** A tool reached `https://api.github.com` and got a 200, so the whole
+  data-service architecture stands. This was the one unknown that could have killed it.
+- **The `# ENV_VARS: [...]` header is an allowlist, not a declaration.** A tool sees exactly
+  the variables it names and nothing else. `commit_attestation` is the only tool that declares
+  `HISAAB_ATTEST_KEY`, so no other tool can read the commit key even if it tried — the
+  permission boundary enforced a second way, independent of the tool policy.
+- **Both capture keys are returned.** Phinite reads one of `capture_variables` /
+  `captured_variables` and ignores the other; Aura generates the first, our plan assumed the
+  second, and the Dev Studio tool test echoes the return verbatim so it cannot settle which.
+  Every handler emits both. Costs nothing, and avoids variables silently failing to pass
+  between nodes.
+
+Sandbox: Python 3.12.14, with `requests`, `httpx` and `sqlite3` available. Handlers still use
+only the standard library, so nothing depends on that staying true.
 
 Shared env variables (set per environment in Phinite):
 
