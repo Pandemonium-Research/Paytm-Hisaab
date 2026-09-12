@@ -1,3 +1,4 @@
+# ENV_VARS: ["HISAAB_API", "HISAAB_KEY"]
 """Phinite custom tool: build_evidence_pack.
 
 Assembles the artefact the merchant hands to a CA, an officer or a bank. It composes what
@@ -181,3 +182,21 @@ def main(inputs, env_variables):
                               % _rupees(coverage.get("attested_amount")))
     return {"output": pack, "captured_variables": {"pack_kind": kind,
                                                    "pack_reference": body.get("reference", "")}}
+
+
+# Phinite injects only the variables declared in the ENV_VARS header above, so a tool
+# cannot read a key it does not ask for. commit_attestation is the only tool that
+# declares HISAAB_ATTEST_KEY, which is the permission boundary enforced a second way.
+#
+# Phinite reads one of "capture_variables" / "captured_variables" and ignores the other.
+# Which one is not documented and the Dev Studio tool test echoes the return verbatim,
+# so it cannot settle it. Returning both costs nothing and removes the risk of variables
+# silently failing to pass between nodes.
+_main = main
+
+
+def main(inputs, env_variables):  # noqa: F811
+    result = _main(inputs, env_variables)
+    if isinstance(result, dict) and "captured_variables" in result:
+        result.setdefault("capture_variables", result["captured_variables"])
+    return result

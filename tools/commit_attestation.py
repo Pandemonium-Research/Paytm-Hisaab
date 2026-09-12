@@ -1,3 +1,4 @@
+# ENV_VARS: ["HISAAB_API", "HISAAB_ATTEST_KEY"]
 """Phinite custom tool 5/13 — commit_attestation.
 
 The only way a tag becomes final. Attach this tool to the Merchant agent node alone and
@@ -70,3 +71,21 @@ def main(inputs, env_variables):
                               % SPOKEN.get(label, label.replace("_", " "))},
         "captured_variables": {"attested_label": tag.get("label"), "attested_txn_id": txn_id},
     }
+
+
+# Phinite injects only the variables declared in the ENV_VARS header above, so a tool
+# cannot read a key it does not ask for. commit_attestation is the only tool that
+# declares HISAAB_ATTEST_KEY, which is the permission boundary enforced a second way.
+#
+# Phinite reads one of "capture_variables" / "captured_variables" and ignores the other.
+# Which one is not documented and the Dev Studio tool test echoes the return verbatim,
+# so it cannot settle it. Returning both costs nothing and removes the risk of variables
+# silently failing to pass between nodes.
+_main = main
+
+
+def main(inputs, env_variables):  # noqa: F811
+    result = _main(inputs, env_variables)
+    if isinstance(result, dict) and "captured_variables" in result:
+        result.setdefault("capture_variables", result["captured_variables"])
+    return result
