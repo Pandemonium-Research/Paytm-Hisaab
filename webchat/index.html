@@ -156,21 +156,38 @@ function typing(on){
 // It varies the separator and the lead-in word between turns, so accept either
 // comma or pipe and several lead-ins. Turn it into buttons: the merchant taps
 // rather than types, which is the whole premise of the attestation loop.
-const LEAD = /(choose one|choose|options?|answer|ಆಯ್ಕೆ|ಉತ್ತರ)\s*[:\-]/i;
+// The agent varies how it offers the one-tap answers between turns and languages:
+//   "Choose one: **confirm**, **personal transfer**, ..."
+//   "ಆಯ್ಕೆಗಳು: confirm, personal transfer, ..."     (note ಆಯ್ಕೆ*ಗಳು*, not ಆಯ್ಕೆ)
+//   "ಆಯ್ಕೆ: Confirm personal transfer | own account | ..."
+// So do not key off the lead-in word. Look for a line that *reads* like a list: three
+// or more short, mostly digit-free items. Try the text after each colon, last colon
+// first, because the same line usually carries a timestamp ("13:20") whose colon would
+// otherwise win. The description line survives untouched: it splits into too few pieces
+// and they are too long.
+function asList(body){
+  body = body.replace(/[.?!]+$/, '').trim();
+  for (const sep of ['|', ',']){
+    const parts = body.split(sep).map(s => s.trim()).filter(Boolean);
+    const wordy = parts.filter(s => !/\d/.test(s)).length;
+    if (parts.length >= 3 && parts.every(s => s.length <= 40) && wordy >= parts.length - 1)
+      return parts;
+  }
+  return null;
+}
 
 function parseOptions(text){
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean).reverse();
   for (const line of lines){
-    let body = line, m = line.match(LEAD);
-    if (m) body = line.slice(m.index + m[0].length);
-    else if ((line.match(/\|/g) || []).length < 2) continue;
-
-    body = body.replace(/\*\*/g, '').trim().replace(/[.?!]+$/, '');
-    for (const sep of ['|', ',']){
-      const parts = body.split(sep).map(s => s.trim()).filter(Boolean)
-                        .filter(s => s.length <= 40);
-      if (parts.length >= 2) return parts;
+    const body = line.replace(/\*\*/g, '').trim();
+    const colons = [];
+    for (let i = 0; i < body.length; i++) if (body[i] === ':') colons.push(i);
+    for (const i of colons.reverse()){
+      const hit = asList(body.slice(i + 1));
+      if (hit) return hit;
     }
+    const whole = asList(body);
+    if (whole) return whole;
   }
   return null;
 }
@@ -206,7 +223,7 @@ async function start(){
   document.getElementById('foot').textContent =
     'Hisaab can make mistakes. Please verify important information.';
   if (!cfg.ready){
-    document.getElementById('sub').innerHTML = '<span class="dot"></span>Your AI accountant, always here.';
+    document.getElementById('sub').textContent = 'not configured';
     sys('Set PHINITE_BASE, PHINITE_TOKEN and PHINITE_INTEGRATION_ID, then restart.', true);
     return;
   }
