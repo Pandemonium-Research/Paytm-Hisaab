@@ -35,6 +35,7 @@ This file is the running order, who does what, and the contract between the two 
 **Track B — next**
 
 1. Deploy the service to Render; hand Track A the URL and both keys.
+   Step by step, with the verification curls and the free-plan traps: [DEPLOY.md](DEPLOY.md).
 2. P1 tools: `map_hsn_exemption`, `detect_return_mismatch`, `draft_ncrp_grievance`.
 3. Provenance agent prompt: when to take the rule label, when to ask, how to word the reason.
 4. Phinite Evaluations dataset from the eval split.
@@ -163,7 +164,9 @@ Attach each with "Apply to: One agent", not the whole flow. The deny-by-default 
 
 ## Data service
 
-FastAPI on Render, seeded by running the generator at build time, so no data is committed and the demo IDs always match DATA.md.
+FastAPI on Render, seeded by running the generator *and* `simulate_year` at build time, so no
+data is committed, the demo IDs always match DATA.md, and a free-plan restart restores the year
+of proposals rather than emptying it. Deployment steps: [DEPLOY.md](DEPLOY.md).
 
 | Endpoint | Purpose |
 |---|---|
