@@ -1,0 +1,248 @@
+[
+  {
+    "item": "Tomato",
+    "hsn": "0702",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Onion",
+    "hsn": "0703",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Potato",
+    "hsn": "0701",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Beans",
+    "hsn": "0708",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Carrot",
+    "hsn": "0706",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Cabbage",
+    "hsn": "0704",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Coriander & greens",
+    "hsn": "0709",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Banana",
+    "hsn": "0803",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Tender coconut",
+    "hsn": "0801",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Lemon",
+    "hsn": "0805",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Loose milk",
+    "hsn": "0401",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Eggs",
+    "hsn": "0407",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Fresh flowers",
+    "hsn": "0603",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Loose rice",
+    "hsn": "1006",
+    "exempt": true,
+    "basis": "fresh / loose / unbranded - nil-rated or exempt"
+  },
+  {
+    "item": "Biscuits",
+    "hsn": "1905",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Namkeen",
+    "hsn": "2106",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Packaged atta",
+    "hsn": "1101",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Branded rice",
+    "hsn": "1006",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Cooking oil",
+    "hsn": "1512",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Bath soap",
+    "hsn": "3401",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Detergent",
+    "hsn": "3402",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Toothpaste",
+    "hsn": "3306",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Shampoo",
+    "hsn": "3305",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Chocolate",
+    "hsn": "1806",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Soft drink",
+    "hsn": "2202",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Instant noodles",
+    "hsn": "1902",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Tea powder",
+    "hsn": "0902",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Sugar",
+    "hsn": "1701",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Agarbatti",
+    "hsn": "3307",
+    "exempt": false,
+    "basis": "pre-packaged, labelled or branded - taxable"
+  },
+  {
+    "item": "Phone cover",
+    "hsn": "3926",
+    "exempt": false,
+    "basis": "taxable goods"
+  },
+  {
+    "item": "Charger",
+    "hsn": "8504",
+    "exempt": false,
+    "basis": "taxable goods"
+  },
+  {
+    "item": "Earphones",
+    "hsn": "8518",
+    "exempt": false,
+    "basis": "taxable goods"
+  },
+  {
+    "item": "Screen guard",
+    "hsn": "3919",
+    "exempt": false,
+    "basis": "taxable goods"
+  },
+  {
+    "item": "Memory card",
+    "hsn": "8523",
+    "exempt": false,
+    "basis": "taxable goods"
+  },
+  {
+    "item": "USB cable",
+    "hsn": "8544",
+    "exempt": false,
+    "basis": "taxable goods"
+  },
+  {
+    "item": "Power bank",
+    "hsn": "8507",
+    "exempt": false,
+    "basis": "taxable goods"
+  },
+  {
+    "item": "Coffee",
+    "hsn": "996331",
+    "exempt": false,
+    "basis": "restaurant service (SAC 996331) - taxable service"
+  },
+  {
+    "item": "Idli-vada",
+    "hsn": "996331",
+    "exempt": false,
+    "basis": "restaurant service (SAC 996331) - taxable service"
+  },
+  {
+    "item": "Masala dosa",
+    "hsn": "996331",
+    "exempt": false,
+    "basis": "restaurant service (SAC 996331) - taxable service"
+  },
+  {
+    "item": "Meals",
+    "hsn": "996331",
+    "exempt": false,
+    "basis": "restaurant service (SAC 996331) - taxable service"
+  },
+  {
+    "item": "Parcel order",
+    "hsn": "996331",
+    "exempt": false,
+    "basis": "restaurant service (SAC 996331) - taxable service"
+  }
+]
