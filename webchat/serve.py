@@ -110,8 +110,29 @@ async def send(session_id: str, request: Request):
     return StreamingResponse(relay(), media_type="application/x-ndjson")
 
 
+def _lan_ip():
+    """Best guess at this machine's address on the local network."""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))          # no packet is sent; this just picks the route
+        return s.getsockname()[0]
+    except Exception:
+        return None
+    finally:
+        s.close()
+
+
 if __name__ == "__main__":
     import uvicorn
+
+    # Default to loopback. HISAAB_WEBCHAT_HOST=0.0.0.0 opens it to the local network,
+    # which is what you want for a phone or a second laptop - and which also lets anyone
+    # on that network spend credits and commit attestations through this proxy, because
+    # it carries the workspace token. Fine for a demo on a network you trust, not for
+    # leaving running.
+    host = os.getenv("HISAAB_WEBCHAT_HOST", "127.0.0.1")
+    port = int(os.getenv("HISAAB_WEBCHAT_PORT", "8090"))
 
     missing = [
         n for n, v in (("PHINITE_BASE", BASE), ("PHINITE_TOKEN", TOKEN),
@@ -120,5 +141,12 @@ if __name__ == "__main__":
     if missing:
         print("!! not configured: %s" % ", ".join(missing))
         print("   the page will load and tell you the same thing.\n")
-    print("   http://127.0.0.1:8090   (env: %s)\n" % ENVIRONMENT)
-    uvicorn.run(app, host="127.0.0.1", port=8090, log_level="warning")
+
+    print("   http://127.0.0.1:%d   (env: %s)" % (port, ENVIRONMENT))
+    if host == "0.0.0.0":
+        ip = _lan_ip()
+        if ip:
+            print("   http://%s:%d   <- on this network" % (ip, port))
+        print("   reachable by anyone on this network; it holds the workspace token")
+    print()
+    uvicorn.run(app, host=host, port=port, log_level="warning")
