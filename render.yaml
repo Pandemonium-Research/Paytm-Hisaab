@@ -3,25 +3,35 @@
 # The dataset is generated at build time rather than committed, so the demo txn_ids
 # always match DATA.md and no synthetic ledger lands in git.
 #
-# Caveat for the demo: on the free plan the disk is ephemeral and the instance sleeps
-# after inactivity, so ledger.db resets. Proposals must be re-seeded before the demo
-# (the nightly Cron pass does this), or attach a persistent disk.
+# The ledger is seeded at build time too, into the app directory rather than /tmp.
+# On the free plan the filesystem is ephemeral: runtime writes survive until the
+# instance sleeps, then it restarts from the build. Seeding during the build means a
+# sleep *restores* the demo state (a year of proposals, the 8-9 Mar queue left pending)
+# instead of emptying it. Attestations made during the demo are the only thing lost.
 services:
   - type: web
     name: hisaab-data-service
     runtime: python
     plan: free
-    buildCommand: "pip install -r requirements.txt && python -m synth.generate --only demo"
+    region: singapore
+    buildCommand: >-
+      pip install -r requirements.txt &&
+      python -m synth.generate --only demo &&
+      python -m tools.simulate_year --reset
     startCommand: "uvicorn service.app:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.7"
       - key: HISAAB_SPLIT
         value: demo
       - key: HISAAB_DATA
         value: data
       - key: HISAAB_LEDGER_DB
-        value: /tmp/ledger.db
+        value: ledger.db
+      # Read + propose. Goes on BOTH graphs.
       - key: HISAAB_KEY
-        generateValue: true
+        sync: false
+      # Commit an attestation. Goes ONLY on hisaab-merchant.
       - key: HISAAB_ATTEST_KEY
-        generateValue: true
+        sync: false
