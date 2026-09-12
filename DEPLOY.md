@@ -155,6 +155,22 @@ about, they are gone until the next restart. To reset deliberately, Render →
 **Manual Deploy** → **Clear build cache & deploy**, which re-runs the seed (3–5 min), or
 locally `python -m tools.simulate_year --reset`.
 
+## 4b. Two traps when testing locally against the deployed URL
+
+**`.env` with CRLF line endings.** `set -a && . ./.env` then fails with `command not found: ^M`,
+and every variable carries a trailing carriage return, so `$HISAAB_API/health` resolves to a
+URL with a `\r` in it and curl returns `000` — which looks exactly like the service being down.
+Check with `file .env`; fix with `perl -pi -e 's/\r\n/\n/g' .env`.
+
+**Python cannot verify the certificate.** `curl` works but `python -m tools.check_beats` against
+an `https://` URL dies with `CERTIFICATE_VERIFY_FAILED: unable to get local issuer certificate`.
+That is the macOS python.org build shipping without a CA bundle; it is not a problem with the
+tools, and Phinite's sandbox does HTTPS correctly. Fix for the shell you are testing in:
+
+```bash
+export SSL_CERT_FILE=$(.venv/bin/python -c "import certifi; print(certifi.where())")
+```
+
 ## 5. Fallback if Render will not cooperate
 
 Run the service locally and tunnel it:
