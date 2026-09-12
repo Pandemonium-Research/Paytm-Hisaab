@@ -34,11 +34,36 @@ This file is the running order, who does what, and the contract between the two 
 
 **Track B — next**
 
-1. Deploy the service to Render; hand Track A the URL and both keys.
+1. ~~Deploy the service to Render~~ — **done**, `https://hisaab-data-service.onrender.com`,
+   `auth: keyed`, 13,267 ledger rows, reachable from inside Phinite's sandbox.
    Step by step, with the verification curls and the free-plan traps: [DEPLOY.md](DEPLOY.md).
-2. P1 tools: `map_hsn_exemption`, `detect_return_mismatch`, `draft_ncrp_grievance`.
+2. P1 tools: `map_hsn_exemption` and `draft_ncrp_grievance`. **`detect_return_mismatch` is
+   cut** — see below.
 3. Provenance agent prompt: when to take the rule label, when to ask, how to word the reason.
 4. Phinite Evaluations dataset from the eval split.
+
+### Why `detect_return_mismatch` is cut
+
+It has nothing to fire on in the demo. `declared_returns()` in the generator only runs for
+`gst == "composition"`, and only the `composition_kirana` archetype carries that. Sahana
+inherits `unregistered` from `_BASE`, so `data/demo` holds exactly two events:
+`account_frozen` and `tax_notice`. That is correct by design — an unregistered trader files
+no returns — but it means the tool can never run in any of the four beats. It costs build
+time and buys no stage moment.
+
+**The gap this leaves, and the answer to have ready.** That tool is PLAN Module A's second
+half: "tracks the gap between Paytm-collected receipts and what the merchant has declared,
+which is exactly the reconciliation authorities now perform" ([PLAN.md](PLAN.md) §3). Cutting
+it means the demo shows the threshold projection but not the mismatch detection. If a judge
+asks:
+
+> The mismatch check runs against a registered composition dealer, because that is who files
+> a CMP-08 to disagree with. Our demo merchant is unregistered, so she has no returns to
+> reconcile — that is the whole reason she gets a notice. The `composition_kirana` merchant in
+> our dev and eval splits has four quarters of under-declared CMP-08 returns seeded, and the
+> same ledger answers it.
+
+Better to say that than to discover the gap on stage.
 
 **Track A — with the teammate**: Phinite workspace, graphs, publishing tools, policies, Web Chat,
 builds, registry, observability, rehearsal.
