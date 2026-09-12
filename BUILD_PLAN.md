@@ -11,6 +11,37 @@ This file is the running order, who does what, and the contract between the two 
 | Data service host | **Render** | Public HTTPS that survives a laptop sleeping. ngrok tunnel is the backup. |
 | Demo data | **Synthetic** (`data/demo`) | Calibrated to the four beats. Show a Paytm sandbox read separately, as proof it connects. |
 
+## Status
+
+**Track B — done and verified locally**
+
+- **Data service.** One implementation, built from both: the teammate's store and `get_credit`
+  kept, with three additions ported in — the `ask` flag (materiality), `/merchant_mix` (exempt
+  share, for apportioning unbilled QR sales) and gross totals in the rollup — plus `/untagged`
+  for the nightly pass. Fixed `/hsn`, which returned a list under a `dict` annotation and 500'd.
+- **Tools 1–10** written, adapted to the live service, exercised end to end (`tools/run_local.py`).
+- **`simulate_year`**: a year of nightly passes plus a stand-in merchant answering the queue —
+  **189 questions across the year, median 1.3/day, none over the ≤3/day budget**, 0 credits left
+  untagged, merchant corrected 52.
+- **`check_beats`**: all four beats pass.
+  - beat 1 — the queue asked on 10 Mar surfaces exactly the three seeded credits and nothing else
+  - beat 2 — projection from 31 Jan lands within a day of 14 Mar, ~6 weeks of warning
+  - beat 3 — aggregate turnover within **1.6%** of truth against the ₹60.98L claim, and the
+    taxable share within **1%** (unbilled QR sales are apportioned by value from the billed
+    ratio; labelling each one by its majority side understated taxable turnover threefold,
+    which is the one direction PLAN §7 says we must never drift)
+  - beat 4 — ₹4,200 isolated by UTR *and* by amount+date, decoy listed but not chosen
+
+**Track B — next**
+
+1. Deploy the service to Render; hand Track A the URL and both keys.
+2. P1 tools: `map_hsn_exemption`, `detect_return_mismatch`, `draft_ncrp_grievance`.
+3. Provenance agent prompt: when to take the rule label, when to ask, how to word the reason.
+4. Phinite Evaluations dataset from the eval split.
+
+**Track A — with the teammate**: Phinite workspace, graphs, publishing tools, policies, Web Chat,
+builds, registry, observability, rehearsal.
+
 ## Platform shape
 
 Two Agent Graphs, not four separate agents:
@@ -40,7 +71,7 @@ on the synchronous path.
 ## Tracks
 
 - **Track A — Phinite (teammate).** Workspace, graphs, publishing tools, policies, channel, builds, registry, observability, demo rehearsal.
-- **Track B — Python (Claude).** Data service, tool handlers, classifier rules and prompts, evaluation numbers.
+- **Track B — Python (us).** Data service, tool handlers, classifier rules and prompts, evaluation numbers.
 
 **Sync points:** (1) tool contract agreed — below; (2) data service URL live; (3) each tool handler published as it lands.
 
@@ -84,7 +115,7 @@ Shared env variables (set per environment in Phinite):
 | 3 | `classify_credit_rules` | `txn_id` | deterministic label or `null`, with evidence | Provenance | P0 |
 | 4 | `propose_tag` | `txn_id`, `label`, `reason`, `confidence` | ledger row (status `proposed`) | Provenance | P0 |
 | 5 | `commit_attestation` | `txn_id`, `label`, `source`, `note` | ledger row (status `attested`) | Merchant only | P0 |
-| 6 | `get_attestation_queue` | `merchant_id`, `date`, `max=3` | ≤3 ambiguous credits with proposal and reason | Merchant | P0 |
+| 6 | `get_attestation_queue` | `merchant_id`, `date`, `lookback_days`, `max_items=3` | ≤3 ambiguous credits with proposal and reason | Merchant | P0 |
 | 7 | `compute_aggregate_turnover` | `merchant_id`, `fy`, `as_of?` | taxable + exempt total, excluded buckets, workings | Evidence | P0 |
 | 8 | `project_threshold_breach` | `merchant_id`, `as_of` | projected crossing date, lead days, threshold, exclusively-exempt flag | Evidence | P0 |
 | 9 | `isolate_disputed_credit` | `merchant_id`, `utr?`, `amount?`, `date?` | matched credit, other candidates, sale record | Evidence | P0 |
@@ -94,6 +125,10 @@ Shared env variables (set per environment in Phinite):
 | 13 | `draft_ncrp_grievance` | `merchant_id`, `txn_id`, `case_ref` | grievance draft text | Evidence | P1 |
 
 Arithmetic lives in the tools, not in the model. The service returns rows and compact rollups; tools do the maths so the workings appear in the Phinite trace.
+
+**Built:** 1–10, all verified against the live service. **Outstanding:** 11–13 (P1).
+Per-tool parameters, descriptions and Dev Studio test values: [phinite/TOOL_SCHEMAS.md](phinite/TOOL_SCHEMAS.md).
+Why the classifier asks what it asks: [tools/README.md](tools/README.md).
 
 ## Permission boundaries (PLAN §5 → tool policies)
 
@@ -115,22 +150,30 @@ FastAPI on Render, seeded by running the generator at build time, so no data is 
 | `GET /health` | liveness |
 | `GET /merchants`, `GET /merchants/{mid}` | profile, linked own accounts |
 | `GET /credits` | visible ledger, filterable by merchant/date, paginated |
-| `GET /credits/{txn_id}`, `GET /credits/by_utr/{utr}` | one credit + POS bill |
+| `GET /credits/{txn_id}`, `GET /credits/by_utr/{utr}` | one credit + POS bill + its ledger tag |
+| `GET /credits/{txn_id}/twins` | identical payments nearby, and any refund pointing at it |
 | `GET /payer_history` | payer aggregates for one counterparty |
+| `GET /merchant_mix` | exempt share of POS-billed value, for apportioning unbilled QR sales |
+| `GET /hsn` | the public HSN catalogue |
 | `GET /events` | tax notice, freeze, declared returns |
-| `GET /ledger`, `GET /ledger/rollup` | tags; rollup by label/day for turnover maths |
-| `POST /ledger/propose` | Provenance writes a proposed tag |
+| `GET /untagged` | credits with no tag yet — the nightly pass's work queue |
+| `GET /ledger`, `GET /ledger/rollup` | tags; rollup by label and day, plus gross and untagged totals |
+| `POST /ledger/propose` | Provenance writes a proposed tag (`ask` puts it in the queue) |
 | `POST /ledger/attest` | Merchant commits an attested tag (separate key) |
-| `GET /attestation_queue` | ≤3 ambiguous credits for a day |
+| `GET /attestation_queue` | ≤3 flagged credits from the days before `date` |
 
-`hidden/` is never served. The service reads `visible/` only; ground truth stays out of the runtime path.
+Auth is the `X-Hisaab-Key` header. `hidden/` is never served: `store._visible()` refuses any path
+containing it, so ground truth stays out of the runtime path.
 
 ## Demo checklist (rehearse in this order)
 
 1. **Ordinary Tuesday** — 10 Mar 2026, three credits, one tap each, ledger updates.
 2. **The warning** — replay as of 31 Jan 2026, projection lands near 14 Mar 2026, tells her to register, routes to a CA.
 3. **The notice** — ₹60.98L claimed, pack shows ₹42.9L aggregate turnover, every line clickable to a txn_id in the trace.
-4. **The emergency** — freeze at 09:30 on 24 Mar, isolate ₹4,200 (UTR `608019013171`) out of 339 that week, reject the decoy, draft the grievance, Escalation holds delivery for human approval.
+4. **The emergency** — freeze at 09:30 on 24 Mar, isolate ₹4,200 (UTR `608019013171`), reject the
+   decoy `DM0012998`, draft the grievance, Escalation holds delivery for human approval. Say "339
+   payments in the week before the freeze" (the scenario's own figure); the tool reports 409 for
+   the seven days ending on the disputed payment itself, which is a different window.
 
 Expected values are in `data/demo/hidden/demo_scenario.json`. Every beat needs a static fallback.
 
