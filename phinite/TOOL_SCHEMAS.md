@@ -216,3 +216,27 @@ listed as the other ₹4,200 payment.
 Composes what the other tools returned and never recomputes a figure, so a pack cannot quietly
 disagree with the ledger. Carries its own limits: digital receipts only, how much is
 merchant-confirmed, and no assertion that the payer was innocent.
+
+## 11. `get_untagged_credits`
+
+The nightly pass's work queue. Provenance calls this first, then works the rows.
+
+**Description**
+
+> Credits that carry no provenance tag yet. Call it at the start of the nightly pass to find
+> what needs classifying, then run `classify_credit_rules` over each txn_id it returns.
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `merchant_id` | string | yes | e.g. `MID_DEMO_SAHANA` |
+| `date_from` | string | no | `YYYY-MM-DD`, inclusive |
+| `date_to` | string | no | `YYYY-MM-DD`, inclusive |
+| `limit` | number | no | default 200, hard cap 2000 |
+
+Dates are IST, matching the ledger. **Captured**: `untagged_count`, `untagged_returned`,
+`first_untagged_txn_id`.
+
+**Test**: against the seeded demo ledger every credit is already tagged, so
+`merchant_id` = `MID_DEMO_SAHANA` returns `total_untagged: 0` with a note saying the pass has
+no work. That is the correct answer, not a failure — the seed represents a year of nightly
+passes that have already run.
