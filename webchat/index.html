@@ -8,82 +8,105 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Kannada:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  /* Matches the Paytm Hisaab dashboard mock: Paytm navy + cyan on a cool grey ground,
-     white cards with soft borders, outlined suggestion chips stacked vertically. */
+  /* Palette sampled from the Paytm Hisaab lockup: #001b50 navy, #00a2ed blue. */
   :root{
-    --ground:#eef2f7; --card:#ffffff; --line:#e4e9f0;
-    --cyan:#00baf2; --blue:#1a5fd0;
-    --ink:#18202f; --muted:#6b7a90;
-    --them:#f2f5f9; --me:#dceafc;
-    --ok:#0b8a4b; --warn:#b42318;
+    --navy:#001b50; --blue:#00a2ed; --link:#0f62d6;
+    --ground:#eaeef4; --card:#fff; --chat:#f7f9fc; --line:#e6ebf2;
+    --ink:#0f1929; --muted:#64748b;
+    --them:#ffffff; --me:#e1f2fd;
+    --ok:#12a150; --warn:#b42318;
+    --shadow:0 20px 60px rgba(0,27,80,.16);
   }
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;background:var(--ground);color:var(--ink);
-       font-family:"Inter",system-ui,-apple-system,sans-serif;
-       display:flex;align-items:center;justify-content:center;padding:24px 16px}
-  .panel{width:100%;max-width:440px;height:min(880px,94vh);background:var(--card);
-         border:1px solid var(--line);border-radius:16px;overflow:hidden;
-         display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(1,43,114,.10)}
-  header{padding:16px 18px 13px;border-bottom:1px solid var(--line);flex:0 0 auto}
-  .brand{display:flex;align-items:center;gap:9px}
-  .mark{width:26px;height:26px;border-radius:7px;flex:0 0 auto;
-        background:linear-gradient(135deg,var(--cyan),var(--blue));
-        display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
-  .title{font-size:16px;font-weight:650;letter-spacing:-.01em}
-  .beta{font-size:10px;font-weight:600;color:var(--blue);background:#e8f0fe;
-        padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:2px}
-  .sub{font-size:12px;color:var(--muted);margin-top:5px}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;
-       margin-right:6px}
-  #log{flex:1;overflow-y:auto;padding:16px 16px 6px;display:flex;flex-direction:column;gap:9px}
+       font-family:"Inter",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;
+       display:flex;align-items:center;justify-content:center;padding:20px 14px}
+  .panel{width:100%;max-width:420px;height:min(880px,95vh);background:var(--card);
+         border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+
+  header{padding:14px 16px 12px;border-bottom:1px solid var(--line);background:#fff;flex:0 0 auto}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .logo{height:19px;width:auto;display:block}
+  .store{display:flex;align-items:center;gap:7px}
+  .store .nm{font-size:11px;font-weight:600;color:var(--navy);line-height:1.2;text-align:right}
+  .store .lc{font-size:10px;color:var(--muted);font-weight:400}
+  .ss{width:26px;height:26px;border-radius:50%;background:var(--navy);color:#fff;
+      font-size:10px;font-weight:650;display:grid;place-items:center;flex:0 0 auto}
+  .askrow{display:flex;align-items:center;gap:7px;margin-top:11px}
+  .ask{font-size:14.5px;font-weight:650;color:var(--navy);letter-spacing:-.01em}
+  .beta{font-size:9.5px;font-weight:650;color:var(--link);background:#e8f1fe;
+        padding:2px 6px;border-radius:9px;letter-spacing:.02em}
+  .sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:5px}
+
+  #log{flex:1;overflow-y:auto;padding:16px 14px 8px;display:flex;flex-direction:column;gap:10px;
+       background:var(--chat)}
+  #log::-webkit-scrollbar{width:6px}
+  #log::-webkit-scrollbar-thumb{background:#d3dce8;border-radius:3px}
   .row{display:flex}
   .row.me{justify-content:flex-end}
-  .msg{max-width:86%;padding:11px 13px;border-radius:12px;font-size:14.5px;line-height:1.6;
+  .msg{max-width:88%;padding:11px 13px;border-radius:14px;font-size:14px;line-height:1.62;
        white-space:pre-wrap;word-wrap:break-word;
        font-family:"Noto Sans Kannada","Inter",system-ui,sans-serif}
-  .them .msg{background:var(--them);border-bottom-left-radius:4px}
-  .me .msg{background:var(--me);border-bottom-right-radius:4px}
-  .msg strong{font-weight:650}
-  .sys{align-self:center;font-size:11.5px;color:var(--muted);background:#f4f6f9;
+  .them .msg{background:var(--them);border:1px solid var(--line);border-top-left-radius:5px;
+             box-shadow:0 1px 2px rgba(15,25,41,.04)}
+  .me .msg{background:var(--me);border-top-right-radius:5px;color:#07305c}
+  .msg strong{font-weight:650;color:var(--navy)}
+  .me .msg strong{color:#07305c}
+
+  .sys{align-self:center;font-size:11px;color:var(--muted);background:#eef2f8;
        padding:5px 11px;border-radius:20px;text-align:center;max-width:92%}
   .sys.err{background:#fef3f2;color:var(--warn)}
-  .opts{display:flex;flex-direction:column;gap:7px;padding:4px 0 8px;align-items:flex-start}
-  .opt{border:1px solid #c9dcfa;background:#fff;color:var(--blue);
-       padding:9px 14px;border-radius:9px;font-size:13.5px;cursor:pointer;text-align:left;
-       font-family:"Noto Sans Kannada","Inter",sans-serif;font-weight:500;transition:.12s}
-  .opt:hover{background:#f2f7ff;border-color:var(--blue)}
-  .opt:disabled{opacity:.45;cursor:default;background:#fff}
-  .opt.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
-  .opt.primary:hover{filter:brightness(1.08)}
+
+  .opts{display:flex;flex-direction:column;gap:6px;padding:2px 0 6px}
+  .opt{border:1px solid #cfe0f5;background:#fff;color:var(--link);
+       padding:10px 14px;border-radius:10px;font-size:13.5px;cursor:pointer;text-align:left;
+       font-family:"Noto Sans Kannada","Inter",sans-serif;font-weight:550;
+       transition:background .12s,border-color .12s,transform .06s}
+  .opt:hover{background:#f2f8ff;border-color:var(--link)}
+  .opt:active{transform:scale(.995)}
+  .opt:disabled{opacity:.4;cursor:default;background:#fff;border-color:var(--line)}
+  .opt.primary{background:var(--link);color:#fff;border-color:var(--link)}
+  .opt.primary:hover{background:#0a55c0}
+
   .dots{display:inline-flex;gap:4px;padding:3px 2px}
-  .dots i{width:6px;height:6px;border-radius:50%;background:#9fb0c6;animation:b 1.2s infinite}
+  .dots i{width:6px;height:6px;border-radius:50%;background:#b6c4d6;animation:b 1.2s infinite}
   .dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
   @keyframes b{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
-  footer{flex:0 0 auto;border-top:1px solid var(--line);padding:11px 14px 10px}
-  .bar{display:flex;gap:9px;align-items:center;border:1px solid var(--line);
-       border-radius:11px;padding:5px 6px 5px 13px;transition:.12s}
-  .bar:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,95,208,.10)}
-  input{flex:1;border:0;outline:none;font-size:14.5px;background:transparent;padding:6px 0;
+
+  footer{flex:0 0 auto;border-top:1px solid var(--line);padding:10px 12px 9px;background:#fff}
+  .bar{display:flex;gap:8px;align-items:center;border:1px solid #dbe3ed;
+       border-radius:24px;padding:4px 4px 4px 15px;transition:border-color .12s,box-shadow .12s}
+  .bar:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(0,162,237,.13)}
+  input{flex:1;border:0;outline:none;font-size:14px;background:transparent;padding:7px 0;
         font-family:"Noto Sans Kannada","Inter",sans-serif;color:var(--ink)}
+  input::placeholder{color:#9aa8ba}
   button.send{border:0;background:var(--blue);color:#fff;width:34px;height:34px;
-              border-radius:9px;cursor:pointer;font-size:15px;flex:0 0 auto}
-  button.send:disabled{opacity:.4;cursor:default}
-  .foot{font-size:10.5px;color:var(--muted);text-align:center;padding:8px 4px 0}
+              border-radius:50%;cursor:pointer;font-size:15px;flex:0 0 auto;line-height:1}
+  button.send:hover:not(:disabled){background:#0090d4}
+  button.send:disabled{background:#c3d2e0;cursor:default}
+  .foot{font-size:10px;color:#94a3b8;text-align:center;padding:7px 4px 0;line-height:1.4}
 </style>
 </head>
 <body>
 <div class="panel">
   <header>
-    <div class="brand">
-      <div class="mark">&#3257;&#3263;</div>
-      <div class="title">Ask Hisaab<span class="beta">Beta</span></div>
+    <div class="top">
+      <img class="logo" src="/logo.png" alt="Paytm Hisaab">
+      <div class="store">
+        <div class="nm">Sahana Stores<div class="lc">Jayanagar, Bengaluru</div></div>
+        <div class="ss">SS</div>
+      </div>
+    </div>
+    <div class="askrow">
+      <span class="ask">Ask Hisaab</span><span class="beta">BETA</span>
     </div>
     <div class="sub" id="sub">connecting&hellip;</div>
   </header>
   <div id="log"></div>
   <footer>
     <div class="bar">
-      <input id="text" placeholder="Type your answer" autocomplete="off" disabled>
+      <input id="text" placeholder="Type your answer&hellip;" autocomplete="off" disabled>
       <button class="send" id="send" disabled>&#8593;</button>
     </div>
     <div class="foot" id="foot"></div>
@@ -181,9 +204,9 @@ async function start(){
   let cfg = {};
   try { cfg = await (await fetch('/api/config')).json(); } catch(e){}
   document.getElementById('foot').textContent =
-    (cfg.base || 'no PHINITE_BASE') + ' · ' + (cfg.env || '?');
+    'Hisaab can make mistakes. Please verify important information.';
   if (!cfg.ready){
-    document.getElementById('sub').textContent = 'not configured';
+    document.getElementById('sub').innerHTML = '<span class="dot"></span>Your AI accountant, always here.';
     sys('Set PHINITE_BASE, PHINITE_TOKEN and PHINITE_INTEGRATION_ID, then restart.', true);
     return;
   }
