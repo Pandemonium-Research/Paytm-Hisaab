@@ -17,6 +17,7 @@ disputed (object from isolate_disputed_credit, optional).
 Self-contained: paste this whole file into Dev Studio. Standard library only.
 """
 import json
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -32,14 +33,12 @@ LABEL_TEXT = {
 }
 
 
-def _api(env, path, params=None, body=None, key="HISAAB_KEY"):
-    base = (env.get("HISAAB_API") or "http://127.0.0.1:8000").rstrip("/")
+def _get(env, path, params=None):
+    base = (env.get("HISAAB_API") or "").rstrip("/")
     url = base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-    data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data, method="POST" if body is not None else "GET",
-                                 headers={"X-API-Key": env.get(key) or "", "Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read())
+    req = urllib.request.Request(url, headers={"X-Hisaab-Key": env.get("HISAAB_KEY") or ""})
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        return json.loads(resp.read().decode("utf-8"))
 
 
 def _obj(value):
@@ -136,8 +135,8 @@ def main(inputs, env_variables):
         return {"output": {"error": 'merchant_id required and kind must be "tax" or "freeze"'},
                 "captured_variables": {}}
 
-    merchant = _api(env_variables, "/merchants/%s" % merchant_id)
-    events = _api(env_variables, "/events", {"merchant_id": merchant_id})
+    merchant = _get(env_variables, "/merchants/" + urllib.parse.quote(merchant_id))
+    events = _get(env_variables, "/events", {"merchant_id": merchant_id})
     turnover, threshold = _obj(inputs.get("turnover")), _obj(inputs.get("threshold"))
     disputed = _obj(inputs.get("disputed"))
 
@@ -176,5 +175,9 @@ def main(inputs, env_variables):
         pack["limits"].insert(1, "%s across %d payments is not yet accounted for and is shown as "
                                  "unresolved rather than assumed."
                               % (_rupees(coverage.get("untagged_amount")), coverage.get("untagged")))
+    if coverage and coverage.get("attested_amount") is not None:
+        pack["limits"].insert(1, "%s of the turnover shown is confirmed by the merchant; the rest is "
+                                 "the agent's proposal awaiting confirmation."
+                              % _rupees(coverage.get("attested_amount")))
     return {"output": pack, "captured_variables": {"pack_kind": kind,
                                                    "pack_reference": body.get("reference", "")}}
