@@ -153,11 +153,20 @@ and the trace will show it.
 ### Skills (deterministic, testable, traceable)
 
 ```
-reconcile_ledger            compute_aggregate_turnover
-project_threshold_breach    detect_return_mismatch
-isolate_disputed_credit     map_hsn_exemption
-build_evidence_pack         draft_ncrp_grievance
+get_credit                  get_payer_history
+classify_credit_rules       propose_tag
+commit_attestation          get_attestation_queue
+compute_aggregate_turnover  project_threshold_breach
+isolate_disputed_credit     build_evidence_pack
 ```
+
+Built and verified against the live service. Three more are P1: `map_hsn_exemption`,
+`detect_return_mismatch`, `draft_ncrp_grievance`. Parameters and test values are in
+[phinite/TOOL_SCHEMAS.md](phinite/TOOL_SCHEMAS.md); the running order is in
+[BUILD_PLAN.md](BUILD_PLAN.md).
+
+`classify_credit_rules` is the one that keeps the agent count honest: it settles the credits
+that need no judgement, so the Provenance agent only reasons about the ~1% that do.
 
 ### Permission boundaries (matters for the Phinite identity story)
 
@@ -195,6 +204,11 @@ process, so there is **ground truth** to score against:
 This lets you demo the classifier *recovering* the true labels and report a
 real accuracy number rather than vibes. Roughly 90 minutes of work and no other
 team will have it.
+
+**Built.** `python -m synth.generate` produces demo, dev, eval and difficulty-sweep splits,
+each separated into `visible/` (what agents may read) and `hidden/` (the answers). How it was
+generated, what it means for the build, the evaluation targets and the caveats are in
+[DATA.md](DATA.md); the column reference is [data/README.md](data/README.md).
 
 ---
 
@@ -251,32 +265,50 @@ Resolve these first. Any one of them can reshape or end the project.
 
 ## 10. Metrics to claim on stage
 
-- Classification accuracy against seeded ground truth (report it honestly,
-  including the `unclassified` rate).
-- Attestation burden: median ambiguous credits surfaced per merchant per day.
-- Lead time: days of warning before a projected threshold breach.
-- Time to assemble an evidence pack, versus the manual alternative of digging
-  through years of statements.
+Measured on the demo merchant (a year, 13,267 credits). Re-run with
+`python -m tools.simulate_year --reset` and `python -m tools.check_beats`.
+
+- **Turnover accuracy:** aggregate turnover within **1.6%** of the seeded truth, against a
+  notice claiming ₹60.98L of receipts as income. The taxable share — the part tax is actually
+  paid on — lands within **1%** (₹10.87L against ₹10.73L), because unbilled QR sales are
+  apportioned by value from the shop's billed ratio rather than labelled wholesale one way.
+- **Attestation burden:** **189 questions across the year, median 1.3 a day**, none over the
+  ≤3/day budget. The merchant corrected 52 of them.
+- **Lead time:** projecting from 31 Jan lands within a day of the true crossing date, **43 days
+  of warning**.
+- **Isolation:** the disputed ₹4,200 found by UTR *and* by amount and date, with the innocent
+  same-amount payment that week listed but not chosen.
+- **Classifier floor:** a rules-only baseline on the held-out eval split gets 99.3% on sale vs
+  not-a-sale and **77.8% recall on non-sale credits** ([DATA.md](DATA.md) §6.3). Report what the
+  agent adds over that, and the `unclassified` rate, honestly.
 
 ---
 
 ## 11. Demo — four beats
 
-1. **Ordinary Tuesday.** Three credits surfaced on WhatsApp in Kannada: "₹15,000
-   at 11pm Sunday from a VPA matching your savings account — personal transfer?"
-   One tap each. Ledger updates.
-2. **The warning.** "At your current rate you cross ₹40 lakh around 14 March.
-   You will need to register. Here is what it costs." *(This beat is what makes
-   the pitch safe.)*
-3. **The notice.** A notice arrives claiming ₹62 lakh of turnover. The agent
-   produces the pack: ₹41 lakh exempt supplies, ₹6 lakh personal, ₹2 lakh
-   duplicates and refunds, ₹13 lakh actual taxable turnover — every line
-   traceable to an attested credit.
-4. **The emergency.** Account frozen Tuesday morning, supplier payment due. The
-   agent isolates the single disputed ₹4,200 credit out of 340 that week,
-   produces the sale record, and drafts the grievance citing the
-   lien-only-the-disputed-amount judgments — before the merchant has finished
-   panicking.
+Demoed on Web Chat in Kannada; WhatsApp is the production path and needs credentials we
+decided not to wait for. Every figure below comes out of the running system — the answer key
+is `data/demo/hidden/demo_scenario.json`.
+
+1. **Ordinary Tuesday.** Tuesday 10 March, three credits from the weekend, one tap each:
+   ₹15,000 at 11:04pm Sunday from her own savings account (*her own money, not a sale*);
+   ₹7,500 from her husband on Monday afternoon, scanned at the shop QR like any customer;
+   ₹4,850 from Raghu Shetty, who has bought twice before — a real sale, and the agent asks
+   rather than assuming. Nothing else is surfaced: the other 36 credits those days are
+   ordinary sales, and a ₹23 payment nobody can place is left alone.
+2. **The warning.** Replaying as of 31 January: "at your current rate you cross ₹40 lakh
+   around 14 March. You will need to register." Six weeks of warning, and the date is
+   computed, not typed. *(This beat is what makes the pitch safe.)*
+3. **The notice.** A notice claims **₹60.98 lakh** of turnover. The pack: **₹42.2 lakh**
+   aggregate turnover — ₹31.3L exempt, ₹10.9L taxable — and ₹18.8 lakh that is not turnover
+   at all: ₹7.4L moved between her own accounts, ₹6.1L family money, ₹4.3L loan and chit
+   payouts, ₹0.5L supplier refunds, ₹0.5L duplicates. Every line traces to transaction IDs.
+   And it says plainly that she *did* cross ₹40 lakh and must register.
+4. **The emergency.** Account frozen Tuesday morning, supplier payment due. The agent isolates
+   the disputed ₹4,200 credit from the 339 payments that week, produces the sale record (12kg
+   onions and the rest, POS bill, till, 19:47), and drafts the grievance citing the
+   lien-only-the-disputed-amount judgments. A second ₹4,200 payment that week, from a regular
+   customer, is listed and *not* chosen.
 
 Beat 3 is the product. Beat 4 is the moment people remember. Beat 2 is what
 stops the room turning hostile.
