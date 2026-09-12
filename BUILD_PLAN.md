@@ -108,10 +108,17 @@ published and tested in Dev Studio):
 
 - **Egress works.** A tool reached `https://api.github.com` and got a 200, so the whole
   data-service architecture stands. This was the one unknown that could have killed it.
-- **The `# ENV_VARS: [...]` header is an allowlist, not a declaration.** A tool sees exactly
-  the variables it names and nothing else. `commit_attestation` is the only tool that declares
-  `HISAAB_ATTEST_KEY`, so no other tool can read the commit key even if it tried — the
-  permission boundary enforced a second way, independent of the tool policy.
+- **The `# ENV_VARS: [...]` header is a declaration, not an allowlist.** A tool can read every
+  variable set on its environment, including ones it never named: `_sandbox_check` declares
+  `HISAAB_API` and `HISAAB_KEY` and sees `HISAAB_ATTEST_KEY` too. An earlier run of the same
+  tool showed only its two declared variables, but that was because only those two were set at
+  the time — not because the header filtered anything.
+
+  **This makes scoping `HISAAB_ATTEST_KEY` to `hisaab-merchant` load-bearing, not
+  belt-and-braces.** Any tool on a graph where the commit key is set can read it out of
+  `env_variables` and attest directly, whatever its own header says. The boundary rests on the
+  Phinite tool policy denying Provenance `commit_attestation`, plus not putting the key within
+  its reach in the first place. The service's 403 only catches a tool that uses the read key.
 - **Both capture keys are returned.** Phinite reads one of `capture_variables` /
   `captured_variables` and ignores the other; Aura generates the first, our plan assumed the
   second, and the Dev Studio tool test echoes the return verbatim so it cannot settle which.

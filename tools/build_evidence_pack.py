@@ -184,9 +184,10 @@ def main(inputs, env_variables):
                                                    "pack_reference": body.get("reference", "")}}
 
 
-# Phinite injects only the variables declared in the ENV_VARS header above, so a tool
-# cannot read a key it does not ask for. commit_attestation is the only tool that
-# declares HISAAB_ATTEST_KEY, which is the permission boundary enforced a second way.
+# The ENV_VARS header above declares what this tool needs; it does NOT restrict what it can
+# read. A tool sees every variable set on its environment, declared or not. So the boundary
+# rests on the Phinite tool policy, and on HISAAB_ATTEST_KEY being scoped to hisaab-merchant
+# so it is never within reach of a Provenance tool in the first place.
 #
 # Phinite reads one of "capture_variables" / "captured_variables" and ignores the other.
 # Which one is not documented and the Dev Studio tool test echoes the return verbatim,
