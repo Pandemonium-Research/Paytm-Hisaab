@@ -95,7 +95,11 @@ Better to say that than to discover the gap on stage.
 3. **Beats 2 and 4 have never run through the graph** - only beat 3 has. Beat 4 is the one
    PLAN calls the moment people remember, and it is the one most likely to hit the
    ~120-150s API cap.
-4. **`webchat/` has not been run end to end** against the live Chat API.
+4. ~~`webchat/` untested~~ — **works.** Proxy to the live Chat API, greeting renders, the
+   agent's comma-separated options become tap targets. One fix left in the *agent*, not the
+   page: Phinite bootstraps the flow with an internal `"hi"`, the agent reads that as English
+   and greets in English. It must open in Kannada regardless and switch only if the merchant
+   herself writes English.
 5. **Credits at $2.99.** Four beats rehearsed a few times will exhaust it.
 
 **Track A — with the teammate**: Phinite workspace, graphs, publishing tools, policies, Web Chat,
