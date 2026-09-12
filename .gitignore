@@ -1,0 +1,51 @@
+# Generated datasets (reproducible: python -m synth.generate, ~1 min).
+# Ignore the contents, not the folder itself, so the exceptions below still apply.
+/data/*
+!/data/README.md
+!/data/reference/
+
+# Knowledge graph, rebuilt by `graphify update .`
+graphify-out/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# Secrets and credentials - never commit API keys for the sandbox
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+secrets.json
+
+# Node, if a web or WhatsApp demo gets added
+node_modules/
+dist/
+build/
+.next/
+npm-debug.log*
+yarn-error.log*
+
+# Editor and OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local Claude Code settings (keep shared .claude/ config tracked)
+.claude/settings.local.json
+
+# Logs and scratch
+*.log
+tmp/
+scratch/
