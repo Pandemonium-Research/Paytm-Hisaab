@@ -8,74 +8,83 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Kannada:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+  /* Matches the Paytm Hisaab dashboard mock: Paytm navy + cyan on a cool grey ground,
+     white cards with soft borders, outlined suggestion chips stacked vertically. */
   :root{
-    --bg:#0e1116; --phone:#f6f4ef; --head:#12603f; --head2:#0d4c32;
-    --them:#ffffff; --me:#d6f2c8; --ink:#16181d; --muted:#6b7280;
-    --line:#e4e0d8; --accent:#12603f;
+    --ground:#eef2f7; --card:#ffffff; --line:#e4e9f0;
+    --cyan:#00baf2; --blue:#1a5fd0;
+    --ink:#18202f; --muted:#6b7a90;
+    --them:#f2f5f9; --me:#dceafc;
+    --ok:#0b8a4b; --warn:#b42318;
   }
   *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;background:var(--bg);
-       font-family:"Inter","Noto Sans Kannada",system-ui,sans-serif;
+  body{margin:0;min-height:100vh;background:var(--ground);color:var(--ink);
+       font-family:"Inter",system-ui,-apple-system,sans-serif;
        display:flex;align-items:center;justify-content:center;padding:24px 16px}
-  .phone{width:100%;max-width:430px;height:min(860px,94vh);background:var(--phone);
-         border-radius:28px;overflow:hidden;display:flex;flex-direction:column;
-         box-shadow:0 30px 80px rgba(0,0,0,.55)}
-  header{background:var(--head);color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center;flex:0 0 auto}
-  .avatar{width:40px;height:40px;border-radius:50%;background:var(--head2);
-          display:grid;place-items:center;font-weight:600;font-size:15px}
-  .who{font-weight:600;font-size:15px;line-height:1.25}
-  .sub{font-size:11.5px;opacity:.75;margin-top:1px}
-  #log{flex:1;overflow-y:auto;padding:18px 14px 8px;display:flex;flex-direction:column;gap:10px}
+  .panel{width:100%;max-width:440px;height:min(880px,94vh);background:var(--card);
+         border:1px solid var(--line);border-radius:16px;overflow:hidden;
+         display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(1,43,114,.10)}
+  header{padding:16px 18px 13px;border-bottom:1px solid var(--line);flex:0 0 auto}
+  .brand{display:flex;align-items:center;gap:9px}
+  .mark{width:26px;height:26px;border-radius:7px;flex:0 0 auto;
+        background:linear-gradient(135deg,var(--cyan),var(--blue));
+        display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700}
+  .title{font-size:16px;font-weight:650;letter-spacing:-.01em}
+  .beta{font-size:10px;font-weight:600;color:var(--blue);background:#e8f0fe;
+        padding:2px 7px;border-radius:10px;margin-left:6px;vertical-align:2px}
+  .sub{font-size:12px;color:var(--muted);margin-top:5px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;
+       margin-right:6px}
+  #log{flex:1;overflow-y:auto;padding:16px 16px 6px;display:flex;flex-direction:column;gap:9px}
   .row{display:flex}
   .row.me{justify-content:flex-end}
-  .msg{max-width:84%;padding:9px 12px;border-radius:14px;font-size:15px;line-height:1.55;
+  .msg{max-width:86%;padding:11px 13px;border-radius:12px;font-size:14.5px;line-height:1.6;
        white-space:pre-wrap;word-wrap:break-word;
-       font-family:"Noto Sans Kannada","Inter",system-ui,sans-serif;
-       box-shadow:0 1px 1px rgba(0,0,0,.06)}
-  .them .msg{background:var(--them);border-top-left-radius:4px}
-  .me .msg{background:var(--me);border-top-right-radius:4px}
-  .msg strong{font-weight:600}
-  .sys{align-self:center;font-size:12px;color:var(--muted);background:#00000008;
-       padding:5px 11px;border-radius:20px;font-family:"Inter",sans-serif;text-align:center}
-  .sys.err{background:#fdecec;color:#a32020}
-  .opts{display:flex;flex-wrap:wrap;gap:7px;padding:2px 2px 6px}
-  .opt{border:1px solid var(--line);background:#fff;color:var(--accent);
-       padding:8px 13px;border-radius:18px;font-size:13.5px;cursor:pointer;
-       font-family:"Noto Sans Kannada","Inter",sans-serif;font-weight:500;
-       transition:.12s}
-  .opt:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .opt:disabled{opacity:.4;cursor:default;background:#fff;color:var(--muted)}
-  .opt.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .opt.primary:hover{filter:brightness(1.12)}
-  .dots{display:inline-flex;gap:4px;padding:4px 2px}
-  .dots i{width:6px;height:6px;border-radius:50%;background:#b9b9b9;animation:b 1.2s infinite}
+       font-family:"Noto Sans Kannada","Inter",system-ui,sans-serif}
+  .them .msg{background:var(--them);border-bottom-left-radius:4px}
+  .me .msg{background:var(--me);border-bottom-right-radius:4px}
+  .msg strong{font-weight:650}
+  .sys{align-self:center;font-size:11.5px;color:var(--muted);background:#f4f6f9;
+       padding:5px 11px;border-radius:20px;text-align:center;max-width:92%}
+  .sys.err{background:#fef3f2;color:var(--warn)}
+  .opts{display:flex;flex-direction:column;gap:7px;padding:4px 0 8px;align-items:flex-start}
+  .opt{border:1px solid #c9dcfa;background:#fff;color:var(--blue);
+       padding:9px 14px;border-radius:9px;font-size:13.5px;cursor:pointer;text-align:left;
+       font-family:"Noto Sans Kannada","Inter",sans-serif;font-weight:500;transition:.12s}
+  .opt:hover{background:#f2f7ff;border-color:var(--blue)}
+  .opt:disabled{opacity:.45;cursor:default;background:#fff}
+  .opt.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+  .opt.primary:hover{filter:brightness(1.08)}
+  .dots{display:inline-flex;gap:4px;padding:3px 2px}
+  .dots i{width:6px;height:6px;border-radius:50%;background:#9fb0c6;animation:b 1.2s infinite}
   .dots i:nth-child(2){animation-delay:.18s}.dots i:nth-child(3){animation-delay:.36s}
-  @keyframes b{0%,60%,100%{opacity:.28;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
-  footer{flex:0 0 auto;border-top:1px solid var(--line);background:#fff;padding:9px 10px}
-  .bar{display:flex;gap:8px;align-items:center}
-  input{flex:1;border:1px solid var(--line);border-radius:20px;padding:10px 14px;font-size:14.5px;
-        outline:none;font-family:"Noto Sans Kannada","Inter",sans-serif}
-  input:focus{border-color:var(--accent)}
-  button.send{border:0;background:var(--accent);color:#fff;width:40px;height:40px;border-radius:50%;
-              cursor:pointer;font-size:16px;flex:0 0 auto}
-  button.send:disabled{opacity:.45;cursor:default}
-  .foot{font-size:10.5px;color:var(--muted);text-align:center;padding:6px 4px 0;font-family:"Inter",sans-serif}
+  @keyframes b{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+  footer{flex:0 0 auto;border-top:1px solid var(--line);padding:11px 14px 10px}
+  .bar{display:flex;gap:9px;align-items:center;border:1px solid var(--line);
+       border-radius:11px;padding:5px 6px 5px 13px;transition:.12s}
+  .bar:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(26,95,208,.10)}
+  input{flex:1;border:0;outline:none;font-size:14.5px;background:transparent;padding:6px 0;
+        font-family:"Noto Sans Kannada","Inter",sans-serif;color:var(--ink)}
+  button.send{border:0;background:var(--blue);color:#fff;width:34px;height:34px;
+              border-radius:9px;cursor:pointer;font-size:15px;flex:0 0 auto}
+  button.send:disabled{opacity:.4;cursor:default}
+  .foot{font-size:10.5px;color:var(--muted);text-align:center;padding:8px 4px 0}
 </style>
 </head>
 <body>
-<div class="phone">
+<div class="panel">
   <header>
-    <div class="avatar">ಹಿ</div>
-    <div>
-      <div class="who">Hisaab</div>
-      <div class="sub" id="sub">connecting…</div>
+    <div class="brand">
+      <div class="mark">&#3257;&#3263;</div>
+      <div class="title">Ask Hisaab<span class="beta">Beta</span></div>
     </div>
+    <div class="sub" id="sub">connecting&hellip;</div>
   </header>
   <div id="log"></div>
   <footer>
     <div class="bar">
-      <input id="text" placeholder="ಇಲ್ಲಿ ಬರೆಯಿರಿ…" autocomplete="off" disabled>
-      <button class="send" id="send" disabled>↑</button>
+      <input id="text" placeholder="Type your answer" autocomplete="off" disabled>
+      <button class="send" id="send" disabled>&#8593;</button>
     </div>
     <div class="foot" id="foot"></div>
   </footer>
@@ -118,21 +127,34 @@ function typing(on){
   } else if (!on && typingEl){ typingEl.remove(); typingEl = null; }
 }
 
-// The agent offers one-tap answers as a pipe-separated line, e.g.
-//   "ಆಯ್ಕೆ: Confirm personal transfer | own account | sale | refund | ..."
-// Turn that into buttons; the merchant taps rather than types, which is the
-// whole point of the attestation loop.
-function renderOptions(text){
-  const line = text.split('\n').reverse().find(l => (l.match(/\|/g) || []).length >= 2);
-  if (!line) return;
-  let parts = line.split('|').map(s => s.trim()).filter(Boolean);
-  if (!parts.length) return;
-  const first = parts[0];
-  const colon = first.indexOf(':');
-  if (colon > -1 && colon < 24) parts[0] = first.slice(colon + 1).trim();
-  parts = parts.map(p => p.replace(/\*\*/g, '').trim()).filter(Boolean);
-  if (parts.length < 2) return;
+// The agent offers one-tap answers on a line like
+//   "Choose one: **confirm, personal transfer, own account, ...**"
+//   "ಆಯ್ಕೆ: Confirm personal transfer | own account | sale | ..."
+// It varies the separator and the lead-in word between turns, so accept either
+// comma or pipe and several lead-ins. Turn it into buttons: the merchant taps
+// rather than types, which is the whole premise of the attestation loop.
+const LEAD = /(choose one|choose|options?|answer|ಆಯ್ಕೆ|ಉತ್ತರ)\s*[:\-]/i;
 
+function parseOptions(text){
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean).reverse();
+  for (const line of lines){
+    let body = line, m = line.match(LEAD);
+    if (m) body = line.slice(m.index + m[0].length);
+    else if ((line.match(/\|/g) || []).length < 2) continue;
+
+    body = body.replace(/\*\*/g, '').trim().replace(/[.?!]+$/, '');
+    for (const sep of ['|', ',']){
+      const parts = body.split(sep).map(s => s.trim()).filter(Boolean)
+                        .filter(s => s.length <= 40);
+      if (parts.length >= 2) return parts;
+    }
+  }
+  return null;
+}
+
+function renderOptions(text){
+  const parts = parseOptions(text);
+  if (!parts) return;
   const box = document.createElement('div');
   box.className = 'opts';
   parts.forEach((p, i) => {
@@ -173,7 +195,7 @@ async function start(){
     if (!r.ok) { document.getElementById('sub').textContent = 'failed';
                  sys(j.detail || 'could not start', true); return; }
     sessionId = j.session_id;
-    document.getElementById('sub').textContent = 'ಆನ್‌ಲೈನ್';
+    document.getElementById('sub').innerHTML = '<span class="dot"></span>Your AI accountant, always here.';
     const greeting = (j.response && j.response.query) || '';
     if (greeting){ bubble(greeting, false); renderOptions(greeting); }
     lock(false);

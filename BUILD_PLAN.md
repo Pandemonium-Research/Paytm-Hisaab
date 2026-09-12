@@ -65,6 +65,39 @@ asks:
 
 Better to say that than to discover the gap on stage.
 
+**Track A — built and deployed (12 Sep)**
+
+- **Both graphs live on DEV.** `hisaab-merchant` (Conversational, Master=Merchant,
+  Child=Escalation) and `hisaab-watch` (Autonomous, Master=Provenance, Child=Evidence).
+- **11 tools published**, all bound to the published versions. Aura generates look-alike
+  tools with invented credentials rather than binding what you publish - every node had to
+  be re-pointed by hand. One had bound Chargebee's `get_credit_note` billing API.
+- **Beat 1 proven end to end.** Kannada, 3 credits, least-confident first, the loop
+  advances, and the ledger updated for real: `DM0012580 -> personal_transfer`,
+  `DM0012583 -> exempt_supply`, both `merchant_tap`.
+- **Beat 3 proven** through the graph: Rs 42.20L against the Rs 60.98L claim, and the pack
+  states registration was required.
+- **Triggers**: `hisaab-evidence-request` (API) and `hisaab-nightly-provenance` (Cron,
+  02:00 Asia/Calcutta, DEV only).
+- **Channel**: there is no embeddable web chat widget on Phinite - the channel list is
+  Voice, Chat (an AI *provider* integration), Jira, Email, Teams, Slack, Twilio, WhatsApp
+  and Chat API. The Web Chat decision at the top of this file rested on a premise that
+  turned out false. The merchant conversation runs on **Chat API** with `webchat/` in
+  front of it.
+
+**Still open**
+
+1. **Tool policies are not set.** Provenance denied `commit_attestation`, Evidence denied
+   both write tools, human approval on pack delivery. This is the permission story the
+   pitch rests on, and right now it is a design rather than a control.
+2. **`HISAAB_ATTEST_KEY` is still workspace-wide**, so `hisaab-watch` can attest. Scope it
+   to `hisaab-merchant` now that the graph exists.
+3. **Beats 2 and 4 have never run through the graph** - only beat 3 has. Beat 4 is the one
+   PLAN calls the moment people remember, and it is the one most likely to hit the
+   ~120-150s API cap.
+4. **`webchat/` has not been run end to end** against the live Chat API.
+5. **Credits at $2.99.** Four beats rehearsed a few times will exhaust it.
+
 **Track A — with the teammate**: Phinite workspace, graphs, publishing tools, policies, Web Chat,
 builds, registry, observability, rehearsal.
 
