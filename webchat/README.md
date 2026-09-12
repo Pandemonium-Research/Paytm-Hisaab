@@ -6,8 +6,16 @@ WhatsApp and Chat API. WhatsApp needs BSP approval we decided against, so the me
 conversation runs against **Chat API** with this page in front of it.
 
 ```bash
-python -m webchat.serve      # http://127.0.0.1:8090
+set -a && . ./.env && set +a          # the server reads the environment, not the file
+python -m webchat.serve                # http://127.0.0.1:8090
+
+HISAAB_WEBCHAT_HOST=0.0.0.0 python -m webchat.serve    # ... and on the local network
 ```
+
+`HISAAB_WEBCHAT_HOST=0.0.0.0` is what you want for a phone or a second laptop; the startup
+banner prints the LAN address. It also means anyone on that network can spend credits and
+commit attestations through this proxy, since it carries the workspace token. Fine on a
+network you trust for the length of a demo, not something to leave running.
 
 Four variables, in `.env`: `PHINITE_BASE`, `PHINITE_TOKEN`, `PHINITE_INTEGRATION_ID`,
 `PHINITE_ENV`. The page tells you which are missing rather than failing silently.
