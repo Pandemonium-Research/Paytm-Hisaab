@@ -1,0 +1,518 @@
+# Paytm Hisaab: build phases
+
+Everything in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), in the order it gets built.
+Section references like **§6** point back to the plan, which holds the detail. This file only
+covers sequence, ownership and when each phase counts as done.
+
+**A = Ledger and skills** (Python, data, eval) · **B = Agent and surfaces** (n8n, Sarvam,
+Cognee, WhatsApp, web)
+
+**How to use this file**
+- Tick a box when the task is merged and deployed to the VM, not when it runs on a laptop.
+- Put the task ID in commit messages, for example `feat(ledger): 2A.5 chain append and verify`.
+- A phase is finished only when its **Done when** checks pass.
+- A **checkpoint** (CP) is a joint end-to-end test. Both lanes keep working while it runs;
+  a failed checkpoint means fixing it before starting anything new.
+- **Cut rule:** if a checkpoint slips, drop P1 items from the *end* of the Phase 9 list. Never
+  cut P0, and never cut tests covering P0.
+
+---
+
+## Overview
+
+| Phase | Name | Owner | When | Depends on | Priority |
+|---|---|---|---|---|---|
+| 0 | Accounts, access and repo | A + B | Thu, first 30 min | none | P0 |
+| 1 | Contracts | A + B | Thu, next 45 min | 0 | P0 |
+| 2A | Infra and ledger core | A | Thu night | 1 | P0 |
+| 2B | Spikes S1–S8 | B | Thu night | 0, 1 | P0 |
+| 2C | WhatsApp channel | B | Thu night | 0 | P0 |
+| 2D | Design foundation and PWA shell | B | Thu night | 1 | P0 |
+| 2L | Legal verification | whoever is blocked | by Fri 16:00 | 0 | P0 |
+| 3 | Synthetic world v2 | A | Thu night → Fri 10:00 | 1 | P0 |
+| 4 | Rails, clock and provenance skills | A | Fri 08:00–13:00 | 2A, 3 | P0 |
+| 5 | Memory and conversation loop | B | Fri 08:00–13:00 | 2B, 2C, 2D (and 4 as it lands) | P0 |
+| **CP1** | **Ordinary Tuesday, end to end** | A + B | **Fri 13:00** | 4, 5 | gate |
+| 6 | Evidence engine | A | Fri 13:00–19:00 | 4, 2L | P0 |
+| 7 | Case workflows and officer app | B | Fri 13:00–19:00 | 5 (and 6 as it lands) | P0 |
+| **CP2** | **Freeze, end to end** | A + B | **Fri 19:00** | 6, 7 | gate |
+| 8 | Trust, seeding and measurement | A | Fri 19:00–00:30 | 6, 7 | P0 + P1 |
+| 9 | Remaining surfaces and P1 features | B | Fri 19:00–00:30 | 7, 8 (partly) | P0 + P1 |
+| **CP3** | **Phase 10: integration and deployment** | A + B | **Sat 00:30** | 8, 9 | gate |
+| 11 | P2 stretch | A + B | only after CP3 | 10 | P2 |
+| 12 | Harden and present | A + B | Sat 19 Sep | 10 | P0 |
+
+```mermaid
+flowchart LR
+  P0[0 Accounts] --> P1[1 Contracts]
+  P0 --> P2L[2L Legal]
+  P0 --> P2C[2C WhatsApp]
+  P1 --> P2A[2A Infra + ledger]
+  P1 --> P2B[2B Spikes]
+  P1 --> P2D[2D Design + PWA shell]
+  P1 --> P3[3 Synthetic world]
+  P2A --> P4[4 Rails + provenance skills]
+  P3 --> P4
+  P2B --> P5[5 Memory + conversation]
+  P2C --> P5
+  P2D --> P5
+  P4 --> CP1{{CP1 Fri 13:00}}
+  P5 --> CP1
+  P4 --> P6[6 Evidence engine]
+  P2L --> P6
+  P5 --> P7[7 Case workflows + officer app]
+  P6 --> CP2{{CP2 Fri 19:00}}
+  P7 --> CP2
+  CP2 --> P8[8 Trust, seed, measure]
+  CP2 --> P9[9 Surfaces + P1]
+  P8 --> P10{{10 CP3 Sat 00:30}}
+  P9 --> P10
+  P10 --> P11[11 P2 stretch]
+  P10 --> P12[12 Harden + present]
+```
+
+**Critical path:** 0 → 1 → 2A (VM with HTTPS and core stubs) → 4 → CP1 → 6 → CP2 → 8 (seed and
+beats) → CP3 → 12. A delay on this path delays the demo. Anything off it can slip or be cut.
+
+---
+
+## Phase 0: Accounts, access and repo
+
+**Owner:** A + B · **When:** Thu, first 30 min · **Refs:** §0, §4, §16, §22
+
+- [ ] **0.1** Redeem the n8n Cloud voucher. Record the plan tier, monthly execution cap,
+      concurrency limit, instance version and public API access in `n8n/README.md`.
+- [ ] **0.2** Add `N8N CREDITS .docx.pdf`, `.env`, `data/` and `design/reference/` to
+      `.gitignore`.
+- [ ] **0.3** Get the Sarvam API key and check the credit balance.
+- [ ] **0.4** Create the Meta developer app and WhatsApp test number, and add the recipient
+      phones (both team phones and the demo phones, up to 5).
+- [ ] **0.5** Provision the VM (4 vCPU / 8 GB). Point DNS for `api.`, `mem.` and `app.` at it,
+      or set up a named cloudflared tunnel.
+- [ ] **0.6** Create a public `hisaab-anchors` GitHub repo and a fine-grained token for it.
+- [ ] **0.7** Create branch `bfi`. `git mv` the old tree into `archive/agent-labs-2026-09-12/`
+      (`synth/`, `service/`, `tools/`, `phinite/`, `webchat/`, `data/reference/`, old docs,
+      `render.yaml`, `requirements.txt`). Leave the new plan files and pitch sources at the
+      root.
+
+**Done when:** each account answers a test call (n8n Cloud login, a Sarvam chat call, a
+WhatsApp hello_world template delivered to a phone, SSH into the VM), and `bfi` is pushed.
+
+---
+
+## Phase 1: Contracts
+
+**Owner:** A + B together · **When:** Thu, 45 min · **Depends on:** 0 · **Refs:** §6, §7, §8,
+§10, §12, §14
+
+These are frozen before anyone builds, so neither lane waits on the other.
+
+- [ ] **1.1** Ledger entry kinds and their payload schemas (§6).
+- [ ] **1.2** Role matrix: role × endpoint × entry kinds each role may append (§14).
+- [ ] **1.3** Endpoint list with request and response JSON, including `/app/*`,
+      `/assistant/*`, `/config`, `/prompts/{name}` and `/sim/*` (§7).
+- [ ] **1.4** LLM output schemas: hard-case label, intent, notice extraction, grievance facts,
+      CA and merchant explainers, handoff summary (§8).
+- [ ] **1.5** Workflow boundaries: WF IDs, triggers, inputs and outputs, which role key each
+      uses, and the webhook payloads core sends to n8n (§10).
+- [ ] **1.6** Mapping from each screen (M0–M7, O1–O3) to its read model (§12).
+- [ ] **1.7** i18n key list: questions, warnings, refusals, case steps, button labels.
+
+**Deliverables:** Pydantic models in `services/core/app/schemas/`, and the workflow table in
+`n8n/README.md`, both committed.
+
+**Done when:** both people have signed off. The OpenAPI page renders from the stubs in 2A.
+
+---
+
+## Phase 2: Foundations (four lanes in parallel, Thursday night)
+
+### 2A: Infra and ledger core
+
+**Owner:** A · **Depends on:** 1 · **Refs:** §4, §6, §7, §14, §16
+
+- [ ] **2A.1** `docker-compose.yml`: postgres (pgvector), core, memory placeholder, web, caddy,
+      and the `local-n8n` profile. `tasks.py` with `up`, `migrate` and `test`.
+- [ ] **2A.2** **First:** Docker and Caddy on the VM, with HTTPS for `api.`, `mem.` and `app.`.
+      n8n Cloud can't reach anything until this exists.
+- [ ] **2A.3** Alembic with separate owner and app DB roles. Tables for the `rails`, `ledger`
+      and `ops` schemas (§6).
+- [ ] **2A.4** `ledger.entries` and `ledger.chain_heads`. A `BEFORE UPDATE OR DELETE OR TRUNCATE`
+      trigger. The app role gets `INSERT, SELECT` only.
+- [ ] **2A.5** `ledger/chain.py`: canonical JSON, append under a row lock with `recorded_at`
+      from `clock_timestamp()`, and `verify`.
+- [ ] **2A.6** `auth.py`: role keys, the per-role check on entry kinds, 403s with a readable
+      reason.
+- [ ] **2A.7** Stub endpoints for every route in 1.3, returning fixture JSON. Deploy them to
+      the VM.
+- [ ] **2A.8** Tests: hashing is deterministic, the trigger blocks update/delete/truncate,
+      verify catches a one-byte edit at the right index, a wrong key gets 403.
+
+### 2B: Spikes (go/no-go on each)
+
+**Owner:** B · **Depends on:** 0, 1 · **Refs:** §17 spike table, §8, §9, §10.2
+
+Record each result, and the fallback chosen if one failed, under "Spike results" in
+`n8n/README.md`.
+
+- [ ] **S1** `sarvam-105b` tool calling and JSON-schema output, in Kannada and English.
+- [ ] **S2** Saaras v3 on a real WhatsApp OGG voice note in Kannada (with ffmpeg → WAV if
+      needed).
+- [ ] **S3** Bulbul v3 audio sent back as a WhatsApp voice note.
+- [ ] **S4** Sarvam Vision on a specimen notice photo.
+- [ ] **S5** An n8n Cloud OpenAI-compatible credential pointed at Sarvam, driving the AI Agent
+      node and the Structured Output Parser.
+- [ ] **S6** Cognee v1.x `remember`/`recall` with Sarvam as the LLM, fastembed and pgvector. Pin
+      the version.
+- [ ] **S7** An n8n Cloud Wait node resumed by a call made through core.
+- [ ] **S8** n8n Cloud → core stubs on the VM using role keys; export and import one workflow
+      through the public API; **count the executions one fake beat uses**.
+
+### 2C: WhatsApp channel
+
+**Owner:** B · **Depends on:** 0 · **Refs:** §11
+
+- [ ] **2C.1** Submit utility templates in English, Kannada and Hindi ("You have {n} payments
+      to confirm", with a "Show me" quick reply).
+- [ ] **2C.2** WhatsApp Trigger on n8n Cloud, with the `X-Hub-Signature-256` check, replying
+      "hello" to a real phone.
+- [ ] **2C.3** Fetch inbound media (voice, image) through the Graph API. Confirm the formats.
+
+### 2D: Design foundation and PWA shell
+
+**Owner:** B · **Depends on:** 1 · **Refs:** §12, §12.1
+
+- [ ] **2D.1** Capture 8–10 Paytm for Business screenshots into `design/reference/`
+      (gitignored).
+- [ ] **2D.2** `design/tokens.ts` generating the Tailwind theme. Fonts: Inter plus the Noto
+      Indic families.
+- [ ] **2D.3** Base components: `PhoneFrame`, `AppBar`, `BottomNav`, `HeaderBand`, `Card`,
+      `Chip`/`ChipGroup`, `StickyCTA`, `BottomSheet`, `AmountText`.
+- [ ] **2D.4** `vite-plugin-pwa`: manifest, standalone display, theme colour, icons, offline
+      shell.
+- [ ] **2D.5** Deploy to `app.<domain>` and install it on one Android phone.
+
+### 2L: Legal verification (background, deadline Fri 16:00)
+
+**Owner:** whoever is waiting on something · **Refs:** §22
+
+Unverified citations block approval, so this must be done before CP2.
+
+- [ ] **2L.1** MHA/I4C SOP (2 Jan 2026), from a primary or legal source: lien-only default,
+      ₹50,000 limit, mule vs bona fide receiver.
+- [ ] **2L.2** AP High Court (July 2026) and Rajasthan HC, *Balaji Enterprises v RBI* (Aug 2026):
+      exact citations and holdings.
+- [ ] **2L.3** CGST s.2(6), s.22, s.23 and s.25 wording; the 30-day registration window.
+- [ ] **2L.4** Write `legal/citations.yaml` with source URLs and `verified` flags.
+- [ ] **2L.5** A freeze scale figure (NCRP/I4C volumes or petition counts), or record that
+      none was found. Never invent one.
+
+**Phase 2 done when:**
+- S8 passes: n8n Cloud reaches the stubs with a role key, and a wrong key gets 403.
+- Ledger tests are green on the VM.
+- The PWA shell is installed on a phone.
+- Templates are submitted.
+- Every spike has a recorded go/no-go.
+
+---
+
+## Phase 3: Synthetic world v2
+
+**Owner:** A · **When:** Thu night → Fri 10:00 · **Depends on:** 1 · **Refs:** §5, §15
+
+- [ ] **3.1** `sim/catalog.py`: shop archetypes, and items → HSN → exempt, re-derived from the
+      archived catalogue.
+- [ ] **3.2** `sim/world.py`: sales, POS bills, duplicates and refunds, supplier refunds,
+      own-account top-ups, family money, loans/chit/gifts, the fraud chain, the difficulty
+      knob.
+- [ ] **3.3** Terminals (device id, geo, installed_at), balances and settlements.
+- [ ] **3.4** `rails_events.json`: `payment_declined` bursts, `lien_marked`, `lea_inquiry`,
+      `notice_served`.
+- [ ] **3.5** The hidden merchant behaviour model: answer delay, error rate, late corrections,
+      annotations after the notice.
+- [ ] **3.6** `sim/scenario.py` pins Sahana Stores and asserts on every run:
+      - 3 credits on 8–9 Mar (own savings, spouse, repeat customer)
+      - the ₹23 payment
+      - the ₹40L crossing on 14 Mar
+      - a notice claiming about ₹60.98L
+      - ₹4,200 at 19:47 on 21 Mar on POS01, with a bill
+      - the ₹4,200 decoy on 18 Mar
+      - 339 credits in the 7 days before the freeze
+- [ ] **3.7** The second demo merchant: an exclusively-exempt veg vendor in Lucknow, Hindi.
+- [ ] **3.8** `sim/notices.py`: a SPECIMEN notice as a PDF, plus a phone-photo variant.
+- [ ] **3.9** `sim/generate.py`: demo, dev, eval and sweep splits; `visible/` and `hidden/`;
+      fixed seeds; wired to `tasks.py generate`.
+- [ ] **3.10** `eval/baseline.py` and `eval/score.py` (the metrics in §15).
+
+**Done when:**
+- `tasks.py generate --only demo` passes every scenario assertion.
+- The baseline has been scored on eval.
+- A grep test proves nothing under `services/` reads `hidden/`.
+
+---
+
+## Phase 4: Rails, clock and provenance skills
+
+**Owner:** A · **When:** Fri 08:00–13:00 · **Depends on:** 2A, 3 · **Refs:** §6, §7, §13, §21
+
+Each item replaces its stub on the VM as soon as it lands.
+
+- [ ] **4.1** `clock.py` (`sim_now`), `POST /sim/clock`.
+- [ ] **4.2** `POST /rails/credits|bills|events` and `POST /sim/replay`, with an optional
+      real-time factor.
+- [ ] **4.3** SQL function `ledger.current_view(merchant, as_of)`: machine label, claim label,
+      effective label, conflict flag and entry refs. The tier column comes in 6.1.
+- [ ] **4.4** `payer_history`, counting **strictly prior** payments only.
+- [ ] **4.5** `classify_rules`, with the §21 fixes (duplicates, strictly-prior counts).
+- [ ] **4.6** `POST /ledger/proposals`: enum check, agent confidence capped at 0.85.
+- [ ] **4.7** `question_budget` and `POST /skills/select-questions` (≤3 a day, priority,
+      7-day expiry, `payer_facts` skip).
+- [ ] **4.8** `POST /ledger/questions` and `POST /ledger/claims`, which also update
+      `payer_facts`.
+- [ ] **4.9** Guards needed by replies: `numbers` (lakh/crore, Indic digits) and `language`.
+- [ ] **4.10** `GET /prompts/{name}` and `GET /config`.
+- [ ] **4.11** Read models `/app/home`, plus `/assistant/inbound|stream|outbound`: SSE, with
+      inbound forwarded to the WF31 webhook along with `N8N_WEBHOOK_SECRET`.
+- [ ] **4.12** Tests: 10 Mar selects exactly the 3 seeded credits; the ₹23 payment is never
+      asked about; no data after `as_of` leaks through; rules golden cases.
+
+**Done when:** 4.12 is green on the VM, and B's workflows call real endpoints for everything
+in this phase.
+
+---
+
+## Phase 5: Memory and conversation loop
+
+**Owner:** B · **When:** Fri 08:00–13:00 · **Depends on:** 2B, 2C, 2D (and 4 as it lands) ·
+**Refs:** §8, §9, §10, §11, §12.2
+
+- [ ] **5.1** `services/memory`: Cognee wrapper (`/remember`, `/recall`, `/improve`,
+      `/forget`) with the `degraded: true` fallback. Deploy it to `mem.`.
+- [ ] **5.2** n8n Cloud credentials: one HTTP Header Auth per role, plus Sarvam and WhatsApp.
+- [ ] **5.3** Prompts v1: `classify_hard_case`, `intent`, `reply_style` (with version
+      headers).
+- [ ] **5.4** i18n generated with Sarvam-Translate into `i18n/*.json`. A person reviews Kannada
+      and Hindi.
+- [ ] **5.5** **WF30 merchant-outbound**: a template message outside the 24-hour window,
+      interactive buttons inside it, and `/assistant/outbound` for the app.
+- [ ] **5.6** **WF31 merchant-inbound**:
+      - normalise the message; voice goes to Saaras; button taps skip the LLM
+      - the intent comes from the AI Agent node, whose tools are HTTP Request Tools
+      - answers are written to `/ledger/claims`
+      - the reply runs through the guards, then memory `remember`
+- [ ] **5.7** **WF10 nightly-provenance**, in live and seed modes:
+      - Loop Over Items batching
+      - hard-case agent with memory recall, then proposals
+      - `select-questions`, then WF30
+      - memory `improve`
+- [ ] **5.8** Screens **M0** Language and consent, **M1** Home, **M2** Confirm payments, **M6**
+      Assistant.
+
+### ✅ CP1: Ordinary Tuesday (Fri 13:00, A + B)
+
+- [ ] Jump the clock to 10 Mar 02:00 and run WF10 on n8n Cloud.
+- [ ] 3 Kannada questions arrive on WhatsApp **and** in M2 on the installed PWA.
+- [ ] Two taps and one voice answer produce `claim.answered` entries. The machine labels are
+      still present in `current_view`.
+- [ ] Memory recall returns the spouse relationship. A later credit from that payer isn't
+      asked about.
+
+---
+
+## Phase 6: Evidence engine
+
+**Owner:** A · **When:** Fri 13:00–19:00 · **Depends on:** 4, 2L · **Refs:** §6 tiers, §7,
+§14, §2 (lines we won't cross)
+
+- [ ] **6.1** Tiers in `current_view`, plus `POST /skills/tiers` returning ₹ and count per tier
+      and the shape figure.
+- [ ] **6.2** `POST /skills/turnover`: apportionment by value for unbilled QR sales, excluded
+      buckets with txn IDs, coverage, workings.
+- [ ] **6.3** `POST /skills/threshold`: aware of `gst_status`; projected date and days of
+      warning; exclusively-exempt verdict.
+- [ ] **6.4** `POST /skills/isolate`: matching by UTR **and independently** by amount and date;
+      same-amount candidates; bill, device and geo; the 7-day count.
+- [ ] **6.5** `POST /skills/escalation-check`, with the rules and thresholds read from config.
+- [ ] **6.6** Guards: `citations` (the allowlist; unverified entries block approval),
+      `no-innocence`, `extraction`.
+- [ ] **6.7** Grievance template filled from `legal/citations.yaml`.
+- [ ] **6.8** `POST /cases` and `POST /packs`: pack JSON and PDF (WeasyPrint, Noto Indic
+      fonts, SIMULATED and prototype stamps), then `pack.built`.
+- [ ] **6.9** Freeze detector: a lien, or declines followed by a lien, opens `case.opened` and
+      fires the n8n webhook.
+- [ ] **6.10** Approvals: the `resume_url` is stored; `/packs/{id}/approve|reject` appends an
+      entry and resumes the Wait; `/outbox/{pack}/send` refuses without `pack.approved`, then
+      appends `pack.sent`.
+- [ ] **6.11** Read models `/app/cases`, `/app/turnover`, `/app/officer/queue` and
+      `/app/officer/cases/{id}`.
+- [ ] **6.12** Tests against the demo answer key:
+      - turnover within target; crossing date; isolation plus decoy
+      - the guards
+      - the outbox refusing an unapproved pack
+
+**Done when:** 6.12 is green on the VM.
+
+---
+
+## Phase 7: Case workflows and officer app
+
+**Owner:** B · **When:** Fri 13:00–19:00 · **Depends on:** 5 (and 6 as it lands) · **Refs:**
+§10, §10.1, §12.2, §12.3
+
+- [ ] **7.1** **WF50 escalation-handoff** (sub-workflow).
+- [ ] **7.2** **WF90 error-handler**, set as the error workflow on every workflow.
+- [ ] **7.3** Prompts: `notice_extract`, `grievance_facts`, `ca_explainer`, `handoff_summary`.
+- [ ] **7.4** **WF20 freeze-response**:
+      - isolate → tiers → escalation → grievance → pack
+      - acknowledge the merchant
+      - **Wait, resumed by webhook** → outbox, or WF50
+- [ ] **7.5** **WF40 notice-response**:
+      - Sarvam Vision → extraction → guard → turnover, threshold and tiers → pack
+      - explainers → Wait → deliver
+      - fallback: the notice is chosen from events
+- [ ] **7.6** Add the threshold warning to WF10 (beat B3).
+- [ ] **7.7** Screen **M5** Case tracker, with freeze and tax variants.
+- [ ] **7.8** Screens **O1** Queue and **O2** Case, with the sticky "Approve and send" bar → core
+      approve → Wait resumes.
+
+### ✅ CP2: Freeze (Fri 19:00, A + B)
+
+- [ ] Start the declines and the lien: a case opens automatically and WF20 runs on n8n Cloud.
+- [ ] Isolation shows "UTR ✓" and "Amount + date ✓". The decoy is listed and not chosen.
+- [ ] A pack PDF exists with a bill and tiers. The grievance passes every guard, with verified
+      citations only.
+- [ ] The officer approves **on a phone**: the Wait resumes, the outbox gets it, and
+      `pack.sent` is appended.
+- [ ] M5 advances on the merchant's phone.
+- [ ] WF40 runs once with the specimen photo (or its fallback), and the verdict says "must
+      register".
+
+---
+
+## Phase 8: Trust, seeding and measurement
+
+**Owner:** A · **When:** Fri 19:00–00:30 · **Depends on:** 6, 7 · **Refs:** §6 anchoring,
+§13, §14, §15
+
+In order. 8.4 (anchors) and 8.8 (eval split run) are P1; everything else here is P0. If
+time is short, skip 8.4 and come back to it after 8.7.
+
+- [ ] **8.1** Permission matrix tests: every role against every mutating endpoint.
+- [ ] **8.2** `POST /sim/tamper` for both variants (app-level update refused; superuser edit),
+      plus `GET /ledger/verify` naming `broken_at`.
+- [ ] **8.3** `eval/simulate_merchant.py`, driven by the hidden behaviour model.
+- [ ] **8.4** `POST /anchors/run`: digest → OpenTimestamps receipt → git commit →
+      `anchor.created`; verify checks entries against the anchors. Anchors created during
+      seeding are labelled `simulated`.
+- [ ] **8.5** **Seed:** replay the year through WF10 seed mode on the **local n8n** against the
+      VM's core, then `pg_dump` the snapshot.
+- [ ] **8.6** `tasks.py reset`: restore the snapshot, set the clock, clear the bus, in under
+      60 s.
+- [ ] **8.7** `eval/beats.py`, covering B1–B7.
+- [ ] **8.8** `eval/agent_eval.py` (about 500 stratified hard cases), then `eval/report.py` →
+      `eval/report.json`.
+- [ ] **8.9** Web pages `/ledger/:id` and `/eval`, built from the shared components.
+
+**Done when:**
+- The seed report shows ≤3 questions every day and zero credits without an entry.
+- `verify` returns ok.
+- `beats` B1–B7 are green against the VM.
+
+---
+
+## Phase 9: Remaining surfaces and P1 features
+
+**Owner:** B · **When:** Fri 19:00–00:30 · **Depends on:** 7 (8.4 for WF60) · **Refs:** §2,
+§10, §12, §15
+
+Work top to bottom. **The P0 block comes first.** The P1 block is in priority order: if time
+runs out, cut from the bottom.
+
+**P0**
+- [ ] **9.1** `/demo` remote: jump-to presets, run nightly, declines and lien, specimen notice
+      upload, police inquiry, tamper a/b, refusal probe, reset, health dots.
+- [ ] **9.2** **WF99 refusal-probe** (the evidence key hitting `/ledger/claims` gets a 403), and
+      the `hide_income` fixed refusal in WF31.
+- [ ] **9.3** Playwright suite at 412 px and 360 px, in Kannada and English, covering M1, M2, M5
+      and O2 (B8).
+
+**P1, in priority order** (Vision OCR is already done in 7.5)
+- [ ] **9.4** **M3** Payments and **M4** Payment detail.
+- [ ] **9.5** `/stage`: two synced phone frames and the n8n execution strip.
+- [ ] **9.6** Bulbul voice replies and a read-aloud button on M2 and M5.
+- [ ] **9.7** **WF60 daily-anchor** (Schedule 23:55 IST → `/anchors/run`); needs 8.4.
+- [ ] **9.8** **M7** Turnover and Share with CA (Web Share API); **O3** Sent and outcomes.
+- [ ] **9.9** **WF10-eval**: an n8n Data Table of about 50 labelled hard cases, run through the
+      Evaluation node.
+- [ ] **9.10** The Hindi merchant end to end: WhatsApp and app, and the exclusively-exempt
+      verdict.
+- [ ] **9.11** **WF21 lea-inquiry**, with no WF30 node, plus a test proving the merchant gets
+      no message.
+- [ ] **9.12** Web Push for alerts and approval requests.
+- [ ] **9.13** Export every workflow to git (`tasks.py export-n8n --target cloud`).
+
+(A's 8.8, the eval split run, is the last P1 item overall.)
+
+---
+
+## Phase 10: Integration and deployment (CP3)
+
+**Owner:** A + B · **When:** Sat 00:30 · **Depends on:** 8, 9 · **Refs:** §16, §20
+
+- [ ] **10.1** Deploy everything to the VM. `tasks.py beats`: B1–B8 green against the VM and
+      n8n Cloud.
+- [ ] **10.2** `tasks.py e2e` green on both viewports.
+- [ ] **10.3** Take a fresh seed snapshot, then `reset` and run `beats` again.
+- [ ] **10.4** Import the workflows and credentials into the local n8n, run `beats` once, and
+      rehearse switching `N8N_BASE_URL` (under 5 min).
+- [ ] **10.5** Record the n8n Cloud executions used by one full run and set the Saturday
+      budget.
+- [ ] **10.6** Export the workflows to git and tag `cp3`.
+
+### ✅ CP3: all of 10.1–10.6 checked
+
+---
+
+## Phase 11: P2 stretch (only after CP3 is green, and never on Saturday)
+
+**Owner:** whoever has time · **Refs:** §2 P2
+
+- [ ] **11.1** A `fabricated_history` merchant in eval, plus the tier-shape metric in
+      `report.json`.
+- [ ] **11.2** Outcome metrics tiles on O3 (days to release, balance kept usable).
+- [ ] **11.3** A QR code that opens a read-only merchant app on judges' phones.
+- [ ] **11.4** An n8n Insights screenshot for time saved.
+- [ ] **11.5** Nightly run at scale over the dev split (7 merchants).
+- [ ] **11.6** GitHub Actions CI running `test` and `e2e`.
+
+---
+
+## Phase 12: Harden and present (Sat 19 Sep)
+
+**Owner:** A + B · **Depends on:** 10 · **Refs:** §17, §19, §20, §22
+
+Saturday is fix-only. No new features.
+
+**Morning**
+- [ ] **12.1** `reset` then `beats` on the VM, and again on the laptop stack.
+- [ ] **12.2** Three timed rehearsals of the §19 run of show: two real phones, `/demo` on a
+      third, `/stage` on the projector.
+- [ ] **12.3** UI polish pass against the reference screenshots: spacing, type sizes, Kannada
+      line breaks.
+- [ ] **12.4** Record the fallback video of every beat.
+- [ ] **12.5** Check the remaining n8n Cloud executions against the budget from 10.5.
+
+**Midday**
+- [ ] **12.6** Update the deck and README with **measured** numbers from `eval/report.json`,
+      replacing every target.
+- [ ] **12.7** Final pass on the §22 checks. Every citation in the demo pack is marked
+      `verified: true`.
+- [ ] **12.8** Prepare whatever the Best Use of n8n prize asks for (workflow exports,
+      screenshots, a short write-up).
+- [ ] **12.9** Tag `demo-final`.
+
+**Before judging**
+- [ ] **12.10** Feature freeze 2 hours before judging.
+- [ ] **12.11** `reset`, then warm up: one nightly run and one Sarvam call.
+- [ ] **12.12** Phones charged, WhatsApp recipients whitelisted, hotspot ready, laptop stack
+      running as the fallback.
