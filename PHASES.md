@@ -29,7 +29,7 @@ Cognee, WhatsApp, web)
 | 2C | WhatsApp channel | B | Thu night | 0 | P0 |
 | 2D | Design foundation and PWA shell | B | Thu night | 1 | P0 |
 | 2L | Legal verification | whoever is blocked | by Fri 16:00 | 0 | P0 |
-| 3 | Synthetic world v2 | A | Thu night → Fri 10:00 | 1 | P0 |
+| 3 | Synthetic world v2 · **built, not yet committed** (3.16–3.21 pending) | A | Thu night → Fri 10:00 | 1 | P0 |
 | 4 | Rails, clock and provenance skills | A | Fri 08:00–13:00 | 2A, 3 | P0 |
 | 5 | Memory and conversation loop | B | Fri 08:00–13:00 | 2B, 2C, 2D (and 4 as it lands) | P0 |
 | **CP1** | **Ordinary Tuesday, end to end** | A + B | **Fri 13:00** | 4, 5 | gate |
@@ -220,34 +220,139 @@ Unverified citations block approval, so this must be done before CP2.
 
 **Owner:** A · **When:** Thu night → Fri 10:00 · **Depends on:** 1 · **Refs:** §5, §15
 
-- [ ] **3.1** `sim/catalog.py`: shop archetypes, and items → HSN → exempt, re-derived from the
-      archived catalogue.
-- [ ] **3.2** `sim/world.py`: sales, POS bills, duplicates and refunds, supplier refunds,
-      own-account top-ups, family money, loans/chit/gifts, the fraud chain, the difficulty
-      knob.
-- [ ] **3.3** Terminals (device id, geo, installed_at), balances and settlements.
-- [ ] **3.4** `rails_events.json`: `payment_declined` bursts, `lien_marked`, `lea_inquiry`,
-      `notice_served`.
-- [ ] **3.5** The hidden merchant behaviour model: answer delay, error rate, late corrections,
-      annotations after the notice.
-- [ ] **3.6** `sim/scenario.py` pins Sahana Stores and asserts on every run:
-      - 3 credits on 8–9 Mar (own savings, spouse, repeat customer)
-      - the ₹23 payment
-      - the ₹40L crossing on 14 Mar
-      - a notice claiming about ₹60.98L
-      - ₹4,200 at 19:47 on 21 Mar on POS01, with a bill
-      - the ₹4,200 decoy on 18 Mar
-      - 339 credits in the 7 days before the freeze
-- [ ] **3.7** The second demo merchant: an exclusively-exempt veg vendor in Lucknow, Hindi.
-- [ ] **3.8** `sim/notices.py`: a SPECIMEN notice as a PDF, plus a phone-photo variant.
-- [ ] **3.9** `sim/generate.py`: demo, dev, eval and sweep splits; `visible/` and `hidden/`;
-      fixed seeds; wired to `tasks.py generate`.
-- [ ] **3.10** `eval/baseline.py` and `eval/score.py` (the metrics in §15).
+> **Status, 17 Sep 2026: built and verified locally, not yet committed.**
+> - `sim/` and `eval/` are new, untracked folders.
+> - All four splits generate in about 30 s, pass validation, and are byte-identical across runs.
+> - Phase 3 has nothing to deploy until 2A and 4 load the data, so a tick here means "built and
+>   verified locally".
+> - Commit (3.16) before Phase 4 starts.
+>
+> Run it with `python -m sim.generate [--only demo]`. The schema and the demo answer key are
+> documented in [sim/README.md](sim/README.md).
+
+### Done
+
+- [x] **3.1** `sim/catalog.py`:
+      - 6 shop types plus 2 demo shops
+      - 41 items → HSN → exempt, with the legal basis
+      - six regions and languages (kn, hi, ta, te, mr, bn)
+      - FY 2025-26 festivals, fictional lenders, chit funds, insurers and tax offices
+- [x] **3.2** `sim/world.py`:
+      - sales with baskets and POS bills; genuine same-basket repeat purchases (hard negatives)
+      - double payments with refunds, including the wrong twin
+      - family money, loans, chit, gifts, hand loans, deposits and insurance
+      - month-start top-ups, the fraud chain, the difficulty knob
+      - a time-ordered **ledger pass**: supplier payments with occasional stock-ups, top-ups
+        from own accounts when short, supplier refunds, failed-payout reversals, Sunday sweeps
+- [x] **3.3** `visible/terminals.json` (device id, model, install date, geo) and
+      `visible/daily_balances.csv` (opening, credits, debits, closing). The merchant's account
+      is modelled as the settlement account (`settlement_account` in `merchants.json`), so there
+      are no separate settlement payout rows.
+- [x] **3.4** `visible/rails_events.json`:
+      - `lien_marked`
+      - `payment_declined`: every debit after the lien, with two retries; credits keep landing
+      - `lea_inquiry`, with a do-not-disclose instruction
+      - `notice_served`, pointing at the document only
+      - `return_filed` (CMP-08) for composition dealers
+- [x] **3.5** Merchant behaviour:
+      - `hidden/merchant_answers.csv` records what the merchant would answer about every
+        credit: responds or not, the tap answer, delay, voice/tap/text, a later correction and
+        its lag
+      - `hidden/behaviour.json` holds the model's rates
+      - Annotations added after a notice exist only as parameters (count range, truthful
+        share). The harness in 8.3 must generate them.
+- [x] **3.6** `sim/scenario.py` pins Sahana Stores and **asserts on every run**:
+      - ✓ exactly 3 question-worthy credits on 8–9 Mar: own savings ₹15,000, spouse ₹7,500 by
+        QR, Raghu Shetty ₹4,850 (with 2 earlier purchases)
+      - ✓ no other non-sale credits, direct-to-VPA sales or large unbilled sales on those days
+      - ✓ the ₹23 payment from a first-time payer
+      - ✓ the ₹40L crossing on **14 Mar 2026**, and registration required
+      - ✓ ₹4,200 at 19:47 on 21 Mar on POS01, with a bill, paid by a downstream mule
+      - ✓ the ₹4,200 decoy on 18 Mar from a regular (8+ earlier purchases); these are the only
+        two ₹4,200 credits from 14 to 28 Mar
+      - ✓ **339 credits** in the 7 days before the 09:30 lien on 24 Mar
+      - ✓ 3+ declined debits starting 09:41
+      - ✓ a police inquiry on 11 Feb about a ₹1,850 sale
+      - The notice (20 Aug 2026) claims every credit as turnover: **₹53,16,632, not the ₹60.98L
+        in deck v2**. The claim isn't pinned; see 3.19.
+- [x] **3.7** Maurya Sabzi Bhandar (`MID_DEMO_LKO`, Lucknow, Hindi):
+      - aggregate turnover ₹46,00,838, all exempt; crosses ₹40L on 17 Feb
+      - asserted: registration not required
+      - notice (26 Aug 2026) claims ₹53,81,515
+- [x] **3.8** `sim/notices.py`:
+      - SPECIMEN notice PDF using only the standard library (Helvetica, one A4 page)
+      - a rotated, unevenly lit phone photo JPG (needs Pillow; skipped without it)
+      - both watermarked SYNTHETIC SPECIMEN
+- [x] **3.9** `sim/generate.py`:
+      - demo, dev, eval and sweep splits, `visible/` and `hidden/`, fixed seeds
+      - chronological IDs and 12-digit UTRs across each split
+      - `manifest.json` for every split
+      - (The `tasks.py` wrapper is still pending: 3.17.)
+- [x] **3.10** `eval/baseline.py` (rules only, strictly prior payer history) and `eval/score.py`
+      (the §15 metrics, per-merchant turnover error, registration-answer flips, `--json`).
+
+**Added during the build**
+
+- [x] **3.11** `sim/validate.py` runs after every generation, and standalone:
+      - IDs and UTRs unique; bills add up; references resolve
+      - balances add up and never go negative
+      - turnover and crossing dates recomputed from disk
+      - events consistent; no successful debit after a lien
+      - no hidden vocabulary in `visible/`
+- [x] **3.12** Calibrated turnover targets for dev and eval:
+      - family kiranas sit **just under ₹40L** while ₹47–50L comes in
+      - vegetable vendors are just over ₹40L but exempt
+      - darshinis cross the ₹20L services line
+- [x] **3.13** `hidden/notices_truth.json` (the fields printed on each notice, for the OCR check
+      in B4) and `visible/hsn_catalog.json` in every split.
+- [x] **3.14** Realism fix found by the scorer: strangers can no longer share the owner's exact
+      name (own-account precision went from 0.17 to 1.0), and names now vary more.
+- [x] **3.15** `sim/README.md`: commands, splits, full schema, labels, how a year is made, the
+      demo answer key, changes from v1, caveats. Old v1 splits moved to `data/_v1/`
+      (gitignored); old `synth/` is untouched.
+
+### Measured so far (rules-only baseline, eval split)
+
+| Metric | Result |
+|---|---|
+| Sale vs not-a-sale (exact type for non-sales) | 97.7% |
+| Non-sale credits labelled correctly | **56.3%** (n = 1,151) |
+| Non-sale credits counted as sales | 15.0% |
+| Confidently wrong on non-sale credits | 16.0% |
+| Exempt vs taxable | POS-billed 100%, QR-only 79.8% |
+| Registration answer | **flips for EV_004**: truly under ₹40L, counted as over |
+
+This is the floor the agent has to beat. It's lower than v1's 77.8% because refunds now arrive
+up to a day later and more family money comes by QR.
+
+### Still pending
+
+- [ ] **3.16** Commit `sim/` and `eval/` (with the task IDs in the message).
+- [ ] **3.17** Wire `tasks.py generate` to `python -m sim.generate` (lands with 2A.1).
+- [ ] **3.18** Grep test proving nothing under `services/` or `n8n/` reads `hidden/` (add with
+      2A.8; `services/` doesn't exist yet).
+- [ ] **3.19** Decide the deck figures. The data now gives a ₹53.17L notice claim (deck v2 says
+      ₹60.98L) and 68 credits on 8–9 Mar (deck v2 says 39). **Recommended:** update deck v2
+      from measured data in 12.6, rather than calibrating the data to old numbers. The Round 1
+      figures (₹4,200, 339, 14 Mar) already hold.
+- [ ] **3.20** Point the tracked v1 docs at v2: `data/README.md` and `DATA.md` still describe
+      v1. Do this with the 0.7 archive.
+- [ ] **3.21** Run the baseline on dev, and on sweep for the accuracy-vs-difficulty curve. Only
+      eval has been scored so far. (P1)
+
+**Tracked in later phases**
+- Annotations after a notice, generated from `behaviour.json` by the simulated-merchant harness
+  → **8.3**.
+- The "exactly 3 questions on 10 Mar" check against the real ask rules and question budget →
+  **4.12**. The data enforces the conditions, but only the skill can prove it.
+- The OCR check of the notice photo against `notices_truth.json` → **B4 in 8.7**.
+- A `fabricated_history` merchant for the tier-shape demo → **11.1** (P2).
 
 **Done when:**
-- `tasks.py generate --only demo` passes every scenario assertion.
-- The baseline has been scored on eval.
-- A grep test proves nothing under `services/` reads `hidden/`.
+- ✅ `python -m sim.generate --only demo` passes every scenario assertion (`tasks.py` wrapper
+  pending, 3.17).
+- ✅ The baseline has been scored on eval.
+- ⏳ A grep test proves nothing under `services/` reads `hidden/` (3.18).
 
 ---
 
