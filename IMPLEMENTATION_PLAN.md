@@ -1,0 +1,1043 @@
+# Paytm Hisaab: implementation plan
+
+**Paytm Build for India AI Hackathon · Bengaluru · Track 3: Autonomous AI Teammates · Sat 19 Sep 2026**
+Stack: n8n Cloud (hackathon voucher) · Sarvam AI · Cognee · Python/FastAPI · PostgreSQL · WhatsApp · Paytm-style mobile PWA
+Team: 2 people · Build Thu 17 to Fri 18 Sep · Harden and demo on Sat 19 Sep
+
+---
+
+## 0. Context
+
+`hisaab-proposal.tex` (the Round 1 deck) and `hisaab-deck-v2.md` (the narrative and objection
+handling) describe **Paytm Hisaab**: an autonomous AI teammate that keeps a tamper-evident
+**provenance ledger** of every UPI credit a small merchant receives. When an authority asks
+questions, it answers from that ledger:
+
+- **Freeze:** it finds the one disputed payment among hundreds, builds a graded evidence pack,
+  drafts the NCRP/CFCFRMS grievance and sends it to a Paytm officer for approval.
+- **Tax notice:** it rebuilds real aggregate turnover with workings, says plainly when the
+  merchant *did* cross the threshold, and explains the result to their CA.
+
+The deliverable is a **working prototype, not a proof of concept**. Every box on the
+architecture slide has to run: real WhatsApp, real Sarvam calls, real Cognee memory, real n8n
+workflows with a human-approval step, and a real hash-chained ledger. It all runs on synthetic
+data with known ground truth, so every number we show is measured.
+
+**Decisions already made**
+
+| Decision | Choice |
+|---|---|
+| Codebase | **Clean rebuild** on a new branch. The Phinite-era repo (`synth/`, `service/`, `tools/`, `PLAN.md`, `DATA.md`) is a *design reference only*: we reuse its algorithms and lessons (§21), not its code. No Claude API and no Phinite anywhere. |
+| Old results | Figures like 1.6% turnover error or 189 questions a year are **targets to re-measure**, never claimed until the new system produces them. |
+| Channel | **Real WhatsApp** (Meta Cloud API test number) **plus the in-app Hisaab Assistant** inside the Paytm-style merchant app. Both use the same n8n flow, so either one is a stage fallback for the other. |
+| n8n hosting | **n8n Cloud**, using the hackathon voucher (one month; it expires a week after the event). Live workflows run there. A self-hosted n8n in Docker, importing the **same workflow JSON**, is used for seeding and as an offline fallback. The voucher code stays out of git. |
+| Frontend | **Phone-first, and as close to the Paytm for Business app as we can get**: Paytm navy/cyan palette, card and tile layout, bottom navigation, bottom sheets, one-tap chips. Built as an installable PWA at 360–412 px; on a laptop it renders inside a phone frame. |
+| n8n prize | The design deliberately targets **"Best Use of n8n"** (§10.1): agent, human-in-the-loop, sub-workflows, error workflow, WhatsApp, Forms and Evaluations all in real use. |
+| Timeline | Build Thu evening and all of Friday. Saturday is hardening, rehearsal and deck numbers only. |
+| Team | 2 workstreams: **A = Ledger and skills** (Python, data, eval); **B = Agent and surfaces** (n8n, Sarvam, Cognee, WhatsApp, web). |
+| Merchant pronouns | they/their everywhere (code comments, prompts, UI copy, docs). |
+
+---
+
+## 1. What "done" means
+
+### Acceptance criteria (all must pass on Friday night)
+
+1. **Nightly run.** For any simulated date, n8n labels new credits: rules settle routine sales,
+   Sarvam handles hard cases, and every proposal is appended to the chained ledger. At most 3
+   questions a day are selected and sent on WhatsApp in the merchant's language.
+2. **Conversation.** The merchant answers by button tap, text or **voice note**, in any
+   supported language. Answers are appended as *their claim* alongside the machine label and
+   never overwrite it. Cognee remembers the shop, so the same payer relationship isn't asked
+   about twice.
+3. **Threshold watch.** Replayed as of 31 Jan, the merchant is warned of the projected ₹40L
+   crossing date with the number of days of warning. That date is computed, never typed.
+4. **Freeze response.** A lien plus a burst of declines opens a case automatically. The agent
+   isolates the disputed credit **by UTR and, independently, by amount and date**, lists the
+   same-amount decoy without choosing it, and attaches the bill. It builds a tiered evidence pack
+   (PDF) and drafts the grievance from an allowlist of citations. **n8n waits for officer
+   approval.** Only then does the pack go to the (simulated) outbox.
+5. **Notice response.** The merchant photographs a notice on WhatsApp. Sarvam Vision reads it and
+   extracts the fields, which are validated. The tax pack shows aggregate turnover (exempt plus
+   taxable), the non-turnover lines traced to txn IDs, and the registration verdict. The
+   merchant gets an explainer in their language and the CA gets an English export. Officer
+   approval is required.
+6. **Escalation.** Weak evidence, a large amount, a non-sale payment or a merchant dispute
+   routes the case to a human with the reasons listed.
+7. **Trust.** `GET /ledger/verify` passes. A tamper attempt through the app is refused. A
+   tamper made directly in the DB is detected at the exact entry. A daily anchor is published
+   outside the system (OpenTimestamps receipt plus a public git commit).
+8. **Refusals, live.**
+   - **Permission:** the evidence workflow tries to write a claim and gets a 403, visible in the
+     n8n execution.
+   - **Ethical:** the merchant asks to hide ₹7,500 to stay under ₹40L, and the agent declines and
+     explains.
+   - **No tip-off:** a police inquiry about a payment never produces a message to the merchant.
+9. **Measured.** `eval/` reports label accuracy against the rules-only baseline, turnover error,
+   questions per day, isolation accuracy across all eval freeze cases, tier shape for genuine
+   versus fabricated histories, and case timings.
+10. **Reset.** `demo reset` restores the seeded year in under 60 s, so rehearsals never burn
+    the demo state.
+11. **Paytm-style phone app.** The merchant app and the officer app are both installed as PWAs
+    on real Android phones and run every beat at 360 px width with no horizontal scroll.
+    Side by side with Paytm for Business screenshots, the header, cards, transaction rows,
+    chips and bottom navigation read as the same family.
+12. **n8n Cloud.** Every live workflow runs on the n8n Cloud instance. Importing the same JSON
+    into the local n8n passes `beats` too, and the execution count for a full rehearsal is
+    known and fits the plan's quota.
+
+### Track 3 criteria mapped to features
+
+| Criterion | Where it lives |
+|---|---|
+| Understands context | Cognee shop memory (payers, relationships, past answers, cases) plus as-of payer history |
+| Makes decisions | Rules-then-agent labelling, question budget, choosing 1 payment out of 339, escalation rules |
+| Takes actions | Builds packs, drafts grievances, sends WhatsApp messages, writes the ledger, opens cases, anchors |
+| Works with humans | Merchant attests; officer approves in the console (n8n Wait with a resume webhook) |
+| Escalates wisely | Deterministic escalation rules with reasons, plus an LLM-written handoff summary |
+| Measurable outcomes | Time from freeze to pack to approval, share of balance kept usable, eval metrics dashboard |
+
+---
+
+## 2. Scope and priorities
+
+**P0: the demo cannot happen without these**
+Chained ledger with triggers and verification · synthetic world v2 (demo split) · rules and
+Sarvam hard-case labelling · question budget · WhatsApp and in-app assistant conversation
+(buttons, text, voice-in) in Kannada · Cognee shop memory used in labelling and chat · freeze
+workflow end to end with officer approval · notice workflow (fallback: notice chosen from events
+if OCR fails) · evidence tiers · threshold warning · all live workflows on **n8n Cloud** ·
+**Paytm-style merchant app** screens M1 Home, M2 Confirm, M5 Case tracker and M6 Assistant ·
+**officer app** screens O1 Queue and O2 Case with approve · permission and ethical refusals ·
+demo remote and reset.
+
+**P1: build Friday evening in this priority order; if late, cut from the end of the list**
+Sarvam Vision OCR of a photographed notice → merchant app M3 Payments and M4 Payment detail →
+stage view (two phone frames) → Bulbul voice replies and read-aloud → daily anchor
+(OpenTimestamps and git) → M7 Turnover and CA share → n8n Evaluations on the labelling agent
+→ second merchant in Hindi → police inquiry no-tip-off flow → eval split agent-vs-baseline run.
+
+**P2: only if P1 is green**
+Fabricated-history merchant for the tier-shape demo · outcome metrics tiles · judges scan a QR
+to open a read-only merchant app on their own phones · n8n Insights screenshot for time saved ·
+nightly run at scale over the dev split (7 merchants) · GitHub Actions CI.
+
+**Out of scope**
+Real Paytm, bank or NCRP integrations (all simulated and labelled as such) · filing anything ·
+cash sales · lending, Hisaab Pro billing and other business-model features · marketing and
+loyalty.
+
+**Lines we won't cross, enforced in code rather than just stated**
+
+| Line | Control |
+|---|---|
+| Never claims innocence | The `no-innocence-claim` guard rejects drafts that assert innocence or bona fides as fact; prompts forbid it; tests cover it |
+| Nothing sent unapproved | `POST /outbox/send` refuses any pack without a `pack.approved` ledger entry by the officer role. Enforced in core, not only in n8n. |
+| Never helps dodge tax | The tax pack always includes the registration verdict; no feature excludes a credit without a label; the intent `hide_income` routes to a fixed refusal |
+| The LLM never does arithmetic | Every number comes from a skill. The `numbers` guard rejects LLM text containing any figure not in the facts payload. |
+
+---
+
+## 3. Architecture
+
+```mermaid
+flowchart LR
+  subgraph phones[Phones]
+    WA[WhatsApp<br/>Meta Cloud API]
+    APP[Paytm-style merchant app · PWA<br/>Home · Confirm · Payments · Cases · Assistant]
+    OFF[Paytm officer app · PWA<br/>queue · case · approve]
+  end
+  RS[Rails simulator<br/>credits · bills · declines · lien · LEA inquiry · notice]
+  subgraph cloud[n8n Cloud]
+    N8N[workflows<br/>nightly · freeze · notice · inbound/outbound · anchor<br/>AI Agent · Wait-for-approval · Evaluations]
+  end
+  subgraph vm[VM · public HTTPS]
+    CORE[core · FastAPI<br/>skills · guards · ledger API · packs · outbox]
+    MEM[memory · Cognee<br/>shop memory]
+    PG[(PostgreSQL 16 + pgvector<br/>rails · ledger · ops · cognee)]
+    WEB[web · static PWA build]
+  end
+  SAR[Sarvam AI<br/>sarvam-105b · Saaras v3 · Bulbul v3 · Translate · Vision]
+  OUT[Simulated outbox<br/>bank nodal · NCRP/CFCFRMS · IO]
+  ANC[Anchors<br/>OpenTimestamps · public git repo]
+
+  WA <--> N8N
+  APP <--> CORE
+  OFF <--> CORE
+  CORE -- assistant messages, case webhooks --> N8N
+  RS --> CORE
+  N8N <--> SAR
+  N8N <--> MEM
+  N8N <--> CORE
+  MEM --> SAR
+  CORE --> PG
+  MEM --> PG
+  WEB -. serves .-> APP
+  WEB -. serves .-> OFF
+  CORE -- approve/reject resumes Wait --> N8N
+  CORE --> OUT
+  CORE --> ANC
+```
+
+**n8n Cloud calls into our services, so core and memory need public HTTPS from Thursday
+night** (the VM behind Caddy, or a named cloudflared tunnel). Every call carries a role key.
+n8n's own webhooks are already public on Cloud, so WhatsApp posts straight to n8n.
+
+**Principles**
+- **AI proposes, Python calculates, the ledger records, a person approves.** This matches the
+  deck's pipeline slide one to one.
+- **n8n is the visible spine.** Every agent step is an inspectable node. Core holds the
+  deterministic skills and enforces permissions. Workflows call core with a **role-scoped key**.
+- **As-of discipline.** Every skill takes `as_of` (the simulated clock) and reads nothing later.
+  The old repo leaked future data (see §21).
+- **Memory is context, never evidence.** Cognee informs proposals and conversation. Packs cite
+  only ledger entries, bills and rails data.
+- **Nothing reads `hidden/`** except `sim/` and the `eval/` harnesses.
+
+---
+
+## 4. Repository layout
+
+Work happens on branch `bfi`. The first commit moves the old tree to
+`archive/agent-labs-2026-09-12/`, which is never imported. The untracked pitch files stay where
+they are.
+
+```
+.
+├── IMPLEMENTATION_PLAN.md
+├── README.md                      rewritten for BFI (architecture, quickstart, demo)
+├── docker-compose.yml             postgres, core, memory, web, caddy; profile `local-n8n` adds n8n for seeding and fallback
+├── .env.example
+├── tasks.py                       cross-platform task runner (invoke): up, seed, reset, eval, export-n8n
+├── sim/                           synthetic world v2 (stdlib only)
+│   ├── catalog.py  world.py  scenario.py  notices.py  generate.py
+├── services/
+│   ├── core/                      FastAPI, SQLAlchemy 2, psycopg 3, Alembic, Pydantic v2 (uv)
+│   │   ├── app/main.py  auth.py  clock.py  config.py
+│   │   ├── app/rails/             ingest, freeze detector, event fan-out to n8n
+│   │   ├── app/ledger/            chain.py, kinds.py, projection.py, verify.py, anchor.py
+│   │   ├── app/skills/            classify_rules, payer_history, question_budget, turnover,
+│   │   │                          threshold, isolate, tiers, escalation, packs, grievance
+│   │   ├── app/guards/            numbers, citations, no_innocence, extraction, language
+│   │   ├── app/ops/               cases, approvals, outbox, media, phone-sim bus (SSE)
+│   │   ├── app/render/            pack HTML → PDF (WeasyPrint, Noto Indic fonts)
+│   │   ├── app/schemas/           LLM output schemas → exported JSON Schema for n8n
+│   │   ├── migrations/            Alembic (incl. ledger triggers + role grants)
+│   │   └── tests/
+│   ├── memory/                    FastAPI wrapper over Cognee (pinned), one stable interface
+│   └── web/                       phone-first PWA: React + Vite + TS + Tailwind + TanStack Query
+│       ├── src/design/            Paytm-style tokens, typography, icons, motion (§12.1)
+│       ├── src/components/        AppBar, BottomNav, TileGrid, TxnRow, Chip, BottomSheet,
+│       │                          StickyCTA, Stepper, TierBar, AmountText, MicButton, PhoneFrame
+│       ├── src/apps/merchant/     M1–M7 screens
+│       ├── src/apps/officer/      O1–O3 screens
+│       ├── src/apps/demo/         demo remote, stage view, ledger explorer, eval
+│       └── e2e/                   Playwright on mobile viewports
+├── design/reference/              Paytm for Business screenshots for the team's reference (gitignored)
+├── n8n/
+│   ├── workflows/                 exported JSON, one file per workflow, committed
+│   └── README.md                  Cloud setup, credentials to create, import/export through the n8n public API
+├── prompts/                       versioned prompt files, served by core GET /prompts/{name}
+├── legal/citations.yaml           allowlist: SOP, AP HC, Rajasthan HC, CGST s.2(6)/22/23/25 + sources
+├── i18n/                          UI and message templates per language (generated, reviewed)
+└── eval/                          score.py, baseline.py, simulate_merchant.py, beats.py, report.py
+```
+
+---
+
+## 5. Synthetic world v2 (`sim/`), owned by A
+
+Rewrite the generator using `DATA.md` as the spec: the same process model, labels, difficulty
+knob and visible/hidden split. Extend it for what the new product needs.
+
+**Kept from the spec:**
+- the 7 true labels, with `unclassified` allowed only as an answer
+- shop archetypes: veg_vendor, mixed_kirana, family_kirana, mobile_accessories, darshini,
+  composition_kirana
+- the difficulty cues
+- the duplicate/refund, family money, loans/chit and fraud chain processes
+- the thresholds: ₹40L for goods, ₹20L for services, crossing when strictly above
+- aggregate turnover includes exempt sales (CGST s.2(6)); exclusively-exempt suppliers don't
+  need to register (s.23)
+
+**New in v2**
+
+| Addition | Why |
+|---|---|
+| `terminals.json`: device id, geo, installed_at | Evidence of "the bill, the device, the location" |
+| `rails_events.json`: `payment_declined` bursts, `lien_marked` (NCRP ack, case ref, amount/date/UTR), `lea_inquiry`, `notice_served` | Drives automatic freeze detection and the no-tip-off flow |
+| `notices/*.pdf/.jpg`: a rendered GST notice marked SPECIMEN (plus a phone-photo variant) | Real OCR input for Sarvam Vision |
+| Merchant behaviour model (hidden): answer delay, error rate, late corrections, post-notice annotations | Exercises tiers 3 and 4 honestly |
+| Second demo merchant: exclusively-exempt veg vendor in Lucknow, Hindi | Shows "any language" and the exclusively-exempt verdict |
+| A `fabricated_history` merchant in eval: mule-like, whose history is mostly tier 3/4 claims added after a lien | Tier-shape sorting ("we sort, we don't advocate") |
+| Balances and settlements (visible) | Metric: share of balance kept usable under a lien-only hold |
+
+**Demo scenario (Sahana Stores, Jayanagar, Kannada, FY 2025-26).** These are seeded facts,
+asserted at generation time:
+- 3 seeded credits on 8–9 Mar for the 10 Mar questions: own savings ₹15,000, spouse ₹7,500,
+  and a repeat customer's ₹4,850 sale
+- a ₹23 payment nobody can place
+- the ₹40L crossing on 14 Mar
+- a notice claiming gross credits of about ₹60.98L
+- a lien at 09:30 on 24 Mar for a ₹4,200 `UPI_POS` sale at 19:47 on 21 Mar, with a POS bill
+  (onions and more) on till POS01
+- a same-amount decoy from a regular customer on 18 Mar
+- 339 credits in the 7 days before the freeze
+
+`demo_scenario.json` is the answer key for these.
+
+**Outputs:** `data/<split>/{visible,hidden}` for the demo, dev, eval and sweep splits. The CLI is
+`python -m sim.generate [--only demo]`, with fixed seeds.
+
+---
+
+## 6. The provenance ledger (Postgres), owned by A
+
+### Tables
+
+| Schema.table | Purpose |
+|---|---|
+| `rails.merchants`, `rails.terminals`, `rails.counterparties` | Profile, device, payer identity |
+| `rails.credits`, `rails.debits`, `rails.bills`, `rails.bill_lines`, `rails.events` | What Paytm sees, loaded by the rails replayer up to the sim clock |
+| **`ledger.entries`** | Append-only, hash-chained per merchant |
+| `ledger.chain_heads` | Current head per merchant; row-locked on append |
+| `ledger.anchors` | Daily digest, OTS receipt, git commit URL |
+| `ops.cases`, `ops.packs`, `ops.approvals`, `ops.outbox`, `ops.questions`, `ops.conversations`, `ops.media`, `ops.payer_facts`, `ops.escalations`, `ops.metrics` | Working state; everything that matters is also mirrored as a ledger entry |
+
+### `ledger.entries`
+
+```
+seq bigserial PK · merchant_id · chain_index int · kind text · txn_id text null
+payload jsonb · actor_role text · actor_ref text
+sim_at timestamptz        -- business clock (replayed history)
+recorded_at timestamptz   -- DB clock_timestamp(), never supplied by the caller
+prev_hash bytea · hash bytea
+hash = sha256( canonical_json({merchant_id, chain_index, kind, txn_id, payload,
+                               actor_role, sim_at, recorded_at}) || prev_hash )
+```
+
+**Enforcement**
+- A `BEFORE UPDATE OR DELETE OR TRUNCATE` trigger raises an exception.
+- The app DB role gets `INSERT, SELECT` only. Migrations run as a separate owner role.
+- Core checks which `kind`s each API role may append (§14).
+
+**Entry kinds**
+
+| Kind | Written by | Notes |
+|---|---|---|
+| `credit.observed`, `bill.linked` | rails | |
+| `label.proposed` | provenance | `{label, source: rule\|agent, rule_id \| model+prompt_version, confidence, reason, evidence_refs, memory_refs}` |
+| `question.asked` | conversation | |
+| `claim.answered` | conversation | `{question_id, label, raw_text \| media_sha256, language}` |
+| `claim.annotated` | conversation | merchant-initiated correction |
+| `label.disputed` | conversation | |
+| `case.opened` | rails / evidence | |
+| `pack.built` | evidence | `{pack_id, pdf_sha256, tier_totals}` |
+| `pack.approved`, `pack.rejected` | officer | |
+| `pack.sent` | core outbox | |
+| `anchor.created` | anchor job | |
+
+**Projection.** `ledger.current_view(merchant, as_of)` is a SQL function returning one row per
+credit:
+- `machine_label`: latest proposal, never removed
+- `claim_label`: latest claim, if any
+- `effective_label`: the claim if present, else the machine label
+- `tier`, `conflict` (for example, a claim contradicts a bill)
+- the entry refs behind each field
+
+Nothing is ever overwritten. The view is derived.
+
+### Evidence tiers (computed in `skills/tiers.py`, relative to the case's `opened_at`)
+
+| Tier | Rule |
+|---|---|
+| **1 Backed by a bill** | `bill.linked` recorded before the case, and the effective label is a supply consistent with the bill lines |
+| **2 Derived by a rule** | `label.proposed` (rule, or agent working from the payment's own data) before the case, with no claim |
+| **3 Their answer when asked** | `claim.answered` to a system `question.asked`, recorded before the case (a label inherited from an earlier answer about the same payer is also tier 3, with a reference) |
+| **4 Added after the notice** | `claim.annotated`, or anything recorded after `opened_at`. Shows the lag in days and whether it came before or after the notice. |
+
+Every pack shows ₹ and count per tier, plus a **shape** figure: the share of ₹ in tiers 1+2.
+That shape is what separates a genuine shop from a fabricated history.
+
+### Anchoring and the tamper demo
+- **Daily job (WF60).** Digest = sha256 of the sorted `(merchant_id, chain_index, hash)` heads
+  → submitted to OpenTimestamps (`opentimestamps-client`), with the `.ots` receipt stored →
+  also committed to a public `hisaab-anchors` GitHub repo through the API, for an instant
+  public timestamp → an `anchor.created` entry is appended.
+- **Honesty note.** Anchors for the *replayed* year are created during seeding and labelled
+  `simulated`. Anchors made live during the demo are real.
+- **`GET /ledger/verify?merchant=`** recomputes the chain and checks it against the anchors. It
+  returns `ok`, or `broken_at: chain_index` together with the first anchor that disagrees.
+- **Demo panel "Tamper".** (a) An app-level `UPDATE` fails at the trigger. (b) As superuser, the
+  panel disables the trigger, edits one label and re-enables it. Verify then flags that exact
+  entry, and the officer app (O2) shows a red chain badge.
+
+---
+
+## 7. Core service (FastAPI): skills and API, owned by A
+
+**Auth.** Header `X-Hisaab-Key` → one role:
+`rails`, `provenance`, `conversation`, `evidence`, `officer`, `admin`.
+
+Each n8n workflow uses only its own role's HTTP Header Auth credential. Core returns a **403
+with a readable reason**, which appears in the n8n execution log.
+
+| Endpoint | Roles | Does |
+|---|---|---|
+| `POST /rails/credits`, `/rails/bills`, `/rails/events` | rails | Ingest; append `credit.observed`/`bill.linked`; the freeze detector opens a case and calls the n8n webhook |
+| `GET /merchants/{id}`, `/credits?as_of`, `/credits/{txn}`, `/credits/by-utr/{utr}` | all agent roles | Reads |
+| `GET /payers/{cp}/history?merchant&as_of` | all agent roles | **Strictly prior** counts, channels, whether the merchant has paid them, twins, own-account and surname cues, `payer_facts` |
+| `POST /skills/classify-rules` (batch) | provenance | Deterministic label, confidence, rule_id and ask flags, or `null` for a hard case |
+| `POST /ledger/proposals` | provenance | Validates the enum and caps agent confidence (≤0.85), then appends `label.proposed` |
+| `POST /skills/select-questions` | provenance | Budget of ≤3 a day (below) |
+| `POST /ledger/questions`, `/ledger/claims` | conversation | Append `question.asked`, `claim.answered`/`annotated`/`label.disputed`; update `payer_facts` |
+| `POST /skills/turnover` | evidence | Aggregate = exempt + taxable. Unbilled QR sales are apportioned by value from the shop's billed exempt share, marked as an estimate. Excluded buckets with txn IDs. Coverage. Workings. |
+| `POST /skills/threshold` | evidence | Already-crossed date, or a projection from the trailing-60-day run rate; days of warning; ₹40L/₹20L by supply kind; exclusively-exempt check; **respects gst_status** |
+| `POST /skills/isolate` | evidence | Match by UTR, **and independently** by amount ± date window; `found_by: [utr, amount_date]`; same-amount candidates listed; bill, device, geo; 7-day count |
+| `POST /skills/tiers`, `/skills/escalation-check` | evidence | Tier totals and shape; escalation decision with reasons |
+| `POST /cases`, `POST /packs` | evidence | Build the pack JSON and PDF, append `pack.built`; **cannot** touch labels or claims |
+| `POST /guards/{numbers\|citations\|no-innocence\|extraction\|language}` | all | Pass/fail with offending spans |
+| `POST /packs/{id}/approve\|reject` | officer | Appends an entry and resumes the n8n Wait through its stored `resume_url` |
+| `POST /outbox/{pack}/send` | officer | Refuses without `pack.approved`; writes to the simulated destination and appends `pack.sent` |
+| `GET /ledger/verify`, `GET /ledger/{m}/entries`, `GET /anchors` | officer, admin | Trust views |
+| `POST /sim/clock`, `/sim/replay`, `/sim/reset`, `/sim/tamper`, `/anchors/run` | admin | Demo control |
+| `POST /assistant/inbound` (text, audio, image/PDF), `GET /assistant/stream` (SSE), `POST /assistant/outbound` | merchant app, conversation | In-app Hisaab Assistant; inbound forwards to the same n8n webhook WhatsApp uses |
+| `GET /app/home`, `/app/payments`, `/app/payments/{txn}`, `/app/cases`, `/app/turnover` | merchant app | Screen-shaped read models (one call per screen, preformatted ₹ strings per locale) so the phone stays fast |
+| `GET /app/officer/queue`, `/app/officer/cases/{id}` | officer app | Screen-shaped read models for the officer screens |
+| `POST /app/push/subscribe` | both apps | Web Push subscription for alerts and approval requests (P1) |
+| `GET /prompts/{name}` | all | Versioned prompt text; the version is logged in entries |
+
+### Question budget (`skills/question_budget.py`)
+
+1. **Candidates.** A proposal is a candidate if any of these hold:
+   - no label, or confidence below 0.75
+   - a non-sale credit of ₹10,000 or more
+   - a sale of ₹3,000 or more from a payer with ≤3 **strictly prior** credits and no bill
+
+   Never ask below ₹500. Never ask about a payer whose relationship is already in
+   `payer_facts`.
+2. **Priority.** `amount × (1 − confidence) × proximity`, where proximity is 1.5 when projected
+   turnover is within 15% of the threshold.
+3. **Budget.** At most **3 a day**, least confident first. Unasked candidates expire after 7
+   days: they stay machine-labelled or `unclassified` and are never guessed.
+
+### Escalation rules (`skills/escalation.py`; thresholds live in config and are verified, §22)
+
+Any one of these routes the case to a human specialist rather than routine approval:
+- disputed amount above the SOP small-sum limit (₹50,000, pending verification)
+- disputed credit not in tier 1 or 2
+- effective label is not an ordinary goods or services sale
+- a claim conflicts with a bill, or the merchant disputes a label
+- tier-3+4 share of the period's ₹ above 40%
+- a second freeze within 90 days
+
+---
+
+## 8. AI layer (Sarvam), owned by B
+
+| Use | Model | In | Out (validated by core) |
+|---|---|---|---|
+| Hard-case labelling | `sarvam-105b` | Credit, as-of payer history, rules output, Cognee recall | `{label∈enum∪unclassified, confidence, reason_en, evidence_used[]}` |
+| Intent of a merchant message | `sarvam-105b-conversations` (tool calling) | Transcript and pending questions | One of `answer_question, ask_status, report_freeze, send_notice, correct_label, dispute_label, hide_income, help, other`, plus slots. Button taps skip the LLM. |
+| Voice in | Saaras v3 (transcribe/codemix) | WhatsApp OGG/Opus (ffmpeg → WAV if needed) | Transcript and detected language |
+| Voice out (P1) | Bulbul v3 | Final reply text | Audio sent as a WhatsApp voice note |
+| Message templates | Sarvam-Translate | English templates with protected `{placeholders}` | `i18n/<lang>.json`, generated at build time; Kannada and Hindi reviewed by a person |
+| Notice reading | Sarvam Vision (document intelligence) → `sarvam-105b` extraction | Photo or PDF | `{authority, reference, date, period, claimed_turnover, allegation, due_date}`; the extraction guard requires each number to appear in the OCR text |
+| Grievance facts paragraph | `sarvam-105b` | Structured pack facts | Plain-language paragraph; numbers, citations and no-innocence guards; the template supplies structure and citations |
+| CA explainer and merchant explainer | `sarvam-105b` | Tax pack JSON | English for the CA, merchant's language for them; numbers guard |
+| Officer handoff summary | `sarvam-105b` | Case and escalation reasons | Short summary; numbers guard |
+
+**Rules**
+- All prompts live in `prompts/*.md` with a version header.
+- Outputs are parsed against the JSON Schemas exported from `services/core/app/schemas`.
+- On a guard failure, retry once with the violation fed back. Then fall back to the
+  template-only text, which is always available.
+- Numbers never pass through the LLM. Templates hold `{amount}` slots and core formats them in
+  the Indian style (lakh, commas) per language.
+
+---
+
+## 9. Memory (Cognee), owned by B
+
+`services/memory` wraps Cognee v1.x, pinned to the version tested in spike S6. It exposes a
+stable interface so the rest of the system never depends on how Cognee's API changes:
+
+```
+POST /remember  {merchant_id, kind, text, facts?, session_id?}
+POST /recall    {merchant_id, query, session_id?, top_k}
+POST /improve   {merchant_id}
+POST /forget    {merchant_id}   (demo reset)
+```
+
+- **Configuration.** One dataset per shop (`shop_<merchant_id>`). The LLM is Sarvam, reached
+  through LiteLLM as an OpenAI-compatible custom endpoint. Embeddings use **fastembed**
+  locally, with no key. Storage is Postgres with pgvector in a separate `cognee` database. The
+  graph store is Kùzu, embedded.
+- **What is remembered:**
+  - the shop profile narrative
+  - payer relationships learned from claims ("handle X is the owner's spouse, per their answer
+    on 10 Mar")
+  - conversation sessions
+  - case outcomes and officer notes
+  - language and time-of-day preferences
+- **Where it is used:**
+  - hard-case labelling, as context
+  - the conversation ("what was that ₹7,500?", "why do you ask?")
+  - the escalation summary
+
+  `improve()` runs at the end of each nightly run.
+- **Guardrail.** Recalled memory that influences a proposal is logged in `memory_refs` and never
+  counts toward tiers 1 or 2. Payer facts that rules depend on are also written
+  deterministically to `ops.payer_facts`.
+- **Fallback.** If Cognee's LLM extraction misbehaves with Sarvam, write typed DataPoints
+  directly, with no LLM extraction. If Cognee is down, `/recall` returns empty with
+  `degraded: true`. Labelling continues with a lower confidence cap, which produces more
+  questions and never wrong labels.
+
+---
+
+## 10. n8n workflows, owned by B
+
+Live workflows run on **n8n Cloud**, redeemed with the hackathon voucher on Thursday. Check the
+instance version in the Cloud admin panel: human review of AI tool calls needs 2.6 or later.
+Workflow JSON is committed, and `tasks.py export-n8n` and `import-n8n` round-trip it through the
+n8n public API (the API key comes from Cloud settings). The same files import into the local
+n8n (`docker compose --profile local-n8n up`).
+
+| ID | Trigger | Steps |
+|---|---|---|
+| **WF10 nightly-provenance** | Schedule 02:00 IST; webhook `{merchant?, as_of, mode: live\|seed, from?, to?}` | Credits since the last run → classify-rules → split: settled ones go to proposals (batch); hard cases loop through memory recall, the Sarvam labelling agent, the schema check and proposals → select-questions → (live) WF30 morning questions → threshold → (warning due) WF30 warning → memory improve → WF60 |
+| **WF30 merchant-outbound** (sub) | Execute Workflow | Template and language → optional Bulbul → channel switch: WhatsApp node (template message outside the 24h window, interactive buttons inside it) or core `/assistant/outbound` (the in-app assistant, plus a Web Push nudge) → `question.asked` or log |
+| **WF31 merchant-inbound** | WhatsApp Trigger (signature verified); webhook from the in-app assistant | Normalise → audio goes to Saaras → button payload routes directly, otherwise intent via Sarvam → switch: answers to `/ledger/claims`; status via turnover/threshold → reply; `report_freeze` → WF20 lookup; notice image/PDF → WF40; correction → `claim.annotated` (tier 4, told so); dispute → WF50; `hide_income` → fixed refusal → reply (guards) → memory remember (session) |
+| **WF20 freeze-response** | Core webhook on `case.opened(freeze)` | isolate → payer history and bill → tiers → escalation-check → grievance (template, Sarvam facts paragraph, guards) → packs (PDF) → WF30 acknowledgement to the merchant (no claims, no promises) → approval record with `$execution.resumeUrl` → **Wait (resume on webhook)** → approved: outbox send, WF30 status, metrics / rejected or escalated: WF50 |
+| **WF21 lea-inquiry** (P1) | Core webhook on `lea_inquiry` | Same evidence assembly → officer approval → outbox reply. **No WF30 node exists in this workflow**; a test asserts it. |
+| **WF40 notice-response** | WF31, or core webhook on `notice_served` | Media → Sarvam Vision → extraction → extraction guard → case → turnover, threshold and tiers → tax pack PDF → CA and merchant explainers → approval Wait → deliver: explainer to the merchant, English export link for the CA |
+| **WF50 escalation-handoff** (sub) | Execute Workflow | Escalation record with reasons → Sarvam handoff summary → officer app queue (O1) → WF30 "a person from Paytm will review this" |
+| **WF60 daily-anchor** | Schedule 23:55 IST; called by WF10 in seed mode | core `/anchors/run` (OTS and git) → `anchor.created` |
+| **WF90 error-handler** | n8n error workflow | Log to `ops`, alert card in the officer app |
+| **WF99 refusal-probe** | Manual (demo) | Evidence credential tries `POST /ledger/claims` → shows the 403 reason |
+
+**Seed mode.** WF10 walks the year day by day with no messaging.
+`eval/simulate_merchant.py` is a harness that reads the hidden behaviour model. It answers each
+day's selected questions through the conversation API, using realistic delays, a few errors and
+later corrections. All of this uses the sim clock, so a year of chain history exists before the
+demo starts. At the end, `pg_dump` saves a **seed snapshot**, which reset restores.
+
+Seed mode runs on the **local n8n** against the VM's core, never on Cloud. A year of daily runs
+plus their sub-workflows would burn a large share of the Cloud execution quota, because Cloud
+counts sub-workflow, manual and test runs.
+
+### 10.1 Making it the best use of n8n (prize track)
+
+The goal is for n8n to *be* the teammate's visible brain, not a thin webhook relay. Each item
+below is real product logic, not decoration:
+
+| n8n capability | Where we use it |
+|---|---|
+| **AI Agent node** with Sarvam through an OpenAI-compatible chat model credential | WF31 intent and reply agent; its **tools** are HTTP Request Tool nodes calling core skills with the conversation role key |
+| **Structured Output Parser** or Basic LLM Chain | WF10 hard-case labelling, WF40 notice extraction (schemas exported from core) |
+| **Human review of AI tool calls** | The WF31 agent's `record_correction` tool needs merchant confirmation before it runs |
+| **Wait node, resumed by webhook** | WF20/WF40/WF21 pause for officer approval; the officer app calls `resumeUrl` |
+| **n8n Form Trigger** | Fallback approval page, and a CA upload form ("send us the notice") |
+| **WhatsApp Trigger and WhatsApp Business Cloud nodes** | WF31 inbound and WF30 outbound (templates, interactive buttons, voice notes) |
+| **Execute Workflow (sub-workflows)** | WF30 outbound and WF50 escalation, reused by every flow |
+| **Schedule Trigger** | WF10 nightly at 02:00 IST, WF60 anchor at 23:55 IST |
+| **Error workflow** | WF90 for every workflow: logs to `ops` and posts an alert card to the officer app |
+| **Evaluations** (Evaluation node with an n8n Data Table dataset) | `WF10-eval`: about 50 labelled hard cases from the eval split, metrics for label match and "asked when unsure", shown on stage from the n8n Evaluations tab (P1) |
+| **Execution history and pinned data** | The demo shows the WF20 execution graph live; pinned data makes workflows testable without spending Sarvam calls |
+| **Workflow and tag naming** | `hisaab/WF20 freeze-response` and so on, with sticky notes on every workflow explaining each lane (judges open them) |
+
+### 10.2 n8n Cloud constraints and how we design for them
+
+| Constraint | Design response |
+|---|---|
+| **Execution quota** (the voucher tier's monthly cap covers production, manual and sub-workflow runs) | Batch inside one execution (Loop Over Items rather than one sub-workflow per credit); seed on local n8n; count executions per rehearsal on Thursday and budget for them. A full demo run should need about 25 executions. |
+| **Concurrency limit** on production executions | Freeze and notice flows are rare; WhatsApp inbound queues briefly, which is acceptable |
+| **`$env` is blocked in nodes** | All config comes from **credentials** (one HTTP Header Auth per role key, Sarvam, WhatsApp) plus a `GET /config` call to core; nothing is read from env |
+| **Webhook response time** | Core fires webhooks fire-and-forget; workflows answer immediately with "Respond to Webhook" and continue asynchronously |
+| **No custom npm or community nodes guaranteed** | Only built-in nodes; all Python lives in core |
+| **Voucher expires a week after the event** | Export all workflows to git after every checkpoint; the local n8n profile keeps the project runnable afterwards |
+| **Cloud outage or network trouble on stage** | Switch `N8N_BASE_URL` in core to the local n8n (workflows already imported, credentials already created) and re-point the WhatsApp webhook: under 5 min, rehearsed once |
+
+---
+
+## 11. Channels, owned by B
+
+**WhatsApp (Meta Cloud API test number)**
+- Set up a Meta developer app with a test number and add up to 5 recipient phones (the team
+  plus a demo phone).
+- The permanent access token lives in n8n credentials. The webhook points straight at the
+  **n8n Cloud** WhatsApp Trigger URL (already public HTTPS), with the `X-Hub-Signature-256`
+  check.
+- **The 24-hour window matters.** Morning questions are business-initiated, so they need an
+  approved **utility template** ("You have {n} payments to confirm", with a "Show me" quick
+  reply) in English, Kannada and Hindi. **Submit the templates Thursday night.** Once the
+  merchant taps, the session is open and questions go out as interactive button messages.
+  Fallback: the merchant says "hi" first.
+- Voice notes are received as OGG/Opus, and media is fetched through the Graph API into
+  `ops.media` with a sha256.
+
+**In-app Hisaab Assistant** (screen M6 of the merchant app, §12)
+- The same conversation, inside the Paytm-style app: chat bubbles, tappable chips, hold-to-talk
+  mic (MediaRecorder), camera or file upload for a notice, and audio playback for voice replies.
+- It posts to core `/assistant/inbound`, which forwards to the **same WF31 webhook**, and
+  receives replies over SSE. A Web Push nudge brings the merchant back into the app.
+- Product story: the merchant can use Hisaab in the Paytm app they already have, or on
+  WhatsApp. For the demo, each channel is the other's fallback, and the conversation logic is
+  identical.
+
+---
+
+## 12. Frontend: a Paytm-style, phone-first PWA (`services/web`), owned by B
+
+**The bar:** a Paytm product manager should look at it on a phone and see a tab that belongs in
+Paytm for Business, not a hackathon dashboard.
+
+**Principles**
+- **Phone first.**
+  - Design at 360×800 (a small Android phone); test at 360, 390 and 412 px wide.
+  - Touch targets at least 48 px; primary actions in the thumb zone (a sticky bottom button).
+  - One decision per screen, nothing that only works on hover, and respect safe-area insets.
+- **Installable PWA** (`vite-plugin-pwa`).
+  - Manifest with standalone display, navy theme colour, app icons.
+  - An offline shell that keeps the last Home data.
+  - The team's and demo phones install it from the VM URL with "Add to Home screen".
+- **Laptops and the projector.** A `PhoneFrame` wrapper centres the app in a device bezel
+  (412×892). `/stage` shows the merchant and officer phones side by side.
+- **Branding, handled responsibly.**
+  - The "Paytm Hisaab" wordmark is set in type using Paytm's colours.
+  - No copied Paytm logo files, proprietary icons or illustrations.
+  - A small "Prototype · synthetic data" tag sits in the profile screen and footer, and on
+    every pack.
+- **Stack:** React, Vite, TypeScript, Tailwind (theme generated from `design/tokens.ts`),
+  TanStack Query, vaul for bottom sheets, lucide icons, framer-motion for small transitions.
+  Screens read the `/app/*` read models (§7), one call per screen.
+
+### 12.1 Design system (Paytm-style tokens)
+
+On Thursday night, capture 8–10 screenshots of the Paytm for Business app (Home, transaction
+list, transaction detail, settlements, Soundbox, help chat) into `design/reference/`
+(gitignored). Tune the tokens against them before building screens.
+
+| Token | Value (starting point) | Used for |
+|---|---|---|
+| `navy` | `#002970` | Header band, headings, the "Paytm" half of the wordmark |
+| `cyan` | `#00BAF2` | Primary buttons, active tab, progress, links |
+| `cyan-50` | `#E8F8FE` | Icon tile backgrounds, selected chips |
+| `bg` / `card` / `hairline` | `#F5F7FA` / `#FFFFFF` / `#E6ECF2` | Page, cards, dividers |
+| `ink` / `muted` | `#101828` / `#667085` | Text |
+| `credit` | `#12A150` | "+₹" amounts |
+| `alert` / `notice` | `#E5484D` / `#B45309` | Freeze banners / tax notice banners |
+| `tier1…tier4` | green-700, green-400, amber, red | Tier bar and badges, matching the deck |
+| Radius | card 16 · chip full · sheet 24 (top) | |
+| Elevation | `0 1px 3px rgba(16,24,40,.08)` only | Flat, Paytm-like cards |
+| Type | Inter (tabular numerals for amounts), with Noto Sans Kannada, Devanagari, Tamil, Telugu, Bengali, Gujarati, Malayalam, Gurmukhi and Oriya as fallbacks · sizes 12/14/16/20/28 · amounts weight 700 | |
+| Icons | 24 px line icons inside 48 px rounded-square cyan-50 tiles, in a 4-column grid | The Paytm icon-grid look |
+| Motion | 150–200 ms ease-out; sheets slide up; a tick animation on confirm; skeleton loaders, not spinners | |
+| Formatting | Indian grouping: ₹4,200 · ₹42.2 L · ₹1.2 Cr; "21 Mar, 7:47 PM"; formatted in core per locale | |
+
+**Components** (`src/components`):
+- Structure: `AppBar` (back, title, language pill, help), `HeaderBand` (business name and
+  today's collection), `BottomNav`, `PhoneFrame`
+- Content: `TileGrid`, `Card`, `TxnRow` (initial avatar, name, time, channel icon, green +₹,
+  label chip, tier dot), `AmountText`, `EmptyState`
+- Actions: `Chip`/`ChipGroup` (one-tap answers), `StickyCTA`, `MicButton` (hold to talk, with
+  a waveform), `LanguagePicker` (tiles in each language's own script), `Snackbar`
+- Sheets and progress: `BottomSheet`, `Stepper` (order-tracking style), `ThresholdProgress`
+  (bar with a ₹40L marker and the projected date), `TierBar`
+
+### 12.2 Merchant app: Paytm for Business, with Hisaab inside
+
+Bottom navigation has four tabs: **Home · Payments · Hisaab · Assistant**.
+
+| # | Screen | What's on it | Beat |
+|---|---|---|---|
+| M0 | Language and consent | Language tiles in their own scripts; one-screen consent: "Hisaab asks at most 3 questions a day" | Setup |
+| M1 | Home | Navy header band: business name, "Today ₹18,340 · 64 payments" · alert banner, red ("Payments on hold. We're working on it.") or amber ("Tax notice received") · **Hisaab card**: "3 payments to confirm" button plus threshold progress with projected date · tile grid: Payments, Settlements\*, Soundbox\*, Hisaab, Share with CA, Language (\*static) | All |
+| M2 | Confirm payments | One card at a time: large amount, time, payer, channel icon, the question in their language ("₹15,000 on Sunday night. Your own money?") · chips: Sale · Family · My own money · Loan/other · Not sure · mic to answer by voice · "1 of 3" dots · tick, then auto-advance · at the end: "Done for today. 36 other payments were settled automatically." | Ordinary Tuesday |
+| M3 | Payments | Search, filter chips (Today, This week, Needs you, Not a sale), `TxnRow` list with sticky day headers and day totals | Trust |
+| M4 | Payment detail (bottom sheet) | Amount, UTR, time, till, device, bill items · **"What Hisaab recorded"**: the machine label and their answer side by side, each dated with a tier badge · "Add a note", which warns that notes added now are marked as added later | Trust |
+| M5 | Case tracker | Order-tracking stepper: Payments on hold (09:30) → Disputed payment found (₹4,200, 21 Mar, 7:47 PM) → Evidence pack ready → Paytm officer reviewing → Sent to bank and police → Hold narrowed to ₹4,200 · "Usable balance" card · what happens next, in plain words, never claiming innocence · **tax variant**: notice summary, claimed vs actual turnover, "You crossed ₹40 lakh on 14 Mar. You need to register." and a Share with CA button | Freeze, Notice |
+| M6 | Assistant | Paytm-styled chat (not WhatsApp green): bubbles, chips, hold-to-talk mic, attach (camera or PDF), play button on voice replies, and an "Also on WhatsApp" link | All |
+| M7 | Turnover and CA share | Aggregate by default: turnover against the threshold, exempt vs taxable, a quiet list of what isn't turnover · two taps to line items · **Share with CA** through the Web Share API (PDF and CSV links), with an English/own-language toggle | Notice |
+
+### 12.3 Officer app ("Paytm Ops"): phone first, two panes on desktop
+
+| # | Screen | What's on it |
+|---|---|---|
+| O1 | Queue | Cards by urgency: freezes (red, with an SLA timer), notices (amber), escalations; filter chips; Web Push when a new approval arrives (P1) |
+| O2 | Case | Scrolling sections: disputed payment card with **"UTR ✓" and "Amount + date ✓"** badges and "1 of 339 payments" · decoy card: "Same amount, not chosen", with the reason · bill, device and location · tier bar and shape % · escalation reasons · grievance draft (tap to edit; edits tracked) · citations with verified ticks, where an unverified ⚠ blocks approval · chain badge · **sticky bottom bar: Reject · Escalate · Approve and send** (confirmation sheet), which resumes the n8n Wait |
+| O3 | Sent and outcomes | Outbox with SIMULATED stamps · freeze → pack and pack → approval timings · balance kept usable |
+
+At 1024 px and wider, O1 and O2 become a two-pane list-and-detail layout.
+
+### 12.4 Presenter and judge views
+
+| Route | Device | Contents |
+|---|---|---|
+| `/demo` | Presenter's phone | **Demo remote** with large buttons: jump-to presets (31 Jan, 10 Mar 02:00, 24 Mar 09:25, 20 Aug) · run nightly · start declines and lien · upload specimen notice · police inquiry · tamper (a/b) · refusal probe · **reset to seed snapshot** · health dots for core, memory, n8n Cloud, Sarvam and WhatsApp |
+| `/stage` | Laptop on the projector | Merchant `PhoneFrame` and officer `PhoneFrame` side by side, kept in sync live, plus a strip showing the n8n workflow that is running and its execution link |
+| `/ledger/:id` | Any | Chain explorer as a mobile list: tap an entry to expand its hash links; anchors with OTS receipt and git commit link; verify button |
+| `/eval` | Any | `eval/report.json` as mobile-first metric cards and charts |
+
+**Login** is a role picker with fixed demo users mapped to API role keys. WhatsApp messages
+carry an "Open in Paytm" deep link to the matching app screen.
+
+**Quality bar**
+- Playwright e2e on Pixel 7 (412×915) and small-Android (360×800) viewports, with screenshot
+  comparisons for M1, M2, M5 and O2.
+- Lighthouse mobile: installable PWA, performance ≥ 85 when served from the VM.
+- Every string lives in i18n. Kannada and Hindi are reviewed by a person. Nothing truncates at
+  360 px in Kannada, which runs longer than English.
+- AA contrast, 48 px targets, and a read-aloud button (Bulbul) on M2 and M5 cards (P1).
+
+---
+
+## 13. Rails simulator, sim clock and reset, owned by A
+
+- **`clock.py`.** A single `sim_now` stored in the DB. Every skill defaults `as_of` to
+  `sim_now`.
+- **Rails replayer.** `POST /sim/replay {to}` streams visible credits, bills and events up to
+  `to`, with an optional real-time factor for live beats (for example, declines arriving over
+  about 20 s).
+- **Freeze detector.** A `lien_marked` event, **or** 3 or more `payment_declined` within 30
+  minutes followed by lien confirmation, opens `case.opened(freeze)` and fires WF20.
+- **Reset.** `tasks.py reset`: stop n8n executions → restore the seed snapshot (ledger, rails,
+  ops and cognee DBs) → set the clock → clear the assistant message bus → less than 60 s.
+
+---
+
+## 14. Permissions and refusals
+
+**What each role may do**
+
+| Role | May append ledger kinds | May call | Cannot |
+|---|---|---|---|
+| rails | `credit.observed`, `bill.linked`, `case.opened` | rails/* | Label, claim, approve |
+| provenance | `label.proposed` | reads, classify-rules, proposals, select-questions | **Record a claim**, build or approve packs |
+| conversation | `question.asked`, `claim.*`, `label.disputed` | reads, questions, claims | Propose labels, build or approve packs |
+| evidence | `case.opened`, `pack.built` | reads, skills, cases, packs | **Change any label or claim**, approve, send |
+| officer | `pack.approved/rejected`, `pack.sent` | approve, reject, send, verify | Label or claim |
+| admin | none directly (demo tools use the superuser path, logged) | sim/*, anchors/run | |
+
+**Tests.** `tests/test_permissions.py` tries every role against every mutating endpoint. Live
+demos: WF99 (the permission refusal), a `hide_income` voice note (the ethical refusal) and WF21
+(no tip-off).
+
+**Security.**
+- Secrets live in `.env` and n8n credentials only.
+- WhatsApp signatures are verified.
+- n8n Cloud uses account login with 2FA for both team members; the local n8n uses owner login.
+  Webhooks that core calls check a shared `N8N_WEBHOOK_SECRET` header.
+- The demo remote, stage and sim routes need the admin key.
+- CORS is limited to the web origin.
+- All data is synthetic, and everything the outbox produces is stamped SIMULATED.
+
+---
+
+## 15. Evaluation and tests, owned by A (runs B's workflows)
+
+**Unit and integration tests (pytest, `services/core/tests`)**
+- **Chain:** hashing is deterministic, the trigger blocks update and delete, and verify catches
+  a one-byte edit at the right index.
+- **Skills:** golden values against the demo answer key (turnover, crossing date, isolation, the
+  3 questions on 10 Mar, the ₹23 payment left alone).
+- **As-of:** no skill returns data after `as_of`.
+- **Guards:** numbers (including lakh/crore and Indic digits), citations allowlist,
+  no-innocence phrases, extraction.
+- **Permissions:** the matrix above.
+- **Outbox:** refuses to send an unapproved pack.
+
+**`eval/`**
+- `baseline.py`: rules-only labels.
+- `score.py`: any `txn_id,label` file → sale/non-sale accuracy, non-sale recall, per-label
+  F1, unclassified and false-confidence rates, exempt/taxable split (POS vs QR-only),
+  **turnover ₹ error per merchant**.
+- `agent_eval.py`: runs WF10 in seed mode on a stratified sample of eval hard cases (about
+  500) → agent vs baseline.
+- `beats.py`: end-to-end through the n8n Cloud webhooks and the in-app assistant (below).
+- `report.py` → `eval/report.json`, shown at `/eval`.
+- **n8n Evaluations** (`WF10-eval`, P1): the same hard-case sample as an n8n Data Table, so
+  label-match metrics also show up in n8n's own Evaluations tab.
+
+**Frontend tests (Playwright, `services/web/e2e`, owned by B)**
+- Pixel 7 (412×915) and small-Android (360×800) viewports.
+- Flows: M2 confirm three payments by tap, M5 stepper advancing during a freeze, O2 approve
+  resumes the workflow.
+- Screenshot comparisons for M1, M2, M5 and O2, in Kannada and English.
+- A no-horizontal-scroll assertion on every route.
+
+**Targets.** These are shown as measured only once they're met:
+
+| Metric | Target |
+|---|---|
+| Aggregate turnover error (demo) | ≤ 3% |
+| Taxable share understated by | ≤ 5% |
+| Questions a day | ≤ 3 every day; median ≤ 2 |
+| Credits with no entry | 0 |
+| Non-sale recall, agent vs baseline (eval) | +10 pp |
+| Freeze isolation (demo and all eval freeze cases) | Exact |
+| Freeze case → pack ready | < 2 min |
+| Tier shape, genuine vs fabricated history | ≥ 80% vs ≤ 30% of ₹ in tiers 1+2 |
+
+**`beats.py` checks (all must pass)**
+
+- **B1 Freeze:**
+  - a case is opened
+  - both the UTR and the amount/date match point to the disputed txn
+  - the decoy is listed and not chosen
+  - the pack has a bill and tiers
+  - the grievance passes the guards
+  - the Wait is pending
+  - approval → outbox → `pack.sent`
+- **B2 Ordinary Tuesday:**
+  - exactly the 3 seeded credits are asked about on 10 Mar
+  - taps produce `claim.answered` entries
+  - machine labels are still present
+- **B3 Warning:** a projection from 31 Jan lands within 7 days of 14 Mar, and the message was
+  sent.
+- **B4 Notice:**
+  - the OCR fields match the specimen
+  - turnover is within target
+  - the verdict is "must register"
+  - the explainer passes the numbers guard
+- **B5 Trust:**
+  - verify is ok
+  - the tamper is detected at the right index
+  - the anchor exists
+- **B6 Refusals:**
+  - 403 on WF99
+  - the `hide_income` refusal is sent
+  - WF21 sends no merchant message
+- **B7 Reset:** after reset, B2's queue is intact.
+- **B8 Phone UI:** the Playwright suite is green at both viewports.
+
+---
+
+## 16. Deployment and operations
+
+- **n8n: n8n Cloud** (voucher), holding every live workflow and credential. WhatsApp's webhook
+  points at the Cloud trigger URL.
+- **`docker-compose.yml`:**
+  - `postgres` (pgvector/pgvector:pg16; databases hisaab, cognee, n8n-local)
+  - `core` (:8000)
+  - `memory` (:8100)
+  - `web` (the PWA's static build)
+  - `caddy` (automatic HTTPS: `api.<domain>` → core, `mem.<domain>` → memory, `app.<domain>`
+    → web)
+  - **profile `local-n8n`**: `n8n` (:5678, `DB_TYPE=postgresdb`,
+    `GENERIC_TIMEZONE=Asia/Kolkata`) for seeding and fallback
+
+  Named volumes, and health checks on every service.
+- **Primary host.** One cloud VM (4 vCPU / 8 GB) with a domain, or a named cloudflared tunnel
+  if there's no domain. **It must be up with HTTPS on Thursday night**, because n8n Cloud has
+  to reach core's stubs. Installing the PWA also requires HTTPS.
+- **Fallback 1.** The laptop runs the full stack plus the `local-n8n` profile (Docker Desktop
+  with WSL2), exposed through a cloudflared quick tunnel. Workflows and credentials are already
+  imported, and core's `N8N_BASE_URL` gets switched over.
+- **Fallback 2.** A recorded screen capture of all beats, made Saturday morning.
+- **Environment variables** (`.env.example`, annotated):
+  - `SARVAM_API_KEY`
+  - `WA_TOKEN`, `WA_PHONE_ID`, `WA_APP_SECRET`, `WA_VERIFY_TOKEN`
+  - `KEY_RAILS`, `KEY_PROVENANCE`, `KEY_CONVERSATION`, `KEY_EVIDENCE`, `KEY_OFFICER`,
+    `KEY_ADMIN`
+  - `N8N_BASE_URL` (Cloud or local), `N8N_API_KEY` (public API, for import/export),
+    `N8N_WEBHOOK_SECRET`
+  - `CORE_PUBLIC_URL`, `MEMORY_PUBLIC_URL`, `APP_PUBLIC_URL`
+  - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (Web Push, P1)
+  - Cognee's `LLM_*` and `EMBEDDING_*`
+  - `ANCHOR_GITHUB_TOKEN`, `ANCHOR_REPO`
+  - `SIM_SPLIT`, `CHANNEL=whatsapp|app|both`
+
+  The n8n voucher code is **not** an env var and never goes into git. Add
+  `N8N CREDITS .docx.pdf` to `.gitignore`.
+- **Commands** (all through `tasks.py`, so they work in PowerShell and bash): `up`,
+  `generate`, `migrate`, `seed` (replay the year on local n8n and snapshot), `reset`, `test`,
+  `e2e` (Playwright), `eval`, `beats`, `export-n8n` and `import-n8n` (with `--target cloud|local`).
+
+---
+
+## 17. Schedule (two workstreams)
+
+**A = Ledger and skills · B = Agent and surfaces**
+
+### Thu 17 Sep: evening into the night (foundations and spikes)
+
+| Time | A | B |
+|---|---|---|
+| First 15 min | **Redeem the n8n Cloud voucher** (following n8n's redemption guide) · create the Meta developer app · request the Sarvam key · add the voucher PDF to `.gitignore` | ← same |
+| Next 45 min | **Together:** freeze the contracts: ledger kinds, role matrix, endpoint list with request/response JSON (including the `/app/*` read models), LLM output schemas, workflow boundaries. Create branch `bfi`, archive the old tree, add the compose skeleton. | ← same |
+| Next 4 h | **VM with Caddy HTTPS first** (n8n Cloud needs it). Postgres and Alembic; `ledger.entries` with chain, triggers, grants and verify; tests. Core **stub endpoints returning fixture JSON** for every route, deployed to the VM, so B is never blocked. | Spikes with a go/no-go each (below) |
+| Next 3 h | `sim/` v2: catalog, world process, demo scenario and assertions | Meta test number; **submit utility templates**; n8n Cloud WhatsApp Trigger reaching a hello-world reply · capture Paytm for Business screenshots → `design/tokens.ts` · web app shell: `PhoneFrame`, `AppBar`, `BottomNav`, PWA manifest, fonts, installed on one Android phone |
+
+**Spikes (B, Thursday)**
+
+| # | Spike | Fallback if it fails |
+|---|---|---|
+| S1 | `sarvam-105b` tool calling and JSON-schema output, in Kannada and English | JSON in the prompt, Python validation, one retry |
+| S2 | Saaras v3 on a real WhatsApp OGG voice note in Kannada | ffmpeg → WAV; text-only on stage |
+| S3 | Bulbul v3 audio → WhatsApp voice note | Text replies (P1 anyway) |
+| S4 | Sarvam Vision on a specimen notice photo | Notice chosen from events; OCR shown on the PDF only |
+| S5 | n8n OpenAI-compatible credential pointed at Sarvam, for the AI Agent and structured parser | HTTP Request nodes calling Sarvam directly |
+| S6 | Cognee v1.x `remember`/`recall` with Sarvam, fastembed and pgvector | Typed DataPoints without LLM extraction; last resort is a memory service backed by Postgres with the same interface |
+| S7 | n8n Cloud Wait node resumed by a call from the officer app through core | n8n Form "approve" page |
+| S8 | n8n Cloud → core stubs on the VM with role keys; the public API exports and imports a workflow; **count executions for one fake beat** | Local n8n with a tunnel; tighter batching |
+
+### Fri 18 Sep: build day (checkpoints are hard gates)
+
+| Time | A | B |
+|---|---|---|
+| 08:00–13:00 | Generator complete (demo, dev, eval) and `score.py`/`baseline.py`; rails replayer and sim clock; `classify_rules`, `payer_history` (strictly prior), `question_budget`; proposals, questions and claims endpoints live (replacing stubs); `/app/home` and `/assistant/*` read models | memory service; WF10 (live and seed), WF30, WF31 (buttons, text, voice-in) on **n8n Cloud**; prompts v1; i18n generation; **M0, M1 Home, M2 Confirm, M6 Assistant** |
+| **13:00 CP1** | **Ordinary Tuesday end to end:** jump to 10 Mar 02:00 → WF10 on Cloud → 3 Kannada questions on WhatsApp **and** in M2 on the installed PWA → taps → `claim.answered` in the chain, machine label intact | ← joint test |
+| 13:00–19:00 | `turnover`, `threshold`, `isolate`, `tiers`, `escalation`; `packs` and PDF; grievance template and `legal/citations.yaml`; all guards; freeze detector; approvals and outbox gate; `/app/cases`, `/app/officer/*` read models | WF20, WF40 (Vision), WF50, WF90; **M5 Case tracker, O1 Queue, O2 Case** with the sticky approve bar; approval → resume wiring |
+| **19:00 CP2** | **Freeze end to end:** declines and lien → case → isolate (UTR and amount/date, decoy) → pack PDF → Wait → **officer approves on a phone** → outbox → M5 stepper advances on the merchant's phone | ← joint test |
+| 19:00–00:30 | Anchors (OTS and git) and WF60 support; tamper endpoints; permissions tests; `simulate_merchant.py`; **seed the year on local n8n and snapshot**; `beats.py`; eval run and `report.json`; **`/ledger` explorer and `/eval` pages** (built from the shared components) | M3 Payments, M4 Payment detail, M7 Turnover and CA share, O3; `/demo` remote and `/stage`; Playwright suite; WF99 and the `hide_income` refusal; WF10-eval; Bulbul replies; second merchant in Hindi; WF21; export all workflows to git |
+| **00:30 CP3** | **`tasks.py beats` all green against the VM and n8n Cloud** (including B8). Snapshot. Import the same workflows into local n8n and run `beats` once to prove the fallback. | ← joint |
+
+**Cut rule.** If CP2 or CP3 slips, drop P1 items starting from the *end* of §2's priority
+list (WF21 no-tip-off and the eval split run go first; Vision OCR goes last). Never cut P0, and
+never cut tests covering P0. The build sequence is in [PHASES.md](PHASES.md).
+
+### Sat 19 Sep: harden and present
+
+| Block | Both |
+|---|---|
+| Morning | Fresh `reset` then `beats` on the VM and the laptop · 3 timed rehearsals with **two real phones** (merchant and officer) plus `/stage` on the projector · UI polish pass against the reference screenshots (spacing, type, Kannada line breaks) · record the fallback video · check remaining n8n Cloud executions · fix-only mode |
+| Midday | Update the deck and README with **measured** numbers from `eval/report.json`, replacing targets · check the legal items in §22 · tag `demo-final` |
+| Before judging | **Feature freeze 2 h before judging** · reset · warm up the VM (one nightly run, one Sarvam call) · phones charged, recipients whitelisted |
+
+---
+
+## 18. Risks and fallbacks
+
+| Risk | Mitigation |
+|---|---|
+| Sarvam tool calls or JSON unreliable | Schema-validated output, one retry, template-only fallback; buttons skip the LLM |
+| Sarvam latency or credits during the demo | The seeded year is precomputed; live calls only in live beats; warm up before judging |
+| Cognee v1 API or LLM extraction friction | Pinned version; typed DataPoints; Postgres-backed fallback behind the same interface |
+| WhatsApp template not approved in time | Merchant opens with "hi" (session messages need no template); the in-app assistant |
+| Venue network | VM primary, phone hotspot, laptop stack, video |
+| n8n Cloud execution quota runs out | Batching inside executions; seed on local n8n; per-rehearsal execution budget measured in S8; check the count Saturday morning; local n8n fallback |
+| n8n Cloud outage, or it can't reach the VM | Local n8n with the same JSON and credentials; `N8N_BASE_URL` switch rehearsed at CP3 |
+| n8n Wait executions lost | The approval record stores `resume_url`; if an execution is gone, core re-runs the approval branch through a sub-workflow; a resumable test is part of CP2 |
+| UI polish swallows the build time | Tokens and components on Thursday; screens are built only from shared components; polish is a Saturday-morning block; P1 screens are cut before P0 logic |
+| Paytm look drifts into copying brand assets | Paytm-*style* tokens and layout only; wordmark set in type; no copied logos or illustrations; "Prototype · synthetic data" tag |
+| Kannada text breaks the phone layout | Playwright screenshot diffs in Kannada; flexible chips that wrap; no fixed-width labels |
+| Scope versus 1.5 days | Stub-first contract; strict P0/P1/P2; hard checkpoints |
+| Legal inaccuracy (SOP limits, citations) | Allowlist with a `verified` flag; unverified citations render with a ⚠ and **block approval**; thresholds in config |
+| Overclaiming | Synthetic-data and SIMULATED stamps on packs, outbox and seeded anchors; targets ≠ results until measured |
+
+---
+
+## 19. Demo run of show (about 6 min)
+
+This follows deck v2: lead with the freeze.
+
+**Stage setup**
+- The projector shows `/stage`: the merchant phone and officer phone frames side by side, with
+  the n8n Cloud execution strip.
+- Two real Android phones have the PWA installed; the merchant phone also has WhatsApp.
+- The presenter holds a third phone running `/demo` as a remote.
+
+1. **09:30, Tuesday 24 Mar.**
+   - The remote starts the declines. The merchant's M1 Home turns red ("Payments on hold"), and
+     the officer's O1 Queue buzzes.
+   - On WhatsApp, the merchant sends a Kannada voice note: "my payments are failing".
+   - The agent acknowledges without promising anything. Switch to n8n Cloud: WF20 is running.
+   - The officer taps into O2, which shows:
+     - ₹4,200 at 19:47 on 21 Mar, with "UTR ✓" and "Amount + date ✓"
+     - the bill (onions…), till, device and location
+     - the ₹4,200 decoy on 18 Mar, *not chosen*
+     - "1 of 339" and the tier bar
+     - the grievance citing the SOP and High Court judgments
+   - The officer taps **Approve and send**. The Wait resumes, the outbox shows SIMULATED, and
+     the merchant's M5 stepper moves to "Sent to bank and police". Timings are shown.
+2. **Rewind: how that record was made.**
+   - Jump to 10 Mar 02:00 and run the nightly.
+   - 39 credits come in, and M1 shows "3 payments to confirm". In M2, tap, tap, then answer
+     the third by voice.
+   - 36 settle silently, and the ₹23 payment is left alone.
+   - Open M4 on one payment: the machine label and their answer sit side by side, each dated.
+     `/ledger` shows them hash-linked.
+3. **The warning.** Jump to 31 Jan: "at your current rate you cross ₹40 lakh around {date}.
+   You will need to register", with {n} days of warning.
+4. **The notice.**
+   - Send a photo of the ₹60.98L notice on WhatsApp.
+   - Sarvam Vision reads it, and the tax pack shows aggregate turnover, exempt and taxable
+     amounts, and non-turnover lines traced to txn IDs.
+   - It says plainly: the claim is wrong, **and you did cross ₹40 lakh, so you must register.**
+   - On the merchant phone, M7 **Share with CA** opens the phone's share sheet with the PDF.
+5. **Trust and refusals.**
+   - Verify the chain is ok; tamper; verify shows the break at index N; show the anchor
+     receipt.
+   - Run WF99, which gets a 403 in the n8n trace.
+   - The merchant asks to leave ₹7,500 out, and it's refused.
+6. **Measured.** `/eval`: agent vs rules baseline, turnover error, questions a day, isolation
+   accuracy, tier shape for genuine vs fabricated histories. The n8n Evaluations tab shows the
+   labelling agent's scores. "Synthetic data with known ground truth."
+
+---
+
+## 20. Verification (end to end)
+
+1. `python tasks.py up && python tasks.py migrate && python tasks.py generate --only demo`
+2. `python tasks.py test`: all pytest suites green (chain, triggers, as-of, skills golden
+   values, guards, permissions, outbox gate).
+3. `python tasks.py import-n8n --target cloud` and `--target local`, then create the
+   credentials listed in `n8n/README.md` in both (one per role, Sarvam and WhatsApp).
+4. `python tasks.py seed`: replays the year through WF10 seed mode on **local n8n** with
+   `simulate_merchant`, then takes the snapshot. Check `GET /ledger/verify` returns ok, and that
+   questions a day stay within budget in the seed report.
+5. `python tasks.py beats`: B1 to B7 green against the VM with n8n Cloud, then once against
+   local n8n.
+6. `python tasks.py e2e`: Playwright green at 412 px and 360 px, in Kannada and English (B8).
+7. **Manual, on real phones:**
+   - install the PWA from `https://app.<domain>`
+   - the merchant phone completes beats 1, 2 and 4 on WhatsApp (voice note and photo), then
+     again in the in-app assistant and M2
+   - the officer phone approves from O2
+   - `/stage` mirrors both phones on the laptop
+8. `python tasks.py eval` → `eval/report.json` → the `/eval` page renders. Numbers are copied
+   into the deck only from this file.
+9. `python tasks.py reset && python tasks.py beats`: green again in under 2 min total. Record
+   the n8n Cloud execution count before and after, for the quota budget.
+
+---
+
+## 21. Lessons from the old repo (design reference, not code)
+
+| Old behaviour | Fix in v2 |
+|---|---|
+| Attestation overwrote the proposed label (one row per txn) | Append-only entries; machine label and claim both kept |
+| Payer history and "earlier credits" counted the whole year, including future payments | Strictly prior, as-of everywhere |
+| Rule "twin within 30 min, no refund → duplicate (0.5)" caught kept twins and genuine repeat purchases | Duplicate needs a refund link or a gap of ≤3 min and no separate bill; otherwise a hard case |
+| `isolate` reported `found_by: UTR` even when the amount fallback matched | Run both matches independently and report each |
+| Threshold ignored `gst_status` | Registered or composition merchants get a return-mismatch check instead of a registration warning (P2) |
+| Free hosting reset wiped state | Postgres volume plus seed snapshot restore |
+| Proposal and attest key scoping was a design, not a control | Role keys enforced in core, a DB trigger, a tested permission matrix, a live 403 |
+| Webchat parsed options out of free text | Structured buttons from the WF30 payload |
+| Agent greeted in English on bootstrap | Language comes from the merchant profile and the last detected language; templates are per language |
+
+Useful specs to re-read, never import: `DATA.md` (process model, label conventions, the
+exempt-share apportionment rationale), `tools/README.md` (why the classifier asks),
+`data/reference/hsn_catalog.json` (items → HSN → exempt, with the legal basis, re-derived into
+`sim/catalog.py`).
+
+---
+
+## 22. Verify before Saturday (legal and facts, flagged in deck v2)
+
+1. The **MHA/I4C SOP (2 Jan 2026)**, from a primary or legal source: lien-only as the default
+   where the amount is identifiable, the ₹50,000 no-court-order limit, and the mule vs bona fide
+   receiver distinction. → `legal/citations.yaml`, `verified: true`.
+2. **AP High Court (July 2026)** and **Rajasthan HC, *Balaji Enterprises v RBI* (Aug 2026)**:
+   exact citations and holdings.
+3. CGST s.2(6), s.22, s.23 and s.25 wording for the verdict text; the 30-day registration
+   window.
+4. A scale figure for freezes (NCRP/I4C volumes or petition counts). Never invent one.
+5. Meta WhatsApp test-number limits and template approval status.
+6. **n8n Cloud voucher:** redeemed on Thursday; note the plan tier, monthly execution cap,
+   concurrency limit, instance version and public API access. The voucher lasts a month and
+   expires a week after the event. The voucher PDF stays out of git.
+7. Anything "Best Use of n8n" entries must submit (a workflow export, a video, a write-up),
+   so it gets prepared on Saturday with the deck.
