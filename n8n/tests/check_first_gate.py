@@ -25,6 +25,11 @@ def main():
     parser.add_argument('--merchant', default='MID_DEMO_SAHANA')
     parser.add_argument('--restart-core', action='store_true')
     parser.add_argument('--browser', action='store_true', help='Two real M2 taps, then one signed WhatsApp reply')
+    parser.add_argument('--timeout', type=int, default=1800, metavar='SECONDS',
+        help='Seconds to wait for WF10 and for persistence (default 1800). WF10 took 112 s on a '
+             '16 GiB machine and over 1200 s on a smaller one. Interrupting it leaves the window '
+             'part-labelled, and WF10 skips labelled credits, so that database cannot select three '
+             'questions again without tasks.py reset.')
     args = parser.parse_args()
     env = cli.load_env()
     if env.get('HISAAB_LIVE', '0') != '0':
@@ -44,7 +49,7 @@ def main():
             return json.loads(raw) if raw else {}
 
     def wait(predicate, description):
-        for attempt in range(180):
+        for attempt in range(args.timeout):
             value = predicate()
             if value:
                 return value
@@ -52,6 +57,22 @@ def main():
                 print('Waiting for ' + description, flush=True)
             time.sleep(1)
         raise AssertionError('Timed out waiting for ' + description)
+
+    def wf10_execution():
+        # Status and duration of the newest WF10 run, read from the local n8n database.
+        # No SQL string literals here, so the row is filtered in Python instead of quoted inline.
+        sql = ('select "workflowId", status, '
+               'round(extract(epoch from ("stoppedAt" - "startedAt"))::numeric, 1) '
+               'from execution_entity order by id desc limit 20')
+        result = subprocess.run(['docker', 'compose', 'exec', '-T', 'db', 'psql', '-U',
+                                 env.get('POSTGRES_USER', 'hisaab'), '-d', 'n8n-local', '-tAc', sql],
+                                cwd=ROOT, capture_output=True, text=True,
+                                encoding='utf-8', errors='replace')
+        for row in (result.stdout or '').splitlines():
+            parts = row.split('|')
+            if len(parts) == 3 and parts[0] == 'hisaabWF10mvp001':
+                return parts[1], parts[2]
+        return 'unknown', '?'
 
     m = urllib.parse.quote(args.merchant, safe='')
     home = request('/app/home?merchant=' + m)
@@ -66,6 +87,12 @@ def main():
         'channel': 'whatsapp', 'to': 'whatsapp:+919999999999',
         'window_from': '2026-03-08', 'window_to': '2026-03-10'}, workflow=True)
     questions = wait(lambda: (q if len((q := request('/app/questions?merchant=' + m))['items']) == 3 else None), 'the three demo questions')
+    # A resumed run can find three questions an earlier invocation left behind, so the gate has to
+    # look at WF10 itself: a run that died still ends with the questions sitting there, and without
+    # this the checkpoint reports PASS over a broken workflow.
+    status, seconds = wf10_execution()
+    assert status == 'success', f'WF10 execution ended {status} after {seconds}s, not success'
+    print(f'WF10 execution: {status} in {seconds}s', flush=True)
     answers = {15000: 'own_money', 7500: 'family', 4850: 'sale'}
     assert {q['amount'] for q in questions['items']} == set(answers), questions
     ids = {q['question_id'] for q in questions['items']}

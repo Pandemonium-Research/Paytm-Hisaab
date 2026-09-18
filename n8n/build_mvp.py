@@ -83,6 +83,9 @@ def wf10():
     w.code("Run context", """
 const input = $input.first().json.body || $input.first().json;
 if (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');
+// An empty body used to start a real run against the default merchant, so probing whether the
+// webhook had registered classified a whole window and left the ledger part-labelled.
+if (!input.merchant_id && !input.merchant && !input.as_of) throw new Error('WF10 needs merchant_id or as_of; an empty body will not start a run');
 return [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',
   as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,
   // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept

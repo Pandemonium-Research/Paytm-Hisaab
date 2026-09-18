@@ -60,7 +60,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "\nconst input = $input.first().json.body || $input.first().json;\nif (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');\nreturn [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',\n  as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,\n  // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept\n  // separate on purpose: reusing `to` for both sent the reply to a date string.\n  window_from: input.window_from || input.from || null, window_to: input.window_to || null,\n  cursor: null, credits: [], cursors: []}}];\n"
+        "jsCode": "\nconst input = $input.first().json.body || $input.first().json;\nif (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');\n// An empty body used to start a real run against the default merchant, so probing whether the\n// webhook had registered classified a whole window and left the ledger part-labelled.\nif (!input.merchant_id && !input.merchant && !input.as_of) throw new Error('WF10 needs merchant_id or as_of; an empty body will not start a run');\nreturn [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',\n  as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,\n  // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept\n  // separate on purpose: reusing `to` for both sent the reply to a date string.\n  window_from: input.window_from || input.from || null, window_to: input.window_to || null,\n  cursor: null, credits: [], cursors: []}}];\n"
       }
     },
     {

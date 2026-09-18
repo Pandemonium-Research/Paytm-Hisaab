@@ -56,6 +56,16 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
 - `python tasks.py replay --split demo --until 2026-03-10T02:00:00+05:30` loads visible
   records only; repeating it does not duplicate source records or observed-credit evidence.
 
+- **B: CP1 passes cold, in one invocation (18 Sep).** From an empty database restored by
+  `tasks.py reset` (0 proposals, 0 questions), a single `check_first_gate --restart-core` run
+  finished in **132 s wall, WF10 itself 117.4 s**, and reported three *new* questions. A's run on a
+  smaller machine took 1220 s and died on n8n's pg-pool and JS task runner, so the 180 s wait is
+  now `--timeout`, default 1800 s: interrupting WF10 part-labels the window, and because WF10 skips
+  labelled credits the database can never select three questions again without `tasks.py reset`.
+  The gate also asserts WF10's own execution succeeded — an earlier "pass" of mine sat on questions
+  from a previous run while that invocation's WF10 had failed at `Read credits`, and nothing noticed.
+  An empty body no longer starts a run (it now errors in 0.1 s); probing whether the webhook had
+  registered used to classify a whole window.
 - **B (first gate, 18 Sep): CP1 passes end to end against the real backend.** One WF10 run over
   the 8–9 March IST window wrote 68 `label.proposed` entries and selected three questions; the
   Kannada text appears in both the fakes' WhatsApp outbox and M2's real read model; two app taps
