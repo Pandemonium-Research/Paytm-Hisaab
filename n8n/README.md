@@ -95,6 +95,21 @@ core must not wait on n8n).
   "source": "rails_event" | "wf31_upload" }
 ```
 
+### Webhook paths and keys, as built (H2/H3)
+
+| Thing | Value |
+|---|---|
+| WF31 inbound path | `/webhook/hisaab/wf31-whatsapp` — fixed by `FAKE_WA_WEBHOOK_URL`, so `tasks.py fake-wa` and Twilio hit the same URL |
+| Core base URL, from the local n8n | `http://core:8000` on the compose network (or `http://caddy:8080/api`) |
+| Role keys | `X-Hisaab-Key: dev-<role>` in development (`KEY_CONVERSATION=dev-conversation`, and so on in `.env`) |
+| Fakes base URL | `FAKES_URL=http://fakes:8200`; the Sarvam fake requires an API key, which is correct behaviour |
+| n8n → core webhook secret | `X-N8N-Webhook-Secret: $N8N_WEBHOOK_SECRET` (`dev-webhook-secret` in development) |
+
+**A voice answer records the audio, not the transcript.** `ClaimAnsweredPayload` accepts exactly
+one of `raw_text` or `media_sha256`, so WF31 sends `media_sha256` for a voice note (the durable
+artefact, which the pack can point at) and `raw_text` for a typed or numbered reply. The Saaras
+transcript rides along as the reply text, never as the claim.
+
 **WF31 is the exception:** Twilio cannot send custom headers, so its webhook has no n8n auth and
 validates `X-Twilio-Signature` in a Code node instead (see "What this means for the build").
 
