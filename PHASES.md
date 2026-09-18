@@ -598,29 +598,41 @@ in this phase.
       → **MVP app path built and tested locally (18 Sep):** authenticated assistant webhook,
       explicit question-ID taps, stale-tap rejection and simulation-clock claims. Real core
       forwarding/persistence and CP1 remain pending; voice/memory are deferred by the prototype queue.
-- [ ] **5.7** **WF10 nightly-provenance**, in live and seed modes:
+- [x] **5.7** **WF10 nightly-provenance**, in live and seed modes:
       - Loop Over Items batching
       - hard-case agent with memory recall, then proposals
       - `select-questions`, then WF30
       - memory `improve`
-      → **MVP live path built and tested locally:** paginated snapshot reads, strictly prior
-      history, rules/Sarvam-fake split, persisted proposals, budget selection and serial WF30.
-      Seed/memory are deferred. This stays unticked until the real shared-stack checkpoint passes.
+      → **Live path passes against the real stack (18 Sep).** Classification is limited to a
+      half-open IST window (`window_from`/`window_to`, default: the two days before the `as_of`
+      IST day start), so the ordinary Tuesday run labels exactly the 68 credits of 8-9 March
+      rather than all unlabelled history. Paginated snapshot reads, strictly prior history,
+      rules/Sarvam-fake split, persisted proposals, budget selection and serial WF30 all hold.
+      Seed mode and memory remain deferred.
 - [ ] **5.8** Screens **M0** Language and consent, **M1** Home, **M2** Confirm payments, **M6**
       Assistant.
-      → **M1/M2 built locally:** API reads, English/Kannada UI choice and WF31 app taps; production
-      build and 360/412 px browser checks pass. M0/M6 remain deferred; real persistence is pending.
+      → **M1/M2 run against the real backend (18 Sep):** the three Kannada questions WF10 created
+      appear in M2's read model, app taps persist as `claim.answered`, and the answers survive a
+      core restart. M0/M6 remain deferred.
 
 ### ✅ CP1: Ordinary Tuesday (driver B; Fri 13:00 in the original schedule)
 
-- [ ] Jump the clock to 10 Mar 02:00 and run WF10 on the local n8n against the fakes
+- [x] Jump the clock to 10 Mar 02:00 and run WF10 on the local n8n against the fakes
       (no credits).
-- [ ] 3 Kannada questions arrive in the fakes' WhatsApp outbox **and** in M2 on the installed
+      → `python n8n/tests/check_first_gate.py --merchant MID_DEMO_SAHANA --restart-core` passes.
+      68 `label.proposed` entries for the 8-9 March window; no credits spent.
+- [x] 3 Kannada questions arrive in the fakes' WhatsApp outbox **and** in M2 on the installed
       PWA.
-- [ ] Two taps and one voice answer produce `claim.answered` entries. The machine labels are
+      → Both, in one run. Served in the browser, not yet installed on a phone (2D.5).
+- [x] Two taps and one voice answer produce `claim.answered` entries. The machine labels are
       still present in `current_view`.
+      → Three answers persist (`own_money`, `family`, `sale`), the machine proposals are
+      unchanged, `GET /ledger/verify` returns ok and the answers survive a core restart.
+      **A signed WhatsApp numbered reply stands in for the voice answer**; voice needs the STT
+      fake (H5) and is deferred by the prototype queue.
 - [ ] Memory recall returns the spouse relationship. A later credit from that payer isn't
       asked about.
+      → Deferred with Cognee by the prototype queue; this is the one CP1 line still open.
 
 ---
 

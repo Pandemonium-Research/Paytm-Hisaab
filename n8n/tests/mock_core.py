@@ -28,6 +28,11 @@ def txn(tid, amount, bill=False):
 credits = [{"transaction": txn("T1", 500, True), "machine_label": None},
            {"transaction": txn("T2", 15000), "machine_label": None},
            {"transaction": txn("T3", 7500), "machine_label": None}]
+old = {"transaction": txn("T0", 12000), "machine_label": None}
+old['transaction']['ts'] = '2026-03-07T23:59:59+05:30'
+at_end = {"transaction": txn("T4", 12000), "machine_label": None}
+at_end['transaction']['ts'] = '2026-03-10T00:00:00+05:30'
+credits = [old, *credits, at_end]
 
 
 class Handler(BaseHTTPRequestHandler):

@@ -83,8 +83,11 @@ def wf10():
     w.code("Run context", """
 const input = $input.first().json.body || $input.first().json;
 if (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');
-return [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_BLR',
+return [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',
   as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,
+  // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept
+  // separate on purpose: reusing `to` for both sent the reply to a date string.
+  window_from: input.window_from || input.from || null, window_to: input.window_to || null,
   cursor: null, credits: [], cursors: []}}];
 """)
     w.http("Merchant", "={{ 'http://core:8000/merchants/' + encodeURIComponent($json.merchant_id) }}", "provenance")
@@ -96,12 +99,24 @@ return [{json: state}];
     w.http("Read credits", "/credits", "provenance", query={
         "merchant": "={{ $json.merchant_id }}", "limit": "200",
         "as_of": "={{ $json.as_of || undefined }}", "cursor": "={{ $json.cursor || undefined }}"})
-    w.code("Collect page", """
+    w.code("Collect page", r"""
 const state = $('Page request').item.json;
 const page = $input.first().json;
 if (page.next_cursor && state.cursors.includes(page.next_cursor)) throw new Error('Repeated credit cursor');
-return [{json: {...state, as_of: state.as_of || page.as_of,
-  credits: [...state.credits, ...page.items], cursor: page.next_cursor,
+const as_of = state.as_of || page.as_of;
+const day = new Date(as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});
+const cutoff = new Date(day + 'T00:00:00+05:30');
+const from = state.window_from || new Date(cutoff.getTime() - 2 * 86400000).toISOString();
+const to = state.window_to || cutoff.toISOString();
+const instant = value => new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? value + 'T00:00:00+05:30' : value).getTime();
+const start = instant(from), end = instant(to);
+if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > new Date(as_of).getTime()) throw new Error('Credit window must be [from, to) at or before as_of');
+const inWindow = page.items.filter(c => {
+  const ts = new Date(c.transaction.ts).getTime();
+  return ts >= start && ts < end && ts <= new Date(as_of).getTime();
+});
+return [{json: {...state, as_of, window_from: from, window_to: to,
+  credits: [...state.credits, ...inWindow], cursor: page.next_cursor,
   cursors: [...state.cursors, page.next_cursor].filter(Boolean)}}];
 """)
     w.test("More credits?", "={{ String(Boolean($json.cursor)) }}")
@@ -259,7 +274,7 @@ return [{json: {app: body}}];
     nodes["Normalise"]["parameters"]["jsCode"] = """
 const item = $input.first().json, app = item.app;
 const params = item.params || {};
-const phones = {'whatsapp:+919999999999': 'MID_DEMO_BLR'};
+const phones = {'whatsapp:+919999999999': 'MID_DEMO_SAHANA'};
 const merchant_id = app ? app.merchant_id : phones[params.From];
 if (!merchant_id) throw new Error('Unknown WhatsApp sender');
 const text = (app ? app.text : params.Body || '').trim();

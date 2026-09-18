@@ -61,6 +61,10 @@ and core webhooks use the `X-N8N-Webhook-Secret` Header Auth credential.
   proposals before question selection. Invalid/model-error responses become zero-confidence
   `unclassified` proposals. Selected questions go serially through WF30. The default channel
   is `app`; a WhatsApp run needs `channel: "whatsapp"` and a joined `to` number.
+  Classification is limited to a half-open IST window, `window_from`/`window_to`, defaulting to
+  the two days before the `as_of` IST day start (8-9 March for the ordinary Tuesday). These are
+  deliberately **not** `to`: that name is the WhatsApp recipient, and reusing it addressed the
+  reply to a date.
 - Question IDs include the IST day and transaction ID. WF31 answers explicit app question IDs;
   stale taps fail instead of answering the next question. WhatsApp numbered replies still use
   the oldest open question. Both routes use the simulation clock. App replies avoid the sandbox

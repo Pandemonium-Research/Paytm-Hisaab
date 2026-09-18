@@ -17,9 +17,9 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Rules, question selection, M1/M2 reads and language preference | Complete |
 | A | App-message forwarding and persisted assistant delivery | Complete; real local WF31/WF30 smoke passed |
 | A | Repeatable demo seed/reset and first-gate integration check | Next |
-| B | Minimal WF10, including the hard-case Sarvam branch | Built/imported locally (`6152c98`); real integration pending |
-| B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Built/running locally (`6152c98`); real integration pending |
-| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | Pending |
+| B | Minimal WF10, including the hard-case Sarvam branch | Complete; passes against the real stack |
+| B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Complete; real reads and persisted taps |
+| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **First gate passes** on local n8n/core/fakes; real-provider path (L1) pending |
 
 ## Second gate: freeze and approval
 
@@ -55,6 +55,16 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
 - `python tasks.py replay --split demo --until 2026-03-10T02:00:00+05:30` loads visible
   records only; repeating it does not duplicate source records or observed-credit evidence.
 
+- **B (first gate, 18 Sep): CP1 passes end to end against the real backend.** One WF10 run over
+  the 8–9 March IST window wrote 68 `label.proposed` entries and selected three questions; the
+  Kannada text appears in both the fakes' WhatsApp outbox and M2's real read model; two app taps
+  and one signed WhatsApp numbered reply persisted `own_money`, `family` and `sale`, matching the
+  seeded answer key; the machine proposals are unchanged, `GET /ledger/verify` returns ok, and the
+  answers survive a core restart. A numbered reply stands in for the voice answer (H5 deferred)
+  and memory recall is deferred, so that one CP1 line stays open.
+- B: `python n8n/tests/run_local.py` covers the window boundaries offline: a credit just before
+  the window and one exactly at its end are both excluded.
+
 **Current limitation:** assistant SSE, case processing, evidence packs, officer
 approvals, turnover/threshold and reset still return fixtures. The first gate remains open until
 B's WF10/screens and the shared app/WhatsApp path run against the real backend. Persisting raw
@@ -79,13 +89,14 @@ rails events does not yet open cases or process a freeze.
   its real Home API reports the persisted business date and balance. No demo questions are
   prefilled: WF10 must create them during CP1.
 
-B's first-gate runner is ready:
+B's first-gate runner passes:
 `python n8n/tests/check_first_gate.py --merchant MID_DEMO_SAHANA --restart-core`.
-Use `/?merchant=MID_DEMO_SAHANA` for B's web app; its current default merchant is
-`MID_DEMO_BLR`, which is absent from generated demo data. WF10 currently processes all
-unlabelled history; B must limit classification/question candidates to the ordinary Tuesday
-window (8–9 Mar) or classify prior history separately before this checkpoint.
-No joint gate is marked passed.
+Both defaults now point at `MID_DEMO_SAHANA`, and WF10 no longer processes all unlabelled
+history: classification is limited to a half-open IST window (`window_from`/`window_to`,
+default the two days before the `as_of` IST day start), so one run labels exactly the 68
+credits of 8–9 March. `python n8n/tests/prepare_cp1.py` mounts the visible demo and replays
+to 10 Mar 02:00 IST first; both commands are idempotent.
+**The first gate is marked passed** (see Delivered). The second gate is not.
 The exact WF31 app envelope and WF20 status/approval handoffs are in `n8n/README.md`.
 
 ## Deferred until the two gates work

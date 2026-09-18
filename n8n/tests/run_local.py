@@ -95,7 +95,8 @@ def run_tests():
         assert state["pages"] == [None, "page2"], state["pages"]
         assert all(h["as_of"] == "2026-03-09T12:00:00+05:30" for h in state["histories"])
         assert all(p["proposal"]["confidence"] <= 0.85 for p in state["proposals"] if p["proposal"]["source"] == "agent")
-        print("PASS: pagination, strictly prior history, rule/Sarvam-fake branches, proposals, questions, WF30", flush=True)
+        assert {p['txn_id'] for p in state['proposals']} == {'T1', 'T2', 'T3'}
+        print("PASS: IST window excludes old/end-boundary credits, pagination, prior history, rule/Sarvam-fake branches, proposals, questions, WF30", flush=True)
         # Tap the second question, then replay it. Neither request may answer the first.
         q = state["questions"][1]
         envelope = {"merchant_id": "MID_TEST", "message_id": "test-tap", "content_type": "text",

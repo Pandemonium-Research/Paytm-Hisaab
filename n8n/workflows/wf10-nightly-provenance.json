@@ -60,7 +60,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "\nconst input = $input.first().json.body || $input.first().json;\nif (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');\nreturn [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_BLR',\n  as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,\n  cursor: null, credits: [], cursors: []}}];\n"
+        "jsCode": "\nconst input = $input.first().json.body || $input.first().json;\nif (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');\nreturn [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',\n  as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,\n  // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept\n  // separate on purpose: reusing `to` for both sent the reply to a date string.\n  window_from: input.window_from || input.from || null, window_to: input.window_to || null,\n  cursor: null, credits: [], cursors: []}}];\n"
       }
     },
     {
@@ -155,7 +155,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "\nconst state = $('Page request').item.json;\nconst page = $input.first().json;\nif (page.next_cursor && state.cursors.includes(page.next_cursor)) throw new Error('Repeated credit cursor');\nreturn [{json: {...state, as_of: state.as_of || page.as_of,\n  credits: [...state.credits, ...page.items], cursor: page.next_cursor,\n  cursors: [...state.cursors, page.next_cursor].filter(Boolean)}}];\n"
+        "jsCode": "\nconst state = $('Page request').item.json;\nconst page = $input.first().json;\nif (page.next_cursor && state.cursors.includes(page.next_cursor)) throw new Error('Repeated credit cursor');\nconst as_of = state.as_of || page.as_of;\nconst day = new Date(as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});\nconst cutoff = new Date(day + 'T00:00:00+05:30');\nconst from = state.window_from || new Date(cutoff.getTime() - 2 * 86400000).toISOString();\nconst to = state.window_to || cutoff.toISOString();\nconst instant = value => new Date(/^\\d{4}-\\d{2}-\\d{2}$/.test(value) ? value + 'T00:00:00+05:30' : value).getTime();\nconst start = instant(from), end = instant(to);\nif (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > new Date(as_of).getTime()) throw new Error('Credit window must be [from, to) at or before as_of');\nconst inWindow = page.items.filter(c => {\n  const ts = new Date(c.transaction.ts).getTime();\n  return ts >= start && ts < end && ts <= new Date(as_of).getTime();\n});\nreturn [{json: {...state, as_of, window_from: from, window_to: to,\n  credits: [...state.credits, ...inWindow], cursor: page.next_cursor,\n  cursors: [...state.cursors, page.next_cursor].filter(Boolean)}}];\n"
       }
     },
     {

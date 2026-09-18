@@ -25,7 +25,7 @@ export interface OfficerCase {
   tier_totals: (DisplayAmount & { label: string })[]; chain_ok: boolean; pdf_url: string | null
 }
 
-export const merchant = new URLSearchParams(location.search).get('merchant') || 'MID_DEMO_BLR'
+export const merchant = new URLSearchParams(location.search).get('merchant') || 'MID_DEMO_SAHANA'
 const base = import.meta.env.VITE_API_BASE || '/api'
 function roleKey(officer: boolean) {
   return officer
