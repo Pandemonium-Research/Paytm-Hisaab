@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import AwareDatetime, Field, model_validator
 
-from ..common import ContractModel, MerchantId, PredictionLabel, TransactionId
+from ..common import ContractModel, MerchantId, Pagination, PredictionLabel, TransactionId
 from ..ledger import (
     ClaimAnnotatedPayload,
     ClaimAnsweredPayload,
@@ -20,6 +20,23 @@ from ..ledger import (
 
 
 AGENT_CONFIDENCE_CAP = 0.85
+
+
+class LedgerVerifyQuery(ContractModel):
+    merchant: Annotated[
+        MerchantId, Field(description="Merchant whose ledger chain to verify.")
+    ]
+
+
+class LedgerEntriesQuery(Pagination):
+    pass
+
+
+class AnchorsQuery(ContractModel):
+    merchant: Annotated[
+        MerchantId | None,
+        Field(description="Merchant whose anchors to return; omit for all merchants."),
+    ] = None
 
 
 class LedgerProposalRequest(ContractModel):
@@ -112,4 +129,3 @@ class AnchorsResponse(ContractModel):
 
 
 REQUEST_MODELS = (LedgerProposalRequest, LedgerQuestionRequest, LedgerClaimRequest)
-

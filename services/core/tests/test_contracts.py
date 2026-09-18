@@ -17,7 +17,7 @@ from app.schemas.ledger import (
     LedgerEntry,
     PAYLOAD_MODELS,
 )
-from app.schemas.roles import ENDPOINT_PERMISSIONS, ROLE_ENTRY_KINDS, Role
+from app.schemas.roles import ENDPOINT_PERMISSIONS, NON_APP_ROLES, ROLE_ENTRY_KINDS, Role
 from sim.catalog import ANSWER_CHOICES, PREDICTION_LABELS
 
 
@@ -119,6 +119,20 @@ def test_role_entry_matrix_is_total_and_uses_only_known_kinds() -> None:
 
 def test_app_role_cannot_append_any_ledger_kind() -> None:
     assert ROLE_ENTRY_KINDS[Role.APP] == frozenset()
+
+
+def test_browser_app_role_is_excluded_from_guards_and_prompts_but_not_config() -> None:
+    assert NON_APP_ROLES == frozenset(Role) - {Role.APP}
+    for endpoint in (
+        "POST /guards/numbers",
+        "POST /guards/citations",
+        "POST /guards/no-innocence",
+        "POST /guards/extraction",
+        "POST /guards/language",
+        "GET /prompts/{name}",
+    ):
+        assert ENDPOINT_PERMISSIONS[endpoint] == NON_APP_ROLES
+    assert Role.APP in ENDPOINT_PERMISSIONS["GET /config"]
 
 
 def test_every_endpoint_has_a_role_and_models() -> None:

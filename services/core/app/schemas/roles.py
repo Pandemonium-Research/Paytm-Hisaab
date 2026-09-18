@@ -44,6 +44,8 @@ ROLE_ENTRY_KINDS: dict[Role, frozenset[EntryKind]] = {
 
 
 ALL_ROLES = frozenset(Role)
+# The app key ships in a browser; guards are server-side and prompts must not be exposed there.
+NON_APP_ROLES = ALL_ROLES - {Role.APP}
 AGENT_READ_ROLES = frozenset({Role.PROVENANCE, Role.CONVERSATION, Role.EVIDENCE})
 OFFICER_ADMIN = frozenset({Role.OFFICER, Role.ADMIN})
 
@@ -70,11 +72,11 @@ ENDPOINT_PERMISSIONS: dict[str, frozenset[Role]] = {
     "POST /skills/escalation-check": frozenset({Role.EVIDENCE}),
     "POST /cases": frozenset({Role.EVIDENCE}),
     "POST /packs": frozenset({Role.EVIDENCE}),
-    "POST /guards/numbers": ALL_ROLES,
-    "POST /guards/citations": ALL_ROLES,
-    "POST /guards/no-innocence": ALL_ROLES,
-    "POST /guards/extraction": ALL_ROLES,
-    "POST /guards/language": ALL_ROLES,
+    "POST /guards/numbers": NON_APP_ROLES,
+    "POST /guards/citations": NON_APP_ROLES,
+    "POST /guards/no-innocence": NON_APP_ROLES,
+    "POST /guards/extraction": NON_APP_ROLES,
+    "POST /guards/language": NON_APP_ROLES,
     "POST /packs/{id}/approve": frozenset({Role.OFFICER}),
     "POST /packs/{id}/reject": frozenset({Role.OFFICER}),
     "POST /outbox/{pack}/send": frozenset({Role.OFFICER}),
@@ -100,7 +102,7 @@ ENDPOINT_PERMISSIONS: dict[str, frozenset[Role]] = {
     "GET /app/officer/cases/{id}": frozenset({Role.OFFICER}),
     "GET /app/officer/outbox": frozenset({Role.OFFICER}),
     "POST /app/push/subscribe": frozenset({Role.APP, Role.OFFICER}),
-    "GET /prompts/{name}": ALL_ROLES,
+    "GET /prompts/{name}": NON_APP_ROLES,
     # Phase 1 names /config, although section 7 omits it.
     "GET /config": ALL_ROLES,
 }

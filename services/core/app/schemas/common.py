@@ -68,8 +68,12 @@ class EvidenceTier(IntEnum):
 
 class Pagination(ContractModel):
     # TODO(1.3): Confirm the default and maximum page sizes when routes are implemented.
-    limit: Annotated[int, Field(ge=1, le=200)] = 50
-    cursor: str | None = None
+    limit: Annotated[
+        int, Field(ge=1, le=200, description="Maximum number of items to return.")
+    ] = 50
+    cursor: Annotated[
+        str | None, Field(description="Opaque cursor from the previous page.")
+    ] = None
 
 
 T = TypeVar("T")

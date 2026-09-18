@@ -15,6 +15,7 @@ from ..common import (
     MerchantId,
     Money,
     PackId,
+    Pagination,
     PredictionLabel,
     QuestionId,
     TransactionId,
@@ -30,6 +31,18 @@ M2_ANSWER_CHOICES = frozenset(
         AnswerChoice.NOT_SURE,
     }
 )
+
+
+class MerchantAppQuery(ContractModel):
+    merchant: Annotated[
+        MerchantId, Field(description="Merchant whose app screen to return.")
+    ]
+
+
+class AppPaymentsQuery(Pagination):
+    merchant: Annotated[
+        MerchantId, Field(description="Merchant whose payments to return.")
+    ]
 
 
 class DisplayAmount(ContractModel):

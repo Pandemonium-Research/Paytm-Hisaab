@@ -13,10 +13,36 @@ from ..common import (
     EvidenceTier,
     MerchantId,
     Money,
+    Pagination,
     PredictionLabel,
     TransactionId,
 )
 from .rails import RailChannel, RailCreditTransaction
+
+
+class CreditsQuery(Pagination):
+    merchant: Annotated[
+        MerchantId, Field(description="Merchant whose credits to return.")
+    ]
+    as_of: Annotated[
+        AwareDatetime | None,
+        Field(description="Snapshot cutoff; when omitted, uses now on the sim clock."),
+    ] = None
+
+
+class PayerHistoryQuery(ContractModel):
+    merchant: Annotated[
+        MerchantId, Field(description="Merchant whose payer history to return.")
+    ]
+    as_of: Annotated[
+        AwareDatetime | None,
+        Field(
+            description=(
+                "Exclusive history cutoff; a credit exactly at as_of is not counted; "
+                "when omitted, uses now on the sim clock."
+            )
+        ),
+    ] = None
 
 
 class GeoPoint(ContractModel):

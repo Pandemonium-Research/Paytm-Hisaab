@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
 from ..auth import require_role
@@ -20,9 +19,17 @@ def add_get(
     endpoint: str,
     path: str,
     response_model: type[BaseModel],
+    query_model: type[BaseModel] | None = None,
 ) -> None:
-    async def stub(_: Any = Depends(require_role(endpoint))) -> dict[str, Any]:
-        return response_fixture(area, endpoint, response_model)
+    if query_model is None:
+        async def stub(_: Any = Depends(require_role(endpoint))) -> dict[str, Any]:
+            return response_fixture(area, endpoint, response_model)
+    else:
+        async def stub(query: Any, _: Any = Depends(require_role(endpoint))) -> dict[str, Any]:
+            del query
+            return response_fixture(area, endpoint, response_model)
+
+        stub.__annotations__["query"] = Annotated[query_model, Query()]
 
     stub.__name__ = endpoint.lower().replace(" ", "_").replace("/", "_")
     router.add_api_route(path, stub, methods=["GET"], response_model=response_model)
@@ -56,10 +63,18 @@ def add_put(
     path: str,
     request_model: type[BaseModel],
     response_model: type[BaseModel],
+    query_model: type[BaseModel] | None = None,
 ) -> None:
-    async def stub(body: Any, _: Any = Depends(require_role(endpoint))):
-        del body
-        return response_fixture(area, endpoint, response_model)
+    if query_model is None:
+        async def stub(body: Any, _: Any = Depends(require_role(endpoint))):
+            del body
+            return response_fixture(area, endpoint, response_model)
+    else:
+        async def stub(body: Any, query: Any, _: Any = Depends(require_role(endpoint))):
+            del body, query
+            return response_fixture(area, endpoint, response_model)
+
+        stub.__annotations__["query"] = Annotated[query_model, Query()]
 
     stub.__name__ = endpoint.lower().replace(" ", "_").replace("/", "_")
     stub.__annotations__["body"] = request_model

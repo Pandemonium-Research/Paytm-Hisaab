@@ -3,11 +3,17 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AwareDatetime
+from pydantic import AwareDatetime, Field
 
 from ..common import ContractModel, MerchantId
+
+
+class AssistantStreamQuery(ContractModel):
+    merchant: Annotated[
+        MerchantId, Field(description="Merchant whose assistant events to stream.")
+    ]
 
 
 class AssistantContentType(str, Enum):
@@ -61,4 +67,3 @@ class AssistantOutboundResponse(ContractModel):
 
 
 REQUEST_MODELS = (AssistantInboundRequest, AssistantOutboundRequest)
-

@@ -53,64 +53,65 @@ merchant in an explicit correction.
 
 ## Endpoints
 
-| Endpoint | Body model | Response model | Roles |
-|---|---|---|---|
-| `POST /rails/credits` | `RailsCreditsRequest` | `RailsCreditsResponse` | rails |
-| `POST /rails/debits` | `RailsDebitsRequest` | `RailsDebitsResponse` | rails |
-| `POST /rails/bills` | `RailsBillsRequest` | `RailsBillsResponse` | rails |
-| `POST /rails/events` | `RailsEventsRequest` | `RailsEventsResponse` | rails |
-| `GET /merchants/{id}` | — | `MerchantResponse` | provenance, conversation, evidence |
-| `GET /credits` | — | `CreditsResponse` | provenance, conversation, evidence |
-| `GET /credits/{txn}` | — | `CreditResponse` | provenance, conversation, evidence |
-| `GET /credits/by-utr/{utr}` | — | `CreditByUtrResponse` | provenance, conversation, evidence |
-| `GET /payers/{cp}/history` | — | `PayerHistoryResponse` | provenance, conversation, evidence |
-| `POST /skills/classify-rules` | `ClassifyRulesRequest` | `ClassifyRulesResponse` | provenance |
-| `POST /ledger/proposals` | `LedgerProposalRequest` | `LedgerProposalResponse` | provenance |
-| `POST /skills/select-questions` | `SelectQuestionsRequest` | `SelectQuestionsResponse` | provenance |
-| `POST /ledger/questions` | `LedgerQuestionRequest` | `LedgerQuestionResponse` | conversation |
-| `POST /ledger/claims` | `LedgerClaimRequest` | `LedgerClaimResponse` | conversation |
-| `POST /skills/turnover` | `TurnoverRequest` | `TurnoverResponse` | evidence |
-| `POST /skills/threshold` | `ThresholdRequest` | `ThresholdResponse` | evidence |
-| `POST /skills/isolate` | `IsolateRequest` | `IsolateResponse` | evidence |
-| `POST /skills/tiers` | `TiersRequest` | `TiersResponse` | evidence |
-| `POST /skills/escalation-check` | `EscalationCheckRequest` | `EscalationCheckResponse` | evidence |
-| `POST /cases` | `CreateCaseRequest` | `CreateCaseResponse` | evidence |
-| `POST /packs` | `BuildPackRequest` | `BuildPackResponse` | evidence |
-| `POST /guards/numbers` | `GuardRequest` | `GuardResponse` | all roles |
-| `POST /guards/citations` | `GuardRequest` | `GuardResponse` | all roles |
-| `POST /guards/no-innocence` | `GuardRequest` | `GuardResponse` | all roles |
-| `POST /guards/extraction` | `GuardRequest` | `GuardResponse` | all roles |
-| `POST /guards/language` | `GuardRequest` | `GuardResponse` | all roles |
-| `POST /packs/{id}/approve` | `ApprovePackRequest` | `ApprovePackResponse` | officer |
-| `POST /packs/{id}/reject` | `RejectPackRequest` | `RejectPackResponse` | officer |
-| `POST /outbox/{pack}/send` | `SendPackRequest` | `SendPackResponse` | officer |
-| `GET /ledger/verify` | — | `LedgerVerifyResponse` | officer, admin |
-| `GET /ledger/{m}/entries` | — | `LedgerEntriesResponse` | officer, admin |
-| `GET /anchors` | — | `AnchorsResponse` | officer, admin |
-| `POST /sim/clock` | `SimClockRequest` | `SimClockResponse` | admin |
-| `POST /sim/replay` | `SimReplayRequest` | `SimReplayResponse` | admin |
-| `POST /sim/reset` | `SimResetRequest` | `SimResetResponse` | admin |
-| `POST /sim/tamper` | `SimTamperRequest` | `SimTamperResponse` | admin |
-| `POST /anchors/run` | `RunAnchorRequest` | `RunAnchorResponse` | admin |
-| `POST /assistant/inbound` | `AssistantInboundRequest` | `AssistantInboundResponse` | app |
-| `GET /assistant/stream` | — | `AssistantStreamResponse` | app |
-| `POST /assistant/outbound` | `AssistantOutboundRequest` | `AssistantOutboundResponse` | conversation |
-| `GET /app/home` | — | `AppHomeResponse` | app |
-| `GET /app/questions` | — | `AppQuestionsResponse` | app |
-| `GET /app/payments` | — | `AppPaymentsResponse` | app |
-| `GET /app/payments/{txn}` | — | `AppPaymentDetailResponse` | app |
-| `GET /app/cases` | — | `AppCasesResponse` | app |
-| `GET /app/turnover` | — | `AppTurnoverResponse` | app |
-| `PUT /app/profile` | `AppProfileRequest` | `AppProfileResponse` | app |
-| `GET /app/officer/queue` | — | `OfficerQueueResponse` | officer |
-| `GET /app/officer/cases/{id}` | — | `OfficerCaseResponse` | officer |
-| `GET /app/officer/outbox` | — | `OfficerOutboxResponse` | officer |
-| `POST /app/push/subscribe` | `PushSubscribeRequest` | `PushSubscribeResponse` | app, officer |
-| `GET /prompts/{name}` | — | `PromptResponse` | all roles |
-| `GET /config` | — | `ConfigResponse` | all roles |
+| Endpoint | Query parameters | Body model | Response model | Roles |
+|---|---|---|---|---|
+| `POST /rails/credits` | — | `RailsCreditsRequest` | `RailsCreditsResponse` | rails |
+| `POST /rails/debits` | — | `RailsDebitsRequest` | `RailsDebitsResponse` | rails |
+| `POST /rails/bills` | — | `RailsBillsRequest` | `RailsBillsResponse` | rails |
+| `POST /rails/events` | — | `RailsEventsRequest` | `RailsEventsResponse` | rails |
+| `GET /merchants/{id}` | — | — | `MerchantResponse` | provenance, conversation, evidence |
+| `GET /credits` | `merchant` (required), `as_of`, `limit`, `cursor` | — | `CreditsResponse` | provenance, conversation, evidence |
+| `GET /credits/{txn}` | — | — | `CreditResponse` | provenance, conversation, evidence |
+| `GET /credits/by-utr/{utr}` | — | — | `CreditByUtrResponse` | provenance, conversation, evidence |
+| `GET /payers/{cp}/history` | `merchant` (required), `as_of` | — | `PayerHistoryResponse` | provenance, conversation, evidence |
+| `POST /skills/classify-rules` | — | `ClassifyRulesRequest` | `ClassifyRulesResponse` | provenance |
+| `POST /ledger/proposals` | — | `LedgerProposalRequest` | `LedgerProposalResponse` | provenance |
+| `POST /skills/select-questions` | — | `SelectQuestionsRequest` | `SelectQuestionsResponse` | provenance |
+| `POST /ledger/questions` | — | `LedgerQuestionRequest` | `LedgerQuestionResponse` | conversation |
+| `POST /ledger/claims` | — | `LedgerClaimRequest` | `LedgerClaimResponse` | conversation |
+| `POST /skills/turnover` | — | `TurnoverRequest` | `TurnoverResponse` | evidence |
+| `POST /skills/threshold` | — | `ThresholdRequest` | `ThresholdResponse` | evidence |
+| `POST /skills/isolate` | — | `IsolateRequest` | `IsolateResponse` | evidence |
+| `POST /skills/tiers` | — | `TiersRequest` | `TiersResponse` | evidence |
+| `POST /skills/escalation-check` | — | `EscalationCheckRequest` | `EscalationCheckResponse` | evidence |
+| `POST /cases` | — | `CreateCaseRequest` | `CreateCaseResponse` | evidence |
+| `POST /packs` | — | `BuildPackRequest` | `BuildPackResponse` | evidence |
+| `POST /guards/numbers` | — | `GuardRequest` | `GuardResponse` | all roles except app |
+| `POST /guards/citations` | — | `GuardRequest` | `GuardResponse` | all roles except app |
+| `POST /guards/no-innocence` | — | `GuardRequest` | `GuardResponse` | all roles except app |
+| `POST /guards/extraction` | — | `GuardRequest` | `GuardResponse` | all roles except app |
+| `POST /guards/language` | — | `GuardRequest` | `GuardResponse` | all roles except app |
+| `POST /packs/{id}/approve` | — | `ApprovePackRequest` | `ApprovePackResponse` | officer |
+| `POST /packs/{id}/reject` | — | `RejectPackRequest` | `RejectPackResponse` | officer |
+| `POST /outbox/{pack}/send` | — | `SendPackRequest` | `SendPackResponse` | officer |
+| `GET /ledger/verify` | `merchant` (required) | — | `LedgerVerifyResponse` | officer, admin |
+| `GET /ledger/{m}/entries` | `limit`, `cursor` | — | `LedgerEntriesResponse` | officer, admin |
+| `GET /anchors` | `merchant` | — | `AnchorsResponse` | officer, admin |
+| `POST /sim/clock` | — | `SimClockRequest` | `SimClockResponse` | admin |
+| `POST /sim/replay` | — | `SimReplayRequest` | `SimReplayResponse` | admin |
+| `POST /sim/reset` | — | `SimResetRequest` | `SimResetResponse` | admin |
+| `POST /sim/tamper` | — | `SimTamperRequest` | `SimTamperResponse` | admin |
+| `POST /anchors/run` | — | `RunAnchorRequest` | `RunAnchorResponse` | admin |
+| `POST /assistant/inbound` | — | `AssistantInboundRequest` | `AssistantInboundResponse` | app |
+| `GET /assistant/stream` | `merchant` (required) | — | `AssistantStreamResponse` | app |
+| `POST /assistant/outbound` | — | `AssistantOutboundRequest` | `AssistantOutboundResponse` | conversation |
+| `GET /app/home` | `merchant` (required) | — | `AppHomeResponse` | app |
+| `GET /app/questions` | `merchant` (required) | — | `AppQuestionsResponse` | app |
+| `GET /app/payments` | `merchant` (required), `limit`, `cursor` | — | `AppPaymentsResponse` | app |
+| `GET /app/payments/{txn}` | `merchant` (required) | — | `AppPaymentDetailResponse` | app |
+| `GET /app/cases` | `merchant` (required) | — | `AppCasesResponse` | app |
+| `GET /app/turnover` | `merchant` (required) | — | `AppTurnoverResponse` | app |
+| `PUT /app/profile` | `merchant` (required) | `AppProfileRequest` | `AppProfileResponse` | app |
+| `GET /app/officer/queue` | — | — | `OfficerQueueResponse` | officer |
+| `GET /app/officer/cases/{id}` | — | — | `OfficerCaseResponse` | officer |
+| `GET /app/officer/outbox` | — | — | `OfficerOutboxResponse` | officer |
+| `POST /app/push/subscribe` | — | `PushSubscribeRequest` | `PushSubscribeResponse` | app, officer |
+| `GET /prompts/{name}` | — | — | `PromptResponse` | all roles except app |
+| `GET /config` | — | — | `ConfigResponse` | all roles |
 
-The same mapping is available as `ENDPOINT_MODELS`. Path and query values are handled by the
-route. A dash therefore means there is no JSON body, not that the route has no inputs.
+The body/response mapping is available as `ENDPOINT_MODELS`; query model types are exported from
+`app.schemas.api`. A dash in the query column means no query parameters, while a dash in the body
+column means there is no JSON body. Path values are handled by the route.
 
 `POST /rails/credits` accepts only `CR` transactions on the simulator's credit channels.
 `POST /rails/debits` accepts only `DR` transactions on `UPI_OUT` or `REFUND`; debits have no

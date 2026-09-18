@@ -82,6 +82,31 @@ REQUEST_SAMPLES: dict[str, dict[str, Any]] = {
     "AppProfileRequest": {"language": "kn-IN", "consent_at": NOW, "consent_text_version": "m0-v1-kn-IN"},
 }
 
+QUERY_SAMPLES: dict[str, dict[str, Any]] = {
+    "GET /credits": {
+        "merchant": "MID_DEMO_SAHANA",
+        "as_of": NOW,
+        "limit": 25,
+        "cursor": "next-page",
+    },
+    "GET /payers/{cp}/history": {"merchant": "MID_DEMO_SAHANA", "as_of": NOW},
+    "GET /ledger/verify": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /ledger/{m}/entries": {"limit": 25, "cursor": "next-page"},
+    "GET /anchors": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /assistant/stream": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /app/home": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /app/questions": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /app/payments": {
+        "merchant": "MID_DEMO_SAHANA",
+        "limit": 25,
+        "cursor": "next-page",
+    },
+    "GET /app/payments/{txn}": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /app/cases": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /app/turnover": {"merchant": "MID_DEMO_SAHANA"},
+    "PUT /app/profile": {"merchant": "MID_DEMO_SAHANA"},
+}
+
 
 @pytest.fixture(autouse=True)
 def stable_role_keys(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -111,6 +136,7 @@ def test_every_contract_route_is_reachable_and_its_fixture_validates(endpoint: s
         method,
         concrete_path(contract_path),
         headers={"X-Hisaab-Key": key_for(endpoint)},
+        params=QUERY_SAMPLES.get(endpoint),
         json=body,
     )
 
@@ -193,6 +219,110 @@ def test_openapi_contains_every_contracted_operation() -> None:
         for method, path in [endpoint.split(" ", 1)]
     }
     assert expected <= operations
+
+
+def test_openapi_declares_each_contracted_query_parameter() -> None:
+    expected = {
+        ("GET", "/credits"): {"merchant": True, "as_of": False, "limit": False, "cursor": False},
+        ("GET", "/payers/{cp}/history"): {"merchant": True, "as_of": False},
+        ("GET", "/ledger/verify"): {"merchant": True},
+        ("GET", "/ledger/{m}/entries"): {"limit": False, "cursor": False},
+        ("GET", "/anchors"): {"merchant": False},
+        ("GET", "/assistant/stream"): {"merchant": True},
+        ("GET", "/app/home"): {"merchant": True},
+        ("GET", "/app/questions"): {"merchant": True},
+        ("GET", "/app/payments"): {"merchant": True, "limit": False, "cursor": False},
+        ("GET", "/app/payments/{txn}"): {"merchant": True},
+        ("GET", "/app/cases"): {"merchant": True},
+        ("GET", "/app/turnover"): {"merchant": True},
+        ("PUT", "/app/profile"): {"merchant": True},
+    }
+    document = app.openapi()
+
+    actual = {}
+    for (method, path), required_by_name in expected.items():
+        parameters = document["paths"][path][method.lower()]["parameters"]
+        query_parameters = {item["name"]: item for item in parameters if item["in"] == "query"}
+        actual[(method, path)] = {
+            name: item["required"] for name, item in query_parameters.items()
+        }
+        assert all(item.get("description") for item in query_parameters.values())
+        assert all(
+            "type" in item["schema"]
+            or all("type" in part for part in item["schema"]["anyOf"])
+            for item in query_parameters.values()
+        )
+        assert set(query_parameters) == set(required_by_name)
+
+    assert actual == expected
+
+    credits = document["paths"]["/credits"]["get"]["parameters"]
+    by_name = {item["name"]: item for item in credits if item["in"] == "query"}
+    assert by_name["merchant"]["schema"]["type"] == "string"
+    assert by_name["limit"]["schema"]["type"] == "integer"
+    assert {part.get("format") for part in by_name["as_of"]["schema"]["anyOf"]} == {
+        "date-time",
+        None,
+    }
+    assert "now on the sim clock" in by_name["as_of"]["description"]
+
+    history = document["paths"]["/payers/{cp}/history"]["get"]["parameters"]
+    history_by_name = {item["name"]: item for item in history if item["in"] == "query"}
+    assert "exactly at as_of is not counted" in history_by_name["as_of"]["description"]
+    assert "now on the sim clock" in history_by_name["as_of"]["description"]
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body"),
+    [
+        ("GET", "/app/home", None),
+        ("GET", "/app/questions", None),
+        ("GET", "/app/payments", None),
+        ("GET", "/app/payments/DM0000001", None),
+        ("GET", "/app/cases", None),
+        ("GET", "/app/turnover", None),
+        ("PUT", "/app/profile", REQUEST_SAMPLES["AppProfileRequest"]),
+    ],
+)
+def test_merchant_app_routes_require_merchant_query(
+    method: str, path: str, body: dict[str, Any] | None
+) -> None:
+    without_merchant = client.request(
+        method,
+        path,
+        headers={"X-Hisaab-Key": "dev-app"},
+        json=body,
+    )
+    with_merchant = client.request(
+        method,
+        path,
+        headers={"X-Hisaab-Key": "dev-app"},
+        params={"merchant": "MID_DEMO_SAHANA"},
+        json=body,
+    )
+
+    assert without_merchant.status_code == 422
+    assert with_merchant.status_code == 200
+
+
+@pytest.mark.parametrize("path", ["/guards/numbers", "/prompts/hard-case-label"])
+def test_app_key_cannot_read_server_side_guard_or_prompt(path: str) -> None:
+    if path.startswith("/guards/"):
+        response = client.post(
+            path,
+            headers={"X-Hisaab-Key": "dev-app"},
+            json=REQUEST_SAMPLES["GuardRequest"],
+        )
+    else:
+        response = client.get(path, headers={"X-Hisaab-Key": "dev-app"})
+
+    assert response.status_code == 403
+    assert "Role 'app' is not permitted" in response.json()["detail"]
+
+
+def test_app_key_can_read_boot_config() -> None:
+    response = client.get("/config", headers={"X-Hisaab-Key": "dev-app"})
+    assert response.status_code == 200
 
 
 def test_live_setting_and_paid_publish_guard(monkeypatch: pytest.MonkeyPatch) -> None:

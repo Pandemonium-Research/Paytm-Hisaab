@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import AwareDatetime
+from pydantic import AwareDatetime, Field
 
 from ..common import ContractModel, MerchantId
+
+
+class AppProfileQuery(ContractModel):
+    merchant: Annotated[
+        MerchantId, Field(description="Merchant whose app profile to update.")
+    ]
 
 
 class PushSubscriptionKeys(ContractModel):

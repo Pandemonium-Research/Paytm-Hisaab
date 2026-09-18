@@ -13,9 +13,9 @@ for endpoint, path, request, response, kind in (
 ):
     add_post(router, area="ledger_ops", endpoint=endpoint, path=path, request_model=request, response_model=response, entry_kind=kind)
 
-for endpoint, path, response in (
-    ("GET /ledger/verify", "/ledger/verify", models.LedgerVerifyResponse),
-    ("GET /ledger/{m}/entries", "/ledger/{m}/entries", models.LedgerEntriesResponse),
-    ("GET /anchors", "/anchors", models.AnchorsResponse),
+for endpoint, path, response, query in (
+    ("GET /ledger/verify", "/ledger/verify", models.LedgerVerifyResponse, models.LedgerVerifyQuery),
+    ("GET /ledger/{m}/entries", "/ledger/{m}/entries", models.LedgerEntriesResponse, models.LedgerEntriesQuery),
+    ("GET /anchors", "/anchors", models.AnchorsResponse, models.AnchorsQuery),
 ):
-    add_get(router, area="ledger_ops", endpoint=endpoint, path=path, response_model=response)
+    add_get(router, area="ledger_ops", endpoint=endpoint, path=path, response_model=response, query_model=query)
