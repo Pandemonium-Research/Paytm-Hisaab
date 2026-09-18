@@ -2,8 +2,9 @@
 
 **Active priority, 18 Sep:** deliver a functioning prototype. Follow
 [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) for the current queue and completion evidence.
-Phase 4's real endpoints come next for A; minimal WF10 and M1/M2 come next for B. First make
-payments/questions/answers persist, then freeze/pack/approval/send. Historical P0 labels and
+Payments/questions/answers persist and CP1 passes on B's local stack. A has delivered the
+freeze detector, approval/send gate and case reads; evidence packs are next for CP2.
+Historical P0 labels and
 "never cut" rules below do not make additional hardening, legal research, evaluations or polish
 prerequisites for these gates; the user's current prototype scope takes precedence.
 
@@ -528,8 +529,8 @@ preference and assistant forwarding/persisted outbound are implemented. 173 core
 and 19 fakes checks pass. Full visible replay and answer persistence through core restart pass.
 A real app tap also passes core forwarding → B's WF31 → persisted claim → WF30 Kannada
 acknowledgement, with the machine proposal preserved.
-B's workflows/screens are available in `6152c98`; combined CP1 remains pending the WF10
-window/default-merchant integration. SSE, extra guards and polishing are deferred by the active queue.
+B's WF10/screens pass the combined local app/WhatsApp check (see CP1 below). A's slow-machine
+rerun with the credit window is pending. SSE, extra guards and polishing are deferred by the active queue.
 `GET /credits` now also takes a half-open `[from, to)` window of aware instants (D34), so WF10
 asks for the ordinary Tuesday instead of paging the whole history and discarding it: 36 Postgres
 tests pass, including the window's two edges, the same instant written in UTC and in IST, paging
@@ -687,8 +688,17 @@ in this phase.
       same entry, reject after approval 409, send simulated, send retry same entry, chain verifies.
       The CP1 snapshot was restored afterwards. Not tested: two officers deciding at the same instant
       (it relies on the same chain lock as the question budget).
-- [ ] **6.11** Read models `/app/cases`, `/app/turnover`, `/app/officer/queue` and
-      `/app/officer/cases/{id}`.
+- [x] **6.11 (prototype case scope)** Real `/app/cases`, `/app/officer/queue`,
+      `/app/officer/cases/{id}` and `/app/officer/outbox`.
+      Cursor Composer 2.5 built from A's committed spec; A reviewed and fixed the draft.
+      Reads use the persistent sim clock, including rewind; statuses follow officer ledger
+      evidence rather than the mutable approval status. Latest visible pack wins; older deliveries
+      stay in the outbox. Weak share uses tier amounts, timelines show IST and `chain_ok` is
+      freshly verified. No placeholder PDF or invented bank release. 12 new Postgres tests pass
+      (73 total across the full existing suite and focused follow-up), plus 166 core and 19 fakes.
+      Rebuilt core returns real empty lists and unknown-case 404. An isolated HTTP lifecycle
+      passed open → awaiting approval → approved → sent → rewind; its data was rolled back.
+- [ ] **6.11 turnover follow-up** `/app/turnover` remains a fixture until 6.2 is real.
 - [ ] **6.12** Tests against the demo answer key:
       - turnover within target; crossing date; isolation plus decoy
       - the guards

@@ -8,10 +8,12 @@ waiting for each other or editing the same files.
 **B = Agent and surfaces:** n8n workflows, Sarvam, Cognee, WhatsApp, the PWA, prompts, legal.
 
 **Current queue, 18 Sep:** [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) overrides the historical
-ordering below. A has completed Phase 4.1–4.8 and M1/M2/payment reads plus assistant
-forwarding/delivery; repeatable reset is next. The remaining credit-guard block does not block
-this queue. B has built WF10 and M1/M2 and now integrates them with the real routes. After the first gate works,
-A builds freeze/pack/approval endpoints and B builds WF20/O1/O2/M5. Keep lane ownership and
+ordering below. Payments/questions/answers, assistant forwarding/delivery and repeatable reset
+are complete. CP1 passes on B's local stack; A's rerun with the credit window is pending.
+A has delivered 6.9/6.10 and the four prototype case/officer reads (6.11). Isolation and
+packs/PDF (6.4/6.8) are next; turnover reads wait for 6.2.
+B has prepared WF20/O1/O2/M5; connect and verify them for CP2 when those handoffs land.
+The remaining credit-guard block does not block this queue. Keep lane ownership and
 contracts; defer extra security, legal research, measurement, memory/voice and polish.
 
 **Who takes which lane.** B runs the live checks (L1) and needs `.env.live`, the n8n Cloud

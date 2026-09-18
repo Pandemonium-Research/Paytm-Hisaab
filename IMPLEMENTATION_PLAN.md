@@ -5,10 +5,12 @@
 Build the real payments/questions/answers loop first, then freeze/evidence/approval/simulated
 send. The larger design below remains the backlog; extra hardening, legal research, evaluations
 and polish are deferred. Existing API contracts and lane ownership remain in force.
-Payments, proposals, questions, answers and M1/M2 reads now persist in Postgres. A's next
-slice is repeatable reset; B has delivered WF10 and the M1/M2 screens. Assistant forwarding
-and persisted app delivery are implemented; assistant SSE is deferred with M6.
-The first gate is pending their combined app/WhatsApp check; cases and approvals are still fixtures.
+Payments, proposals, questions, answers and M1/M2 reads persist in Postgres. Repeatable reset
+is complete, and CP1 passes on B's local stack; A's rerun with the credit window is pending.
+Assistant forwarding and persisted app delivery are implemented; assistant SSE is deferred with M6.
+A has delivered the freeze detector, approval/send gate and four case/officer reads
+(6.9/6.10/6.11 prototype scope). Isolation and packs/PDF (6.4/6.8) are next, then the joint
+WF20/officer-screen check for CP2. `/app/turnover` waits for the real turnover skill (6.2).
 
 **Paytm Build for India AI Hackathon · Bengaluru · Track 3: Autonomous AI Teammates · Sat 19 Sep 2026**
 Stack: n8n Cloud (voucher) · Sarvam AI · Cognee (hackathon credits) · Python/FastAPI · PostgreSQL · WhatsApp via Twilio · Paytm-style mobile PWA

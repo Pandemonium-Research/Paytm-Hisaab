@@ -130,6 +130,20 @@ state and echoes that state with `saved` in `AppProfileResponse`. Consent create
 explicit `freeze_to_pack_seconds` and `pack_to_approval_seconds` durations alongside its
 timestamps.
 
+The four case/officer reads (`/app/cases`, `/app/officer/queue`, `/app/officer/cases/{id}` and
+`/app/officer/outbox`) use the persistent sim clock, including rewind. Cases opened later are
+hidden; an unknown/invisible officer case is 404. Merchant cases are scoped by `merchant`.
+The latest visible recorded pack determines case status: `open`, `awaiting_approval`,
+`approved`, `rejected`, `sent`, or a recorded `escalated` finding without a final decision.
+Approval/send states come from matching officer-role ledger entries, not mutable ops status.
+The queue excludes final decisions, while the outbox retains older delivered packs.
+Weak evidence share is the amount in tiers 3/4 divided by all recorded tier amounts (zero for
+no pack/zero amount). Timelines display IST business timestamps, detail verifies the chain on
+every request, and `pdf_url` is null until a same-origin artifact path is recorded.
+Outbox times come from ledger business time rather than wall-clock insertion time. Outcomes
+remain null unless recorded, and the current entire-account freeze reports zero usable balance;
+simulated delivery is no evidence of bank release. `/app/turnover` still waits for the real skill.
+
 `GET /credits` takes an optional `from` and `to`, a **half-open window `[from, to)`** on the
 payment's `ts`: a credit exactly at `from` is returned, one exactly at `to` is not. Both need a
 UTC offset, because the chain stores UTC and the screens answer IST, so a bare date would have
@@ -169,8 +183,9 @@ built, or a send before its approval, is 422.
 arrived. Core POSTs `{pack_id, decision, entry_seq}` to the pack's stored resume URL with
 `X-N8N-Webhook-Secret`, and only when that URL is on `N8N_BASE_URL`'s origin (default
 `http://n8n:5678`). WF20 must re-read the decision from core rather than trust this body. Resume URLs
-are registered with the pack: `POST /packs` accepts one from 6.8. Until then WF20's polling is the
-only path, and it needs the officer case read model (6.11) to be real.
+can currently be registered by `record_pack`. The frozen `BuildPackRequest` has no resume URL
+field; resume registration through HTTP remains a separate integration decision. WF20 can use
+the officer case read model for polling without changing the request contract.
 
 ## Short examples
 
