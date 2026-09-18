@@ -1,0 +1,313 @@
+{
+  "id": "hisaabWF30out001",
+  "name": "hisaab/WF30 merchant-outbound",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "3f000000-0000-4000-8000-000000000001",
+      "name": "When called by another workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -360,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Base URLs live here so one node is the only thing L2 (task 10.1b) has to change.\n// n8n Cloud blocks $env in nodes (plan §10.2), so these are literals, not environment reads.\nconst CONFIG = {\n  core: 'http://core:8000',\n  twilio: 'http://fakes:8200/twilio',\n  accountSid: 'ACfake',\n  whatsappFrom: 'whatsapp:+14155238886',\n};\n\nreturn items.map(item => {\n  const input = item.json || {};\n  if (!input.merchant_id) throw new Error('WF30 needs merchant_id');\n  if (!input.text) throw new Error('WF30 needs text');\n  const channel = input.channel === 'app' ? 'app' : 'whatsapp';\n  const now = new Date().toISOString();\n  return {\n    json: {\n      ...CONFIG,\n      channel,\n      merchant_id: input.merchant_id,\n      text: input.text,\n      language: input.language || 'en-IN',\n      to: input.to || null,\n      txn_id: input.txn_id || null,\n      question_id: input.question_id || null,\n      expires_at: input.expires_at || null,\n      conversation_id: input.conversation_id || ('wf30-' + input.merchant_id),\n      in_reply_to: input.in_reply_to || null,\n      sim_at: input.sim_at || now,\n    },\n  };\n});"
+      },
+      "id": "3f000000-0000-4000-8000-000000000002",
+      "name": "Prepare message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -140,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "3f000000-0000-4000-8000-000000000003",
+      "name": "Wait 3s (sandbox rate limit)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        80,
+        0
+      ],
+      "webhookId": "3f000000-0000-4000-8000-0000000000ff"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "channel-is-whatsapp",
+              "leftValue": "={{ $json.channel }}",
+              "rightValue": "whatsapp",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3f000000-0000-4000-8000-000000000004",
+      "name": "WhatsApp or app?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        300,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.twilio }}/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Messages.json",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "={{ $json.whatsappFrom }}"
+            },
+            {
+              "name": "To",
+              "value": "={{ $json.to }}"
+            },
+            {
+              "name": "Body",
+              "value": "={{ $json.text }}"
+            }
+          ]
+        },
+        "options": {},
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth"
+      },
+      "id": "3f000000-0000-4000-8000-000000000005",
+      "name": "Send on WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        540,
+        -120
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "hisaabLocalTwilio",
+          "name": "hisaab twilio (local fakes)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.core }}/assistant/outbound",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ merchant_id: $json.merchant_id, conversation_id: $json.conversation_id, text: $json.text, language: $json.language, in_reply_to: $json.in_reply_to, sim_at: $json.sim_at }) }}",
+        "options": {}
+      },
+      "id": "3f000000-0000-4000-8000-000000000006",
+      "name": "Send in app",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        540,
+        120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalConv01",
+          "name": "hisaab core conversation (local)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-a-question",
+              "leftValue": "={{ $('Prepare message').item.json.question_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3f000000-0000-4000-8000-000000000007",
+      "name": "Was it a question?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        780,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Prepare message').item.json.core }}/ledger/questions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ merchant_id: $('Prepare message').item.json.merchant_id, txn_id: $('Prepare message').item.json.txn_id, question: { question_id: $('Prepare message').item.json.question_id, text: $('Prepare message').item.json.text, language: $('Prepare message').item.json.language, expires_at: $('Prepare message').item.json.expires_at }, sim_at: $('Prepare message').item.json.sim_at }) }}",
+        "options": {}
+      },
+      "id": "3f000000-0000-4000-8000-000000000008",
+      "name": "Append question.asked",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        -80
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalConv01",
+          "name": "hisaab core conversation (local)"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "3f000000-0000-4000-8000-000000000009",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1020,
+        120
+      ]
+    }
+  ],
+  "connections": {
+    "When called by another workflow": {
+      "main": [
+        [
+          {
+            "node": "Prepare message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare message": {
+      "main": [
+        [
+          {
+            "node": "Wait 3s (sandbox rate limit)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 3s (sandbox rate limit)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp or app?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp or app?": {
+      "main": [
+        [
+          {
+            "node": "Send on WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send in app",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send on WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Was it a question?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send in app": {
+      "main": [
+        [
+          {
+            "node": "Was it a question?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Was it a question?": {
+      "main": [
+        [
+          {
+            "node": "Append question.asked",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -95,6 +95,51 @@ core must not wait on n8n).
   "source": "rails_event" | "wf31_upload" }
 ```
 
+### Loading workflows into the local n8n (task 5.2 tooling)
+
+```
+python n8n/cli.py import --target local --activate    # credentials + workflows, then activate
+python n8n/cli.py list   --target local
+python n8n/cli.py export --target local               # back to n8n/workflows/, sorted keys
+```
+
+The local n8n has **no owner account**, so its REST and public APIs refuse everything. `cli.py`
+therefore drives n8n's own CLI inside the container. Four things cost time to find; they are all
+handled in `cli.py`, and they matter again on any fresh machine:
+
+- A workflow file must carry a top-level `"id"`, or the import fails on a not-null constraint.
+- `import:workflow` only creates. It will not overwrite an existing workflow, and n8n 2.x keeps a
+  separate published version that `publish:workflow` restores over an import — so `cli.py` deletes
+  its own workflows (and their published/history rows) from the local n8n database first.
+- `docker compose cp` writes into the container as **root**, so the cleanup `rm -rf` has to run as
+  root too (`exec -u 0`). Otherwise the stale copy stays and n8n silently re-imports yesterday's
+  JSON, which looks exactly like a workflow bug.
+- Activation only takes effect after `docker compose restart n8n`, and webhooks register a few
+  seconds after the container reports healthy. Posting in that window gives a confusing 404.
+
+**Credentials are a template.** `n8n/credentials/local.json` holds `${VAR}` placeholders that
+`cli.py` fills from `.env` at import time, so no key is ever committed. Live credentials are
+created separately, in window L2 (task 10.1b).
+
+### Needed from A: two environment variables for the local n8n
+
+WF31 verifies the Twilio signature and WF30 addresses the Twilio API, so the n8n service in
+`docker-compose.yml` needs:
+
+```yaml
+TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-ACfake}
+TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-dev-twilio-token}
+N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"   # n8n denies $env inside nodes by default
+```
+
+Until that lands, B runs with an uncommitted `docker-compose.override.yml` carrying the same
+three. `.env` also needs `KEY_APP` (it is in `.env.example`, but not in older local copies).
+
+**Open risk for the live window:** n8n Cloud does not allow `$env` in nodes and it cannot be
+turned off, so neither the signature check nor the Twilio URL can read the token there. Settle
+this in S5/S8 before L1 — either an n8n Variable (`$vars`, if the Pro plan includes it) or a
+small core endpoint that verifies the signature for us.
+
 ### Webhook paths and keys, as built (H2/H3)
 
 | Thing | Value |

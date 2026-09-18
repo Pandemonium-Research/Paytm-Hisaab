@@ -1,0 +1,396 @@
+{
+  "id": "hisaabWF31in0001",
+  "name": "hisaab/WF31 merchant-inbound",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hisaab/wf31-whatsapp",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "31000000-0000-4000-8000-000000000001",
+      "name": "WhatsApp inbound",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -660,
+        0
+      ],
+      "webhookId": "31000000-0000-4000-8000-0000000000aa"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Twilio signs: the full URL, then every POST parameter as sorted key+value.\n// Mirrors twilio_signature() in tasks.py. The HMAC itself is done by the Crypto node, which\n// works on n8n Cloud where the Code sandbox has no crypto module.\nconst WEBHOOK_PATH = '/webhook/hisaab/wf31-whatsapp';\nconst incoming = $input.first().json;\nconst headers = incoming.headers || {};\nconst params = incoming.body || {};\nconst signature = headers['x-twilio-signature'];\nif (!signature) throw new Error('missing X-Twilio-Signature; refusing the request');\nconst proto = headers['x-forwarded-proto'] || 'http';\nconst host = headers['x-forwarded-host'] || headers.host;\nlet payload = proto + '://' + host + WEBHOOK_PATH;\nfor (const name of Object.keys(params).sort()) {\n  const value = params[name];\n  for (const one of Array.isArray(value) ? value : [value]) payload += name + one;\n}\nreturn [{ json: { payload, signature, params } }];"
+      },
+      "id": "31000000-0000-4000-8000-00000000000c",
+      "name": "Build signing payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -520,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "action": "hmac",
+        "type": "SHA1",
+        "value": "={{ $json.payload }}",
+        "dataPropertyName": "expected",
+        "secret": "={{ $env.TWILIO_AUTH_TOKEN }}",
+        "encoding": "base64"
+      },
+      "id": "31000000-0000-4000-8000-00000000000d",
+      "name": "HMAC-SHA1",
+      "type": "n8n-nodes-base.crypto",
+      "typeVersion": 1,
+      "position": [
+        -380,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fail closed: a request we cannot authenticate must never reach core.\nconst item = $input.first().json;\nif (item.expected !== item.signature) throw new Error('bad X-Twilio-Signature; dropping the message');\nreturn [{ json: { params: item.params, verified: true } }];"
+      },
+      "id": "31000000-0000-4000-8000-00000000000e",
+      "name": "Check signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Who sent it, what they said, and whether it is a one-tap answer (2C.4).\n// L1 replaces these numbers with the joined phones; unknown senders are dropped.\nconst PHONE_TO_MERCHANT = {\n  'whatsapp:+919999999999': 'MID_DEMO_SAHANA',\n};\nconst CORE = 'http://core:8000';\nconst FAKES = 'http://fakes:8200';\n\n// 1 sale, 2 family, 3 my own money, 4 not sure - the WhatsApp set agreed in 2C.4.\n// The app shows a fifth chip, loan/other, and voice or free text can still reach every value.\nconst BY_DIGIT = { '1': 'sale', '2': 'family', '3': 'own_money', '4': 'not_sure' };\nconst BY_WORD = {\n  sale: 'sale', family: 'family', 'own money': 'own_money', 'my own money': 'own_money',\n  loan: 'loan_or_gift', gift: 'loan_or_gift', 'not sure': 'not_sure',\n  'ಮಾರಾಟ': 'sale', 'ಕುಟುಂಬ': 'family', 'ನನ್ನದೇ ಹಣ': 'own_money', 'ಖಚಿತವಿಲ್ಲ': 'not_sure',\n  'बिक्री': 'sale', 'परिवार': 'family', 'मेरा अपना पैसा': 'own_money', 'पक्का नहीं': 'not_sure',\n};\n\nconst params = $input.first().json.params || {};\nconst from = params.From || '';\nconst merchant_id = PHONE_TO_MERCHANT[from];\nif (!merchant_id) throw new Error('unknown sender ' + from + '; not a merchant we know');\n\nconst text = (params.Body || '').trim();\nconst mediaCount = parseInt(params.NumMedia || '0', 10);\nconst answer = BY_DIGIT[text] || BY_WORD[text.toLowerCase()] || null;\n\n// A voice note is deliberately not handled yet: the STT fake arrives with the L1\n// cassettes (handoff H5). Until then a voice note is treated as free text.\nreturn [{ json: {\n  core: CORE,\n  fakes: FAKES,\n  merchant_id,\n  from,\n  text,\n  has_media: mediaCount > 0,\n  media_url: params.MediaUrl0 || null,\n  answer,\n  route: answer ? 'answer' : 'intent',\n  language: 'kn-IN',\n  sim_at: new Date().toISOString(),\n} }];"
+      },
+      "id": "31000000-0000-4000-8000-000000000003",
+      "name": "Normalise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -220,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "is-one-tap-answer",
+              "leftValue": "={{ $json.route }}",
+              "rightValue": "answer",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "31000000-0000-4000-8000-000000000004",
+      "name": "A one-tap answer?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.core }}/app/questions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "merchant",
+              "value": "={{ $json.merchant_id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "31000000-0000-4000-8000-000000000005",
+      "name": "Open questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        -120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalApp001",
+          "name": "hisaab core app (local)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Answer the question the merchant is replying to: the oldest open one, which is what\n// M2 shows as \"1 of 3\". ClaimAnsweredPayload takes exactly one of raw_text or\n// media_sha256, so a typed or numbered reply sends raw_text.\nconst inbound = $('Normalise').first().json;\nconst questions = ($input.first().json.items) || [];\nif (!questions.length) throw new Error('no open question for ' + inbound.merchant_id);\nconst question = questions[0];\nreturn [{ json: {\n  ...inbound,\n  question_id: question.question_id,\n  txn_id: question.txn_id,\n  question_text: question.question,\n  language: question.language || inbound.language,\n  claim: {\n    merchant_id: inbound.merchant_id,\n    txn_id: question.txn_id,\n    action: 'answered',\n    claim: {\n      question_id: question.question_id,\n      answer: inbound.answer,\n      raw_text: inbound.text,\n      language: question.language || inbound.language,\n    },\n    sim_at: inbound.sim_at,\n  },\n} }];"
+      },
+      "id": "31000000-0000-4000-8000-000000000006",
+      "name": "Build claim",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.core }}/ledger/claims",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.claim) }}",
+        "options": {}
+      },
+      "id": "31000000-0000-4000-8000-000000000007",
+      "name": "Record claim",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        -120
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalConv01",
+          "name": "hisaab core conversation (local)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Acknowledge in the merchant's language. Templates move to i18n in task 5.4; the text\n// never carries a number the LLM produced.\nconst answered = $('Build claim').first().json;\nconst THANKS = {\n  'kn-IN': 'ಧನ್ಯವಾದಗಳು. ದಾಖಲಿಸಲಾಗಿದೆ.',\n  'hi-IN': 'धन्यवाद। दर्ज कर लिया गया है।',\n  'en-IN': 'Thank you. Recorded.',\n};\nreturn [{ json: {\n  merchant_id: answered.merchant_id,\n  text: THANKS[answered.language] || THANKS['en-IN'],\n  language: answered.language,\n  channel: 'whatsapp',\n  to: answered.from,\n  conversation_id: 'wf31-' + answered.merchant_id,\n  sim_at: answered.sim_at,\n} }];"
+      },
+      "id": "31000000-0000-4000-8000-000000000008",
+      "name": "Acknowledge",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.fakes }}/sarvam/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: 'sarvam-105b', messages: [{ role: 'system', content: 'Classify the merchant message intent. Reply with one of answer_question, ask_status, report_freeze, send_notice, correct_label, dispute_label, hide_income, help, other.' }, { role: 'user', content: $json.text }] }) }}",
+        "options": {}
+      },
+      "id": "31000000-0000-4000-8000-000000000009",
+      "name": "Intent (Sarvam)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        240,
+        140
+      ],
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalSarv01",
+          "name": "hisaab sarvam (local fakes)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Free text. The refusal for hide_income is fixed and never generated (task 9.2).\nconst inbound = $('Normalise').first().json;\nconst raw = JSON.stringify($input.first().json || {}).toLowerCase();\nconst intent = raw.includes('hide_income') ? 'hide_income' : 'other';\nconst REPLY = {\n  hide_income: \"I can't help hide income. I can help you keep accurate records.\",\n  other: 'Reply 1 sale · 2 family · 3 my own money · 4 not sure',\n};\nreturn [{ json: {\n  merchant_id: inbound.merchant_id,\n  text: REPLY[intent],\n  language: inbound.language,\n  channel: 'whatsapp',\n  to: inbound.from,\n  conversation_id: 'wf31-' + inbound.merchant_id,\n  sim_at: inbound.sim_at,\n} }];"
+      },
+      "id": "31000000-0000-4000-8000-00000000000a",
+      "name": "Reply to free text",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": "hisaabWF30out001",
+        "options": {}
+      },
+      "id": "31000000-0000-4000-8000-00000000000b",
+      "name": "Send via WF30",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "WhatsApp inbound": {
+      "main": [
+        [
+          {
+            "node": "Build signing payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise": {
+      "main": [
+        [
+          {
+            "node": "A one-tap answer?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "A one-tap answer?": {
+      "main": [
+        [
+          {
+            "node": "Open questions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Intent (Sarvam)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open questions": {
+      "main": [
+        [
+          {
+            "node": "Build claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build claim": {
+      "main": [
+        [
+          {
+            "node": "Record claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record claim": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge": {
+      "main": [
+        [
+          {
+            "node": "Send via WF30",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Intent (Sarvam)": {
+      "main": [
+        [
+          {
+            "node": "Reply to free text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reply to free text": {
+      "main": [
+        [
+          {
+            "node": "Send via WF30",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build signing payload": {
+      "main": [
+        [
+          {
+            "node": "HMAC-SHA1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HMAC-SHA1": {
+      "main": [
+        [
+          {
+            "node": "Check signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check signature": {
+      "main": [
+        [
+          {
+            "node": "Normalise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -238,9 +238,12 @@ Record each result, and the fallback chosen if one failed, under "Spike results"
 Built against the Twilio-shaped fakes (2F) and the local n8n. The one real round trip (2C.2
 and 2C.3) is part of live window L1 and is recorded as cassettes.
 
-- [ ] **2C.1** WF31's Webhook node with the `X-Twilio-Signature` check, tested with
+- [x] **2C.1** WF31's Webhook node with the `X-Twilio-Signature` check, tested with
       `tasks.py fake-wa`. In L1, point the sandbox's "when a message comes in" webhook at the
       n8n Cloud webhook URL.
+      → Verified both ways on the local n8n: a signed `fake-wa` message runs through to a reply,
+      and a tampered signature stops at "Check signature" with nothing sent. The HMAC uses the
+      built-in **Crypto node**, not the Code sandbox, which has no crypto module.
 - [ ] **2C.2** **(live, L1)** Round trip: a message from a joined phone reaches n8n and gets a reply through
       the Twilio node from `whatsapp:+14155238886`.
 - [ ] **2C.3** **(live, L1)** Fetch inbound media (voice note, notice photo) from the Twilio media URL with the
@@ -531,16 +534,20 @@ in this phase.
       `/forget`) with `MEMORY_BACKEND=hosted|self|stub` and the `degraded: true` fallback.
       Development uses `stub`, or `self` with its LLM pointed at the fakes; `hosted` (the
       credits) is used only in live windows.
-- [ ] **5.2** Local n8n credentials, all pointing at the fakes: one HTTP Header Auth per role,
+- [x] **5.2** Local n8n credentials, all pointing at the fakes: one HTTP Header Auth per role,
       plus Sarvam and Twilio base URLs. The n8n Cloud credentials are created only in L2 (10.1b).
+      → Nine credentials load from `n8n/credentials/local.json`, a **template** whose `${VAR}`
+      placeholders `n8n/cli.py` fills from `.env`, so no key is committed.
 - [ ] **5.3** Prompts v1: `classify_hard_case`, `intent`, `reply_style` (with version
       headers).
 - [ ] **5.4** i18n files `i18n/*.json`, from the one batched Sarvam-Translate run in L1 (replayed
       from its cassette after that). A person reviews Kannada
       and Hindi.
-- [ ] **5.5** **WF30 merchant-outbound**: numbered-reply messages to Twilio through an HTTP
+- [x] **5.5** **WF30 merchant-outbound**: numbered-reply messages to Twilio through an HTTP
       Request node with a configurable base URL (the fakes in development), one message every
       three seconds, and `/assistant/outbound` for the app.
+      → Runs green: a Kannada acknowledgement reached the fakes' outbox behind the 3-second Wait.
+      `question.asked` is appended when the message carries a `question_id`.
 - [ ] **5.6** **WF31 merchant-inbound**:
       - starts from a Webhook node with the `X-Twilio-Signature` check
       - normalise the message; voice goes to Saaras; app button taps and WhatsApp numbered
@@ -548,6 +555,10 @@ in this phase.
       - the intent comes from the AI Agent node, whose tools are HTTP Request Tools
       - answers are written to `/ledger/claims`
       - the reply runs through the guards, then memory `remember`
+      → **Partly done.** The signed webhook, signature check, normalisation, numbered-reply
+      routing, `/app/questions` lookup, `/ledger/claims` write and the WF30 reply all run green
+      end to end. Still open: the Saaras voice branch (needs the STT fake, handoff H5), the AI
+      Agent intent node (a plain HTTP call to the Sarvam fake stands in), guards and memory.
 - [ ] **5.7** **WF10 nightly-provenance**, in live and seed modes:
       - Loop Over Items batching
       - hard-case agent with memory recall, then proposals
