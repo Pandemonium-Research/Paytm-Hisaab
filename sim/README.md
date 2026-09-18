@@ -78,6 +78,7 @@ data/<split>/
 | Column | Meaning |
 |---|---|
 | `txn_id` | `DM…` / `DV…` / `EV…` / `SW…` plus 7 digits, chronological across the split |
+| `merchant_id` | the merchant this row belongs to |
 | `ts` | IST, ISO-8601 |
 | `direction` | `CR` credit, `DR` debit |
 | `amount` | whole rupees |

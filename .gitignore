@@ -55,3 +55,8 @@ scratch/
 # Hackathon voucher and reference screenshots: never in git
 N8N CREDITS .docx.pdf
 /design/reference/
+
+# Live keys, whatever they are named. .env.* already covers .env.live; this covers the
+# bare-name variant that is otherwise NOT ignored.
+env.live
+env.*.live
