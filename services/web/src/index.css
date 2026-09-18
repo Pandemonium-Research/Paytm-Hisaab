@@ -1,0 +1,92 @@
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';
+@import '@fontsource/noto-sans-kannada/kannada-400.css';
+@import '@fontsource/noto-sans-kannada/kannada-600.css';
+@import '@fontsource/noto-sans-devanagari/devanagari-400.css';
+@import '@fontsource/noto-sans-devanagari/devanagari-600.css';
+@import '@fontsource/noto-sans-tamil/tamil-400.css';
+@import '@fontsource/noto-sans-telugu/telugu-400.css';
+@import '@fontsource/noto-sans-bengali/bengali-400.css';
+@import '@fontsource/noto-sans-gujarati/gujarati-400.css';
+@import '@fontsource/noto-sans-malayalam/malayalam-400.css';
+@import '@fontsource/noto-sans-gurmukhi/gurmukhi-400.css';
+@import '@fontsource/noto-sans-oriya/oriya-400.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    min-width: 320px;
+    background: theme('colors.bg');
+    color: theme('colors.ink');
+    font-family: theme('fontFamily.sans');
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    background: theme('colors.bg');
+  }
+
+  button, input, textarea, select {
+    font: inherit;
+  }
+
+  button, [role='button'] {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 3px solid color-mix(in srgb, theme('colors.cyan') 60%, white);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .amount-numerals {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+[data-vaul-drawer], [data-vaul-overlay] {
+  transition-duration: 200ms !important;
+  transition-timing-function: cubic-bezier(0, 0, 0.2, 1) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
