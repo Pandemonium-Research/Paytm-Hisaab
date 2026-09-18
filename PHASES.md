@@ -145,9 +145,12 @@ These are frozen before anyone builds, so neither lane waits on the other.
       → The 13 kinds, unchanged. `claim.answered` records the merchant's answer, not a label (D15).
 - [x] **1.2** **(A)** Role matrix: role × endpoint × entry kinds each role may append (§14).
       → Seven roles: the plan's six plus `app` for the browser, which may append nothing (D10).
-- [ ] **1.3** **(A)** Endpoint list with request and response JSON, including `/app/*`,
+- [x] **1.3** **(A)** Endpoint list with request and response JSON, including `/app/*`,
       `/assistant/*`, `/config`, `/prompts/{name}` and `/sim/*` (§7), plus the cassette
       format for 2F.2, so the L1 recordings fit the fakes.
+      → 50 operations on `/api/docs`, each with its query parameters declared: merchant screens
+      require `?merchant=` (D28), and `as_of` defaults to the sim clock. Adds `/rails/debits`
+      (D9) and B's three screens (D11, D12, D13). Cassette format in `app/schemas/cassette.py`.
 - [ ] **1.4** **(B)** LLM output schemas: hard-case label, intent, notice extraction, grievance facts,
       CA and merchant explainers, handoff summary (§8).
 - [ ] **1.5** **(B)** Workflow boundaries: WF IDs, triggers, inputs and outputs, which role key each
@@ -271,6 +274,11 @@ and 2C.3) is part of live window L1 and is recorded as cassettes.
 - [ ] **2F.1** `services/fakes`: Sarvam-shaped endpoints (chat completions with tool calls,
       STT, TTS, translate, Vision) and Twilio-shaped endpoints (Messages API, media URLs, status
       callbacks), in compose by default.
+      → **Part done (the H3 subset).** Twilio Messages API, media URLs and status callbacks, and
+      Sarvam chat completions with tool calls and JSON-schema output, all deterministic and
+      keyed like the real APIs, on `:8200` in compose. STT, TTS, translation and Vision are the
+      rest, and they replay L1 cassettes that do not exist yet (needs H5). The cassette lookup
+      seam is in place, marked `TODO(2F.2)`.
 - [ ] **2F.2** Record and replay: `--record` in a live window writes cassettes to
       `services/fakes/cassettes/<provider>/`, keyed by a hash of the normalised request. Replay
       first, deterministic rules second.
@@ -281,8 +289,13 @@ and 2C.3) is part of live window L1 and is recorded as cassettes.
       blocking external requests, self-hosted fonts) is B's, in 9.3 and 2D.2.
 - [ ] **2F.5** `ops.provider_usage` and `tasks.py usage`: spend per provider per window,
       against the §16a budgets.
-- [ ] **2F.6** `tasks.py fake-wa "<text or file>"` posts a signed inbound WhatsApp message to
+- [x] **2F.6** `tasks.py fake-wa "<text or file>"` posts a signed inbound WhatsApp message to
       the local n8n; the fakes' outbox page shows what WF30 sent.
+      → Text and media both send. The signature is Twilio's real HMAC-SHA1 scheme, asserted in
+      the tests against Twilio's published vector, and checked here against a validator written
+      separately from the sending code, which is what B's 2C.1 check has to agree with. A file
+      argument is served from the fake media URL: 401 unauthenticated, correct content type, and
+      the bytes round-trip with a matching sha256. `FAKE_WA_WEBHOOK_URL` overrides the target.
 
 **Done when:** the whole stack runs a full nightly pass and a freeze case with `HISAAB_LIVE=0`,
 `tasks.py test` passes with the network guard on, and `tasks.py usage` reads zero.
