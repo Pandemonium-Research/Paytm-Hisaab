@@ -14,6 +14,7 @@ class Role(str, Enum):
     EVIDENCE = "evidence"
     OFFICER = "officer"
     ADMIN = "admin"
+    APP = "app"
 
 
 ROLE_ENTRY_KINDS: dict[Role, frozenset[EntryKind]] = {
@@ -37,6 +38,8 @@ ROLE_ENTRY_KINDS: dict[Role, frozenset[EntryKind]] = {
     # The job is WF60 calling POST /anchors/run, which section 7 restricts to admin, so admin is
     # the only role that can be holding the key when anchor.created is appended.
     Role.ADMIN: frozenset({EntryKind.ANCHOR_CREATED}),
+    # The credential is shipped in the merchant browser and must never append ledger evidence.
+    Role.APP: frozenset(),
 }
 
 
@@ -47,6 +50,7 @@ OFFICER_ADMIN = frozenset({Role.OFFICER, Role.ADMIN})
 # Each concrete section 7 route is a key exactly once. Dynamic paths use FastAPI notation.
 ENDPOINT_PERMISSIONS: dict[str, frozenset[Role]] = {
     "POST /rails/credits": frozenset({Role.RAILS}),
+    "POST /rails/debits": frozenset({Role.RAILS}),
     "POST /rails/bills": frozenset({Role.RAILS}),
     "POST /rails/events": frozenset({Role.RAILS}),
     "GET /merchants/{id}": AGENT_READ_ROLES,
@@ -82,20 +86,21 @@ ENDPOINT_PERMISSIONS: dict[str, frozenset[Role]] = {
     "POST /sim/reset": frozenset({Role.ADMIN}),
     "POST /sim/tamper": frozenset({Role.ADMIN}),
     "POST /anchors/run": frozenset({Role.ADMIN}),
-    # TODO(1.2): "merchant app" is not a Role; use its conversation credential for now.
-    "POST /assistant/inbound": frozenset({Role.CONVERSATION}),
-    "GET /assistant/stream": frozenset({Role.CONVERSATION}),
+    "POST /assistant/inbound": frozenset({Role.APP}),
+    "GET /assistant/stream": frozenset({Role.APP}),
     "POST /assistant/outbound": frozenset({Role.CONVERSATION}),
-    "GET /app/home": frozenset({Role.CONVERSATION}),
-    "GET /app/payments": frozenset({Role.CONVERSATION}),
-    "GET /app/payments/{txn}": frozenset({Role.CONVERSATION}),
-    "GET /app/cases": frozenset({Role.CONVERSATION}),
-    "GET /app/turnover": frozenset({Role.CONVERSATION}),
+    "GET /app/home": frozenset({Role.APP}),
+    "GET /app/questions": frozenset({Role.APP}),
+    "GET /app/payments": frozenset({Role.APP}),
+    "GET /app/payments/{txn}": frozenset({Role.APP}),
+    "GET /app/cases": frozenset({Role.APP}),
+    "GET /app/turnover": frozenset({Role.APP}),
+    "PUT /app/profile": frozenset({Role.APP}),
     "GET /app/officer/queue": frozenset({Role.OFFICER}),
     "GET /app/officer/cases/{id}": frozenset({Role.OFFICER}),
-    "POST /app/push/subscribe": frozenset({Role.CONVERSATION, Role.OFFICER}),
+    "GET /app/officer/outbox": frozenset({Role.OFFICER}),
+    "POST /app/push/subscribe": frozenset({Role.APP, Role.OFFICER}),
     "GET /prompts/{name}": ALL_ROLES,
     # Phase 1 names /config, although section 7 omits it.
-    # TODO(1.2): Confirm /config visibility and whether app keys become distinct roles.
     "GET /config": ALL_ROLES,
 }

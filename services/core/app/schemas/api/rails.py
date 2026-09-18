@@ -45,13 +45,46 @@ class RailTransaction(ContractModel):
     note: str = ""
 
 
+CreditRailChannel = Literal[
+    RailChannel.UPI_QR,
+    RailChannel.UPI_POS,
+    RailChannel.CARD_POS,
+    RailChannel.UPI_INTENT,
+    RailChannel.IMPS,
+    RailChannel.BANK_TRANSFER,
+    RailChannel.UPI_REVERSAL,
+]
+DebitRailChannel = Literal[RailChannel.UPI_OUT, RailChannel.REFUND]
+
+
+class RailCreditTransaction(RailTransaction):
+    direction: Literal[TransactionDirection.CREDIT]
+    channel: CreditRailChannel
+
+
+class RailDebitTransaction(RailTransaction):
+    direction: Literal[TransactionDirection.DEBIT]
+    channel: DebitRailChannel
+    # The simulator writes an empty CSV cell; JSON replayers may normalise that to null.
+    pos_bill_id: Literal[""] | None = None
+
+
 class RailsCreditsRequest(ContractModel):
-    # TODO(1.3): Section 7 names credits only, but the sole simulator feed also contains debits.
-    transactions: list[RailTransaction]
+    transactions: list[RailCreditTransaction]
     sim_at: AwareDatetime | None = None
 
 
 class RailsCreditsResponse(ContractModel):
+    accepted: int
+    duplicate_txn_ids: list[TransactionId] = Field(default_factory=list)
+
+
+class RailsDebitsRequest(ContractModel):
+    transactions: list[RailDebitTransaction]
+    sim_at: AwareDatetime | None = None
+
+
+class RailsDebitsResponse(ContractModel):
     accepted: int
     duplicate_txn_ids: list[TransactionId] = Field(default_factory=list)
 
@@ -108,7 +141,7 @@ class PaymentDeclinedEvent(_RailEventBase):
     type: Literal["payment_declined"]
     direction: Literal[TransactionDirection.DEBIT]
     amount: Money
-    channel: RailChannel
+    channel: DebitRailChannel
     counterparty_id: str
     counterparty_name: str
     counterparty_handle: str
@@ -163,4 +196,9 @@ class RailsEventsResponse(ContractModel):
     opened_case_ids: list[str] = Field(default_factory=list)
 
 
-REQUEST_MODELS = (RailsCreditsRequest, RailsBillsRequest, RailsEventsRequest)
+REQUEST_MODELS = (
+    RailsCreditsRequest,
+    RailsDebitsRequest,
+    RailsBillsRequest,
+    RailsEventsRequest,
+)

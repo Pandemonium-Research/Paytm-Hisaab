@@ -141,8 +141,10 @@ sandbox's welcome message, a tunnel URL serves something from the laptop, and `b
 
 These are frozen before anyone builds, so neither lane waits on the other.
 
-- [ ] **1.1** **(A)** Ledger entry kinds and their payload schemas (§6).
-- [ ] **1.2** **(A)** Role matrix: role × endpoint × entry kinds each role may append (§14).
+- [x] **1.1** **(A)** Ledger entry kinds and their payload schemas (§6).
+      → The 13 kinds, unchanged. `claim.answered` records the merchant's answer, not a label (D15).
+- [x] **1.2** **(A)** Role matrix: role × endpoint × entry kinds each role may append (§14).
+      → Seven roles: the plan's six plus `app` for the browser, which may append nothing (D10).
 - [ ] **1.3** **(A)** Endpoint list with request and response JSON, including `/app/*`,
       `/assistant/*`, `/config`, `/prompts/{name}` and `/sim/*` (§7), plus the cassette
       format for 2F.2, so the L1 recordings fit the fakes.

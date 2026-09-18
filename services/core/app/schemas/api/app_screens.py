@@ -5,9 +5,10 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from ..common import (
+    AnswerChoice,
     CaseId,
     ContractModel,
     EvidenceTier,
@@ -15,7 +16,19 @@ from ..common import (
     Money,
     PackId,
     PredictionLabel,
+    QuestionId,
     TransactionId,
+)
+
+
+M2_ANSWER_CHOICES = frozenset(
+    {
+        AnswerChoice.SALE,
+        AnswerChoice.FAMILY,
+        AnswerChoice.OWN_MONEY,
+        AnswerChoice.LOAN_OR_GIFT,
+        AnswerChoice.NOT_SURE,
+    }
 )
 
 
@@ -40,6 +53,43 @@ class AppHomeResponse(ContractModel):
     questions_due: Annotated[int, Field(ge=0)]
     open_cases: Annotated[int, Field(ge=0)]
     alerts: list[HomeAlert]
+
+
+class QuestionAnswerChip(ContractModel):
+    answer: AnswerChoice
+    text: str
+
+
+class AppQuestionCard(ContractModel):
+    question_id: QuestionId
+    txn_id: TransactionId
+    amount: Money
+    amount_text: str
+    ts: AwareDatetime
+    payer_name: str
+    channel: str
+    question: str
+    language: str
+    answer_chips: Annotated[list[QuestionAnswerChip], Field(min_length=5, max_length=5)]
+    position: Annotated[int, Field(ge=1)]
+    total: Annotated[int, Field(ge=1)]
+
+    @model_validator(mode="after")
+    def uses_the_m2_answer_subset(self) -> "AppQuestionCard":
+        answers = [chip.answer for chip in self.answer_chips]
+        if len(set(answers)) != len(answers):
+            raise ValueError("M2 answer chips must be distinct")
+        if frozenset(answers) != M2_ANSWER_CHOICES:
+            raise ValueError("M2 answer chips must use the five contracted AnswerChoice values")
+        if self.position > self.total:
+            raise ValueError("question position cannot exceed total")
+        return self
+
+
+class AppQuestionsResponse(ContractModel):
+    items: list[AppQuestionCard]
+    automatically_settled_count: Annotated[int, Field(ge=0)]
+    closing_text: str
 
 
 class PaymentRow(ContractModel):
@@ -132,5 +182,27 @@ class OfficerCaseResponse(ContractModel):
     pdf_url: str | None
 
 
-REQUEST_MODELS: tuple[type[ContractModel], ...] = ()
+class OfficerOutboxRow(ContractModel):
+    pack_id: PackId
+    case_id: CaseId
+    merchant_id: MerchantId
+    business_name: str
+    destination: str
+    delivery_ref: str
+    status: str
+    outcome: str | None = None
+    simulated: bool
+    freeze_at: AwareDatetime
+    pack_built_at: AwareDatetime
+    approved_at: AwareDatetime
+    sent_at: AwareDatetime
+    freeze_to_pack_seconds: Annotated[int, Field(ge=0)]
+    pack_to_approval_seconds: Annotated[int, Field(ge=0)]
+    usable_balance: DisplayAmount
 
+
+class OfficerOutboxResponse(ContractModel):
+    items: list[OfficerOutboxRow]
+
+
+REQUEST_MODELS: tuple[type[ContractModel], ...] = ()

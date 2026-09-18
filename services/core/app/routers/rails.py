@@ -8,6 +8,7 @@ router = APIRouter(tags=["rails"])
 
 for endpoint, path, request, response, kind in (
     ("POST /rails/credits", "/rails/credits", models.RailsCreditsRequest, models.RailsCreditsResponse, EntryKind.CREDIT_OBSERVED),
+    ("POST /rails/debits", "/rails/debits", models.RailsDebitsRequest, models.RailsDebitsResponse, None),
     ("POST /rails/bills", "/rails/bills", models.RailsBillsRequest, models.RailsBillsResponse, EntryKind.BILL_LINKED),
     ("POST /rails/events", "/rails/events", models.RailsEventsRequest, models.RailsEventsResponse, EntryKind.CASE_OPENED),
 ):

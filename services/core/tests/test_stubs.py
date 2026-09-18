@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import tasks
+from app.auth import role_for_key
 from app.config import get_settings
 from app.main import app
 from app.schemas.api import ENDPOINT_MODELS
@@ -34,16 +35,31 @@ TRANSACTION = {
     "note": "",
 }
 
+DEBIT_TRANSACTION = {
+    **TRANSACTION,
+    "txn_id": "DM0000005",
+    "direction": "DR",
+    "channel": "UPI_OUT",
+    "counterparty_id": "P-SUPPLIER",
+    "counterparty_handle": "supplier@upi",
+    "counterparty_name": "DEMO SUPPLIER",
+    "terminal_id": None,
+    "pos_bill_id": None,
+    "utr": "608119000005",
+    "note": "stock",
+}
+
 
 REQUEST_SAMPLES: dict[str, dict[str, Any]] = {
     "RailsCreditsRequest": {"transactions": [TRANSACTION], "sim_at": NOW},
+    "RailsDebitsRequest": {"transactions": [DEBIT_TRANSACTION], "sim_at": NOW},
     "RailsBillsRequest": {"lines": [{"pos_bill_id": "BDM0000001", "txn_id": "DM0000001", "merchant_id": "MID_DEMO_SAHANA", "line_no": 1, "item": "Onions", "hsn": "0703", "qty": "2", "unit": "kg", "rate": "50", "line_amount": 100}], "sim_at": NOW},
     "RailsEventsRequest": {"events": [{"event_id": "EVENT-1", "merchant_id": "MID_DEMO_SAHANA", "ts": NOW, "type": "lien_marked", "freeze_type": "lien", "scope": "amount", "authority": {"unit": "Cyber Crime", "state": "Karnataka", "city": "Bengaluru"}, "ncrp_ack": "ACK1", "case_ref": "REF1", "disputed_amount": 4200, "disputed_date": "2026-03-21", "disputed_utr": "608119000001", "intimation": "Specimen"}], "sim_at": NOW},
     "ClassifyRulesRequest": {"merchant_id": "MID_DEMO_SAHANA", "as_of": NOW, "credits": [{"txn_id": "DM0000001", "amount": 4200, "channel": "UPI_POS", "counterparty_id": "P123", "counterparty_name": "DEMO CUSTOMER", "note": "", "has_bill": True, "prior_credit_count": 4, "merchant_has_paid_them": False, "own_account_cue": False, "surname_cue": False, "payer_fact": None}]},
     "LedgerProposalRequest": {"merchant_id": "MID_DEMO_SAHANA", "txn_id": "DM0000001", "proposal": {"label": "taxable_supply", "source": "rule", "rule_id": "bill-v1", "confidence": 1.0, "reason": "A POS bill is linked.", "evidence_refs": ["BDM0000001"], "memory_refs": []}, "sim_at": NOW},
     "SelectQuestionsRequest": {"merchant_id": "MID_DEMO_SAHANA", "as_of": NOW, "candidates": [{"txn_id": "DM0000002", "payer_id": "P124", "amount": 3000, "label": None, "confidence": 0.5, "strictly_prior_credit_count": 0, "has_bill": False, "payer_fact_known": False, "proposed_at": NOW}], "projected_turnover": 3900000, "threshold": 4000000, "already_asked_today": 0},
     "LedgerQuestionRequest": {"merchant_id": "MID_DEMO_SAHANA", "txn_id": "DM0000002", "question": {"question_id": "Q1", "text": "What was this payment for?", "language": "en", "expires_at": "2026-03-31T09:30:00+05:30"}, "sim_at": NOW},
-    "LedgerClaimRequest": {"merchant_id": "MID_DEMO_SAHANA", "txn_id": "DM0000002", "action": "answered", "claim": {"question_id": "Q1", "answer": "family", "label": "personal_transfer", "raw_text": "It was from family.", "language": "en"}, "sim_at": NOW},
+    "LedgerClaimRequest": {"merchant_id": "MID_DEMO_SAHANA", "txn_id": "DM0000002", "action": "answered", "claim": {"question_id": "Q1", "answer": "family", "raw_text": "It was from family.", "language": "en"}, "sim_at": NOW},
     "TurnoverRequest": {"merchant_id": "MID_DEMO_SAHANA", "period_from": "2025-04-01", "period_to": "2026-03-31", "as_of": NOW},
     "ThresholdRequest": {"merchant_id": "MID_DEMO_SAHANA", "period_from": "2025-04-01", "period_to": "2026-03-31", "as_of": NOW, "supply_kind": "goods", "gst_status": "unregistered", "aggregate_turnover": 4100000, "exclusively_exempt": False},
     "IsolateRequest": {"merchant_id": "MID_DEMO_SAHANA", "case_id": "CASE-FREEZE-1", "disputed_utr": "608119000001", "disputed_amount": 4200, "disputed_date": "2026-03-21", "date_window_days": 1, "as_of": NOW},
@@ -63,6 +79,7 @@ REQUEST_SAMPLES: dict[str, dict[str, Any]] = {
     "AssistantInboundRequest": {"merchant_id": "MID_DEMO_SAHANA", "message_id": "M1", "content_type": "text", "text": "Show my case", "sim_at": NOW},
     "AssistantOutboundRequest": {"merchant_id": "MID_DEMO_SAHANA", "conversation_id": "CONV1", "text": "Your pack is ready.", "language": "en", "in_reply_to": "M1", "sim_at": NOW},
     "PushSubscribeRequest": {"app": "merchant", "merchant_id": "MID_DEMO_SAHANA", "endpoint": "https://push.invalid/subscription", "expiration_time": None, "keys": {"p256dh": "fixture", "auth": "fixture"}},
+    "AppProfileRequest": {"language": "kn-IN", "consent_at": NOW, "consent_text_version": "m0-v1-kn-IN"},
 }
 
 
@@ -119,13 +136,56 @@ def test_wrong_role_key_explains_the_required_role() -> None:
     assert "rails" in response.json()["detail"]
 
 
+def test_credit_and_debit_ingest_reject_the_other_direction() -> None:
+    credit_response = client.post(
+        "/rails/credits",
+        headers={"X-Hisaab-Key": "dev-rails"},
+        json={"transactions": [DEBIT_TRANSACTION], "sim_at": NOW},
+    )
+    debit_response = client.post(
+        "/rails/debits",
+        headers={"X-Hisaab-Key": "dev-rails"},
+        json={"transactions": [TRANSACTION], "sim_at": NOW},
+    )
+    assert credit_response.status_code == 422
+    assert debit_response.status_code == 422
+
+
+@pytest.mark.parametrize("extra", [{"label": "refund_reversal"}, {"pos_bill_id": "BDM5"}])
+def test_debit_ingest_rejects_labels_and_bill_links(extra: dict[str, str]) -> None:
+    transaction = {**DEBIT_TRANSACTION, **extra}
+    response = client.post(
+        "/rails/debits",
+        headers={"X-Hisaab-Key": "dev-rails"},
+        json={"transactions": [transaction], "sim_at": NOW},
+    )
+    assert response.status_code == 422
+
+
+def test_app_key_is_refused_by_a_ledger_appending_endpoint_with_a_reason() -> None:
+    response = client.post(
+        "/ledger/claims",
+        headers={"X-Hisaab-Key": "dev-app"},
+        json=REQUEST_SAMPLES["LedgerClaimRequest"],
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Role 'app' is not permitted; this endpoint needs role conversation."
+    )
+
+
+def test_app_key_is_loaded_by_settings_and_auth() -> None:
+    assert get_settings().role_keys[Role.APP] == "dev-app"
+    assert role_for_key("dev-app") is Role.APP
+
+
 def test_openapi_contains_every_contracted_operation() -> None:
     document = app.openapi()
     operations = {
         (method.upper(), path)
         for path, methods in document["paths"].items()
         for method in methods
-        if method in {"get", "post"}
+        if method in {"get", "post", "put"}
     }
     expected = {
         (method, path)

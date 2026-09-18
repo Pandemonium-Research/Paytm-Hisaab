@@ -1,5 +1,6 @@
 {
   "POST /rails/credits": {"accepted": 1, "duplicate_txn_ids": []},
   "POST /rails/bills": {"accepted_lines": 2, "linked_bill_ids": ["BDM0000001"]},
-  "POST /rails/events": {"accepted": 1, "opened_case_ids": ["CASE-FREEZE-1"]}
+  "POST /rails/events": {"accepted": 1, "opened_case_ids": ["CASE-FREEZE-1"]},
+  "POST /rails/debits": {"accepted": 1, "duplicate_txn_ids": []}
 }

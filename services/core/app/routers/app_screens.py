@@ -7,11 +7,13 @@ router = APIRouter(tags=["app screens"])
 
 for endpoint, path, response in (
     ("GET /app/home", "/app/home", models.AppHomeResponse),
+    ("GET /app/questions", "/app/questions", models.AppQuestionsResponse),
     ("GET /app/payments", "/app/payments", models.AppPaymentsResponse),
     ("GET /app/payments/{txn}", "/app/payments/{txn}", models.AppPaymentDetailResponse),
     ("GET /app/cases", "/app/cases", models.AppCasesResponse),
     ("GET /app/turnover", "/app/turnover", models.AppTurnoverResponse),
     ("GET /app/officer/queue", "/app/officer/queue", models.OfficerQueueResponse),
     ("GET /app/officer/cases/{id}", "/app/officer/cases/{id}", models.OfficerCaseResponse),
+    ("GET /app/officer/outbox", "/app/officer/outbox", models.OfficerOutboxResponse),
 ):
     add_get(router, area="app_screens", endpoint=endpoint, path=path, response_model=response)

@@ -16,7 +16,7 @@ from ..common import (
     PredictionLabel,
     TransactionId,
 )
-from .rails import RailChannel, RailTransaction
+from .rails import RailChannel, RailCreditTransaction
 
 
 class GeoPoint(ContractModel):
@@ -47,7 +47,7 @@ class MerchantResponse(ContractModel):
 
 
 class CreditRead(ContractModel):
-    transaction: RailTransaction
+    transaction: RailCreditTransaction
     machine_label: PredictionLabel | None = None
     claim_label: PredictionLabel | None = None
     effective_label: PredictionLabel | None = None
@@ -90,4 +90,3 @@ class PayerHistoryResponse(ContractModel):
 
 
 REQUEST_MODELS: tuple[type[ContractModel], ...] = ()
-

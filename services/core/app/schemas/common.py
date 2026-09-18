@@ -50,9 +50,8 @@ class AnswerChoice(str, Enum):
     NOT_SURE = "not_sure"
 
 
-# What each merchant-facing answer is allowed to mean, mirroring sim/catalog.py ANSWER_CHOICES.
-# "sale" stays ambiguous on purpose: only the bill lines decide taxable against exempt, and
-# "not_sure" commits to nothing.
+# Resolution choices for current_view, mirroring sim/catalog.py ANSWER_CHOICES. "sale" keeps the
+# machine's supply class, while "not_sure" resolves to nothing and leaves the machine label.
 ANSWER_TO_LABELS: dict["AnswerChoice", frozenset["PredictionLabel"]] = {}
 
 
@@ -106,6 +105,6 @@ ANSWER_TO_LABELS.update(
         AnswerChoice.LOAN_OR_GIFT: frozenset({PredictionLabel.NON_BUSINESS}),
         AnswerChoice.REFUND: frozenset({PredictionLabel.REFUND_REVERSAL}),
         AnswerChoice.DOUBLE_PAYMENT: frozenset({PredictionLabel.DUPLICATE}),
-        AnswerChoice.NOT_SURE: frozenset({PredictionLabel.UNCLASSIFIED}),
+        AnswerChoice.NOT_SURE: frozenset(),
     }
 )

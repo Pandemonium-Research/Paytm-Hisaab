@@ -46,3 +46,21 @@ def add_post(
     stub.__name__ = endpoint.lower().replace(" ", "_").replace("/", "_")
     stub.__annotations__["body"] = request_model
     router.add_api_route(path, stub, methods=["POST"], response_model=response_model)
+
+
+def add_put(
+    router: APIRouter,
+    *,
+    area: str,
+    endpoint: str,
+    path: str,
+    request_model: type[BaseModel],
+    response_model: type[BaseModel],
+) -> None:
+    async def stub(body: Any, _: Any = Depends(require_role(endpoint))):
+        del body
+        return response_fixture(area, endpoint, response_model)
+
+    stub.__name__ = endpoint.lower().replace(" ", "_").replace("/", "_")
+    stub.__annotations__["body"] = request_model
+    router.add_api_route(path, stub, methods=["PUT"], response_model=response_model)

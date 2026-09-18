@@ -43,6 +43,7 @@ REQUEST_MODELS = tuple(
 # Route -> (body model, response model). ``None`` means the route has no JSON body.
 ENDPOINT_MODELS = {
     "POST /rails/credits": (rails.RailsCreditsRequest, rails.RailsCreditsResponse),
+    "POST /rails/debits": (rails.RailsDebitsRequest, rails.RailsDebitsResponse),
     "POST /rails/bills": (rails.RailsBillsRequest, rails.RailsBillsResponse),
     "POST /rails/events": (rails.RailsEventsRequest, rails.RailsEventsResponse),
     "GET /merchants/{id}": (None, reads.MerchantResponse),
@@ -94,12 +95,15 @@ ENDPOINT_MODELS = {
         assistant.AssistantOutboundResponse,
     ),
     "GET /app/home": (None, app_screens.AppHomeResponse),
+    "GET /app/questions": (None, app_screens.AppQuestionsResponse),
     "GET /app/payments": (None, app_screens.AppPaymentsResponse),
     "GET /app/payments/{txn}": (None, app_screens.AppPaymentDetailResponse),
     "GET /app/cases": (None, app_screens.AppCasesResponse),
     "GET /app/turnover": (None, app_screens.AppTurnoverResponse),
+    "PUT /app/profile": (ops.AppProfileRequest, ops.AppProfileResponse),
     "GET /app/officer/queue": (None, app_screens.OfficerQueueResponse),
     "GET /app/officer/cases/{id}": (None, app_screens.OfficerCaseResponse),
+    "GET /app/officer/outbox": (None, app_screens.OfficerOutboxResponse),
     "POST /app/push/subscribe": (ops.PushSubscribeRequest, ops.PushSubscribeResponse),
     "GET /prompts/{name}": (None, prompts.PromptResponse),
     "GET /config": (None, ops.ConfigResponse),

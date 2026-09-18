@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from importlib import import_module
 from typing import get_args
 
 import pytest
@@ -47,7 +48,6 @@ PAYLOAD_EXAMPLES = {
     EntryKind.CLAIM_ANSWERED: {
         "question_id": "Q1",
         "answer": "sale",
-        "label": "taxable_supply",
         "raw_text": "It was a sale.",
         "language": "en",
     },
@@ -115,6 +115,10 @@ def test_discriminated_ledger_union_rejects_a_payload_for_another_kind() -> None
 def test_role_entry_matrix_is_total_and_uses_only_known_kinds() -> None:
     assert set(ROLE_ENTRY_KINDS) == set(Role)
     assert set().union(*ROLE_ENTRY_KINDS.values()) <= set(EntryKind)
+
+
+def test_app_role_cannot_append_any_ledger_kind() -> None:
+    assert ROLE_ENTRY_KINDS[Role.APP] == frozenset()
 
 
 def test_every_endpoint_has_a_role_and_models() -> None:
@@ -187,21 +191,15 @@ def test_admin_may_append_the_anchor_job_entry() -> None:
 
 def test_answer_to_label_mapping_does_not_drift_from_simulator() -> None:
     for answer, labels in ANSWER_TO_LABELS.items():
-        if answer is AnswerChoice.NOT_SURE:
-            # sim maps not_sure to no truth label at all; core records it as unclassified,
-            # which is a prediction label and never a truth.
-            assert labels == frozenset({PredictionLabel.UNCLASSIFIED})
-            continue
         assert tuple(sorted(l.value for l in labels)) == tuple(
             sorted(ANSWER_CHOICES[answer.value])
         )
 
 
-def test_claim_records_both_the_answer_and_the_label_it_implies() -> None:
+def test_claim_records_the_answer_and_rejects_an_inferred_label() -> None:
     claim = ClaimAnsweredPayload(
         question_id="Q1",
         answer=AnswerChoice.FAMILY,
-        label=PredictionLabel.PERSONAL_TRANSFER,
         raw_text="my sister sent it",
         language="kn",
     )
@@ -215,3 +213,7 @@ def test_claim_records_both_the_answer_and_the_label_it_implies() -> None:
             raw_text="my sister sent it",
             language="kn",
         )
+
+
+def test_llm_schemas_import_the_shared_common_types() -> None:
+    assert import_module("app.schemas.llm")

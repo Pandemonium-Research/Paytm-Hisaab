@@ -1,4 +1,5 @@
 {
   "POST /app/push/subscribe": {"subscription_id": "PUSH-1", "subscribed": true},
-  "GET /config": {"environment": "local", "live": false, "default_locale": "en-IN", "supported_locales": ["en-IN", "kn-IN", "hi-IN"], "vapid_public_key": null}
+  "GET /config": {"environment": "local", "live": false, "default_locale": "en-IN", "supported_locales": ["en-IN", "kn-IN", "hi-IN"], "vapid_public_key": null},
+  "PUT /app/profile": {"language": "kn-IN", "consent_at": "2026-03-10T08:00:00+05:30", "consent_text_version": "m0-v1-kn-IN", "saved": true}
 }

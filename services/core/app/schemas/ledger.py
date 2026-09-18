@@ -16,7 +16,6 @@ from typing import Annotated, Literal
 from pydantic import AwareDatetime, Field, RootModel, model_validator
 
 from .common import (
-    ANSWER_TO_LABELS,
     AnswerChoice,
     CaseId,
     Confidence,
@@ -94,16 +93,10 @@ class QuestionAskedPayload(ContractModel):
 
 
 class ClaimAnsweredPayload(ContractModel):
-    """What the merchant said, and what we took it to mean.
-
-    Both are recorded. The ledger is a provenance record, so an answer of "sale" that we later
-    read as ``taxable_supply`` has to stay distinguishable from the merchant having said
-    ``taxable_supply``, which they never do: they tap one of seven words (section 2C.4).
-    """
+    """The merchant's answer, without a system-inferred label recorded as their claim."""
 
     question_id: QuestionId
     answer: AnswerChoice
-    label: PredictionLabel
     raw_text: str | None = None
     media_sha256: str | None = None
     language: str
@@ -113,17 +106,6 @@ class ClaimAnsweredPayload(ContractModel):
         if (self.raw_text is None) == (self.media_sha256 is None):
             raise ValueError("supply exactly one of raw_text or media_sha256")
         return self
-
-    @model_validator(mode="after")
-    def label_follows_from_answer(self) -> "ClaimAnsweredPayload":
-        allowed = ANSWER_TO_LABELS[self.answer]
-        if self.label not in allowed:
-            raise ValueError(
-                f"answer {self.answer.value!r} cannot mean {self.label.value!r}; "
-                f"expected one of {sorted(l.value for l in allowed)}"
-            )
-        return self
-
 
 class ClaimAnnotatedPayload(ContractModel):
     label: PredictionLabel
@@ -292,4 +274,3 @@ PAYLOAD_MODELS: dict[EntryKind, type[ContractModel]] = {
     EntryKind.PACK_SENT: PackSentPayload,
     EntryKind.ANCHOR_CREATED: AnchorCreatedPayload,
 }
-

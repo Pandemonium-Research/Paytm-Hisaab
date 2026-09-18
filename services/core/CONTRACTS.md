@@ -12,7 +12,7 @@ ISO-8601 values. Request objects never contain `recorded_at`.
 | `bill.linked` | `bill_id`, `line_count`, `total` |
 | `label.proposed` | `label`, `source`, rule or model metadata, `confidence`, `reason`, evidence and memory refs |
 | `question.asked` | `question_id`, `text`, `language`, `expires_at` |
-| `claim.answered` | `question_id`, `answer` (what they tapped), `label` (what it implies), one of `raw_text` or `media_sha256`, `language` |
+| `claim.answered` | `question_id`, `answer` (what they tapped), one of `raw_text` or `media_sha256`, `language` |
 | `claim.annotated` | `label`, `raw_text`, `language` |
 | `label.disputed` | `disputed_label`, `reason` |
 | `case.opened` | `case_id`, `case_type`, `trigger_ref` |
@@ -30,6 +30,13 @@ in task 2A.5.
 Evidence tiers are: 1 bill-backed, 2 rule-derived, 3 the merchant's pre-case answer, and 4 an
 annotation or evidence recorded after the case opened.
 
+`claim.answered` records only the merchant's `AnswerChoice`, never a label inferred by the
+system. `current_view` resolves that answer through `ANSWER_TO_LABELS`: `sale` retains the
+machine's taxable or exempt supply label, as decided by the bill or the shop's billed exempt
+share; each other definite answer resolves to its single label; `not_sure` resolves to nothing
+and leaves the machine label in force. `claim.annotated` still records the label named by the
+merchant in an explicit correction.
+
 ## Roles
 
 | Role | May append | Main calls | Cannot |
@@ -40,6 +47,7 @@ annotation or evidence recorded after the case opened.
 | evidence | `case.opened`, `pack.built` | reads, evidence skills, cases, packs | change labels or claims, approve, send |
 | officer | `pack.approved`, `pack.rejected`, `pack.sent` | approve, reject, send, trust views | label or claim |
 | admin | `anchor.created` | simulator and anchor controls | label, claim, build or approve packs |
+| app | nothing | merchant PWA reads, profile, assistant inbound and stream | append any ledger entry |
 
 `ROLE_ENTRY_KINDS` and `ENDPOINT_PERMISSIONS` are executable data in `schemas/roles.py`.
 
@@ -48,6 +56,7 @@ annotation or evidence recorded after the case opened.
 | Endpoint | Body model | Response model | Roles |
 |---|---|---|---|
 | `POST /rails/credits` | `RailsCreditsRequest` | `RailsCreditsResponse` | rails |
+| `POST /rails/debits` | `RailsDebitsRequest` | `RailsDebitsResponse` | rails |
 | `POST /rails/bills` | `RailsBillsRequest` | `RailsBillsResponse` | rails |
 | `POST /rails/events` | `RailsEventsRequest` | `RailsEventsResponse` | rails |
 | `GET /merchants/{id}` | — | `MerchantResponse` | provenance, conversation, evidence |
@@ -83,22 +92,42 @@ annotation or evidence recorded after the case opened.
 | `POST /sim/reset` | `SimResetRequest` | `SimResetResponse` | admin |
 | `POST /sim/tamper` | `SimTamperRequest` | `SimTamperResponse` | admin |
 | `POST /anchors/run` | `RunAnchorRequest` | `RunAnchorResponse` | admin |
-| `POST /assistant/inbound` | `AssistantInboundRequest` | `AssistantInboundResponse` | conversation app key |
-| `GET /assistant/stream` | — | `AssistantStreamResponse` | conversation app key |
-| `POST /assistant/outbound` | `AssistantOutboundRequest` | `AssistantOutboundResponse` | conversation app key |
-| `GET /app/home` | — | `AppHomeResponse` | conversation app key |
-| `GET /app/payments` | — | `AppPaymentsResponse` | conversation app key |
-| `GET /app/payments/{txn}` | — | `AppPaymentDetailResponse` | conversation app key |
-| `GET /app/cases` | — | `AppCasesResponse` | conversation app key |
-| `GET /app/turnover` | — | `AppTurnoverResponse` | conversation app key |
-| `GET /app/officer/queue` | — | `OfficerQueueResponse` | officer app key |
-| `GET /app/officer/cases/{id}` | — | `OfficerCaseResponse` | officer app key |
-| `POST /app/push/subscribe` | `PushSubscribeRequest` | `PushSubscribeResponse` | conversation, officer |
+| `POST /assistant/inbound` | `AssistantInboundRequest` | `AssistantInboundResponse` | app |
+| `GET /assistant/stream` | — | `AssistantStreamResponse` | app |
+| `POST /assistant/outbound` | `AssistantOutboundRequest` | `AssistantOutboundResponse` | conversation |
+| `GET /app/home` | — | `AppHomeResponse` | app |
+| `GET /app/questions` | — | `AppQuestionsResponse` | app |
+| `GET /app/payments` | — | `AppPaymentsResponse` | app |
+| `GET /app/payments/{txn}` | — | `AppPaymentDetailResponse` | app |
+| `GET /app/cases` | — | `AppCasesResponse` | app |
+| `GET /app/turnover` | — | `AppTurnoverResponse` | app |
+| `PUT /app/profile` | `AppProfileRequest` | `AppProfileResponse` | app |
+| `GET /app/officer/queue` | — | `OfficerQueueResponse` | officer |
+| `GET /app/officer/cases/{id}` | — | `OfficerCaseResponse` | officer |
+| `GET /app/officer/outbox` | — | `OfficerOutboxResponse` | officer |
+| `POST /app/push/subscribe` | `PushSubscribeRequest` | `PushSubscribeResponse` | app, officer |
 | `GET /prompts/{name}` | — | `PromptResponse` | all roles |
 | `GET /config` | — | `ConfigResponse` | all roles |
 
 The same mapping is available as `ENDPOINT_MODELS`. Path and query values are handled by the
 route. A dash therefore means there is no JSON body, not that the route has no inputs.
+
+`POST /rails/credits` accepts only `CR` transactions on the simulator's credit channels.
+`POST /rails/debits` accepts only `DR` transactions on `UPI_OUT` or `REFUND`; debits have no
+bill link, bill lines or label. Debit ingestion adds no ledger kind: the thirteen evidence kinds
+remain frozen.
+
+`AnswerChoice` is the only answer enum. WhatsApp numbered replies show `sale`, `family`,
+`own_money` and `not_sure`; M2 shows those four plus `loan_or_gift`; voice and free text can
+resolve to all seven values. `GET /app/questions` returns exactly five distinct localized chips
+per card, plus amount and `amount_text`, time, payer, channel, localized question, position and
+total, and the automatically-settled count and closing line.
+
+`PUT /app/profile` saves `language`, `consent_at` and `consent_text_version` as ops working
+state and echoes that state with `saved` in `AppProfileResponse`. Consent creates no ledger entry.
+`GET /app/officer/outbox` returns the simulated delivery stamp, outcome and usable balance, plus
+explicit `freeze_to_pack_seconds` and `pack_to_approval_seconds` durations alongside its
+timestamps.
 
 ## Short examples
 
@@ -131,7 +160,7 @@ Provenance and question selection:
 Conversation:
 
 ```json
-{"merchant_id":"MID_DEMO_SAHANA","txn_id":"DM0000001","action":"answered","claim":{"question_id":"Q1","label":"taxable_supply","raw_text":"It was a sale.","language":"en"},"sim_at":"2026-03-22T09:00:00+05:30"}
+{"merchant_id":"MID_DEMO_SAHANA","txn_id":"DM0000001","action":"answered","claim":{"question_id":"Q1","answer":"sale","raw_text":"It was a sale.","language":"en"},"sim_at":"2026-03-22T09:00:00+05:30"}
 ```
 
 Evidence skill:

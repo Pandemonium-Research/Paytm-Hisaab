@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import AwareDatetime
+
 from ..common import ContractModel, MerchantId
 
 
@@ -25,6 +27,19 @@ class PushSubscribeResponse(ContractModel):
     subscribed: bool
 
 
+class AppProfileRequest(ContractModel):
+    language: str
+    consent_at: AwareDatetime
+    consent_text_version: str
+
+
+class AppProfileResponse(ContractModel):
+    language: str
+    consent_at: AwareDatetime
+    consent_text_version: str
+    saved: bool
+
+
 class ConfigResponse(ContractModel):
     # TODO(1.3): Section 7 does not specify /config fields; these are the PWA boot minimum.
     environment: str
@@ -34,4 +49,4 @@ class ConfigResponse(ContractModel):
     vapid_public_key: str | None = None
 
 
-REQUEST_MODELS = (PushSubscribeRequest,)
+REQUEST_MODELS = (PushSubscribeRequest, AppProfileRequest)
