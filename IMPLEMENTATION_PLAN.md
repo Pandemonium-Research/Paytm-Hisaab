@@ -1,7 +1,8 @@
 # Paytm Hisaab: implementation plan
 
 **Paytm Build for India AI Hackathon · Bengaluru · Track 3: Autonomous AI Teammates · Sat 19 Sep 2026**
-Stack: n8n Cloud (hackathon voucher) · Sarvam AI · Cognee · Python/FastAPI · PostgreSQL · WhatsApp · Paytm-style mobile PWA
+Stack: n8n Cloud (voucher) · Sarvam AI · Cognee (hackathon credits) · Python/FastAPI · PostgreSQL · WhatsApp via Twilio · Paytm-style mobile PWA
+Hosting: the build laptop behind a free Cloudflare tunnel. No paid infrastructure.
 Team: 2 people · Build Thu 17 to Fri 18 Sep · Harden and demo on Sat 19 Sep
 
 ---
@@ -29,10 +30,13 @@ data with known ground truth, so every number we show is measured.
 |---|---|
 | Codebase | **Clean rebuild** on a new branch. The Phinite-era repo (`synth/`, `service/`, `tools/`, `PLAN.md`, `DATA.md`) is a *design reference only*: we reuse its algorithms and lessons (§21), not its code. No Claude API and no Phinite anywhere. |
 | Old results | Figures like 1.6% turnover error or 189 questions a year are **targets to re-measure**, never claimed until the new system produces them. |
-| Channel | **Real WhatsApp** (Meta Cloud API test number) **plus the in-app Hisaab Assistant** inside the Paytm-style merchant app. Both use the same n8n flow, so either one is a stage fallback for the other. |
+| Channel | **Real WhatsApp through the Twilio sandbox** (no Meta business portfolio, no verification) **plus the in-app Hisaab Assistant** inside the Paytm-style merchant app. Both use the same n8n flow, so either is a stage fallback for the other. Tap buttons live in the app; WhatsApp uses numbered replies and voice (§11). |
+| Hosting | **No paid infrastructure.** Everything runs on the build laptop in Docker, reached through a free Cloudflare quick tunnel. `tasks.py publish` re-points n8n and Twilio whenever the tunnel hostname changes (§16). |
+| Memory | **Cognee with hackathon credits** (code redeemed at platform.cognee.ai/billing), reached over HTTPS through our own memory service. Self-hosted Cognee in Docker stays as the offline fallback (§9). |
 | n8n hosting | **n8n Cloud**, using the hackathon voucher (one month; it expires a week after the event). Live workflows run there. A self-hosted n8n in Docker, importing the **same workflow JSON**, is used for seeding and as an offline fallback. The voucher code stays out of git. |
 | Frontend | **Phone-first, and as close to the Paytm for Business app as we can get**: Paytm navy/cyan palette, card and tile layout, bottom navigation, bottom sheets, one-tap chips. Built as an installable PWA at 360–412 px; on a laptop it renders inside a phone frame. |
 | n8n prize | The design deliberately targets **"Best Use of n8n"** (§10.1): agent, human-in-the-loop, sub-workflows, error workflow, WhatsApp, Forms and Evaluations all in real use. |
+| Credits during development | **None.** Every build, test, checkpoint and most rehearsals run against local stand-ins: self-hosted n8n and a fakes service that mimics Sarvam, Twilio and Cognee. Paid services are called only in five budgeted **live windows**, and the code refuses to call them otherwise (§16a). |
 | Timeline | Build Thu evening and all of Friday. Saturday is hardening, rehearsal and deck numbers only. |
 | Team | 2 workstreams: **A = Ledger and skills** (Python, data, eval); **B = Agent and surfaces** (n8n, Sarvam, Cognee, WhatsApp, web). |
 | Merchant pronouns | they/their everywhere (code comments, prompts, UI copy, docs). |
@@ -46,8 +50,8 @@ data with known ground truth, so every number we show is measured.
 1. **Nightly run.** For any simulated date, n8n labels new credits: rules settle routine sales,
    Sarvam handles hard cases, and every proposal is appended to the chained ledger. At most 3
    questions a day are selected and sent on WhatsApp in the merchant's language.
-2. **Conversation.** The merchant answers by button tap, text or **voice note**, in any
-   supported language. Answers are appended as *their claim* alongside the machine label and
+2. **Conversation.** The merchant answers by button tap (in the app), a numbered reply (on
+   WhatsApp), free text or a **voice note**, in any supported language. Answers are appended as *their claim* alongside the machine label and
    never overwrite it. Cognee remembers the shop, so the same payer relationship isn't asked
    about twice.
 3. **Threshold watch.** Replayed as of 31 Jan, the merchant is warned of the projected ₹40L
@@ -85,6 +89,10 @@ data with known ground truth, so every number we show is measured.
 12. **n8n Cloud.** Every live workflow runs on the n8n Cloud instance. Importing the same JSON
     into the local n8n passes `beats` too, and the execution count for a full rehearsal is
     known and fits the plan's quota.
+13. **Credit-free by default.** The full test suite, `beats`, CP1 and CP2 run with
+    `HISAAB_LIVE=0` and make **zero** calls to Sarvam, Twilio, hosted Cognee or n8n Cloud; a
+    network guard fails any test that tries. `tasks.py usage` shows live spend only inside the
+    planned live windows, and within their budgets.
 
 ### Track 3 criteria mapped to features
 
@@ -143,7 +151,7 @@ loyalty.
 ```mermaid
 flowchart LR
   subgraph phones[Phones]
-    WA[WhatsApp<br/>Meta Cloud API]
+    WA[WhatsApp<br/>Twilio sandbox]
     APP[Paytm-style merchant app · PWA<br/>Home · Confirm · Payments · Cases · Assistant]
     OFF[Paytm officer app · PWA<br/>queue · case · approve]
   end
@@ -151,11 +159,12 @@ flowchart LR
   subgraph cloud[n8n Cloud]
     N8N[workflows<br/>nightly · freeze · notice · inbound/outbound · anchor<br/>AI Agent · Wait-for-approval · Evaluations]
   end
-  subgraph vm[VM · public HTTPS]
+  subgraph laptop[Build laptop · Docker, behind a free Cloudflare tunnel]
     CORE[core · FastAPI<br/>skills · guards · ledger API · packs · outbox]
     MEM[memory · Cognee<br/>shop memory]
     PG[(PostgreSQL 16 + pgvector<br/>rails · ledger · ops · cognee)]
     WEB[web · static PWA build]
+    CADDY[caddy · one origin, routed by path]
   end
   SAR[Sarvam AI<br/>sarvam-105b · Saaras v3 · Bulbul v3 · Translate · Vision]
   OUT[Simulated outbox<br/>bank nodal · NCRP/CFCFRMS · IO]
@@ -179,9 +188,12 @@ flowchart LR
   CORE --> ANC
 ```
 
-**n8n Cloud calls into our services, so core and memory need public HTTPS from Thursday
-night** (the VM behind Caddy, or a named cloudflared tunnel). Every call carries a role key.
-n8n's own webhooks are already public on Cloud, so WhatsApp posts straight to n8n.
+**n8n Cloud calls into our services during the live windows, so core needs a public HTTPS
+address then.** A free Cloudflare quick tunnel to the laptop provides it (§16): one hostname,
+Caddy routing by path, every call carrying a role key. Day to day, the local n8n reaches core on
+the Docker network and the tunnel is only for the phones, where HTTPS is what makes the PWA
+installable and the microphone usable. In live windows, Twilio posts inbound WhatsApp straight
+to n8n Cloud without touching the tunnel.
 
 **Principles**
 - **AI proposes, Python calculates, the ledger records, a person approves.** This matches the
@@ -193,6 +205,8 @@ n8n's own webhooks are already public on Cloud, so WhatsApp posts straight to n8
 - **Memory is context, never evidence.** Cognee informs proposals and conversation. Packs cite
   only ledger entries, bills and rails data.
 - **Nothing reads `hidden/`** except `sim/` and the `eval/` harnesses.
+- **Credit-free by default.** Development talks to local fakes. Paid services are reached only
+  when `HISAAB_LIVE=1`, which only the live windows set (§16a).
 
 ---
 
@@ -225,6 +239,8 @@ they are.
 │   │   ├── migrations/            Alembic (incl. ledger triggers + role grants)
 │   │   └── tests/
 │   ├── memory/                    FastAPI wrapper over Cognee (pinned), one stable interface
+│   ├── fakes/                     local stand-ins for Sarvam, Twilio and hosted Cognee, with
+│   │                              record/replay cassettes (§16a)
 │   └── web/                       phone-first PWA: React + Vite + TS + Tailwind + TanStack Query
 │       ├── src/design/            Paytm-style tokens, typography, icons, motion (§12.1)
 │       ├── src/components/        AppBar, BottomNav, TileGrid, TxnRow, Chip, BottomSheet,
@@ -435,13 +451,16 @@ Any one of these routes the case to a human specialist rather than routine appro
 
 ## 8. AI layer (Sarvam), owned by B
 
+During development every call below goes to the local fakes, which replay recorded responses
+(§16a). Only the live windows reach Sarvam.
+
 | Use | Model | In | Out (validated by core) |
 |---|---|---|---|
 | Hard-case labelling | `sarvam-105b` | Credit, as-of payer history, rules output, Cognee recall | `{label∈enum∪unclassified, confidence, reason_en, evidence_used[]}` |
 | Intent of a merchant message | `sarvam-105b-conversations` (tool calling) | Transcript and pending questions | One of `answer_question, ask_status, report_freeze, send_notice, correct_label, dispute_label, hide_income, help, other`, plus slots. Button taps skip the LLM. |
 | Voice in | Saaras v3 (transcribe/codemix) | WhatsApp OGG/Opus (ffmpeg → WAV if needed) | Transcript and detected language |
 | Voice out (P1) | Bulbul v3 | Final reply text | Audio sent as a WhatsApp voice note |
-| Message templates | Sarvam-Translate | English templates with protected `{placeholders}` | `i18n/<lang>.json`, generated at build time; Kannada and Hindi reviewed by a person |
+| Message templates | Sarvam-Translate | English templates with protected `{placeholders}` | `i18n/<lang>.json`, generated once, batched, in live window L1 (§16a); Kannada and Hindi reviewed by a person |
 | Notice reading | Sarvam Vision (document intelligence) → `sarvam-105b` extraction | Photo or PDF | `{authority, reference, date, period, claimed_turnover, allegation, due_date}`; the extraction guard requires each number to appear in the OCR text |
 | Grievance facts paragraph | `sarvam-105b` | Structured pack facts | Plain-language paragraph; numbers, citations and no-innocence guards; the template supplies structure and citations |
 | CA explainer and merchant explainer | `sarvam-105b` | Tax pack JSON | English for the CA, merchant's language for them; numbers guard |
@@ -469,10 +488,21 @@ POST /improve   {merchant_id}
 POST /forget    {merchant_id}   (demo reset)
 ```
 
-- **Configuration.** One dataset per shop (`shop_<merchant_id>`). The LLM is Sarvam, reached
-  through LiteLLM as an OpenAI-compatible custom endpoint. Embeddings use **fastembed**
-  locally, with no key. Storage is Postgres with pgvector in a separate `cognee` database. The
-  graph store is Kùzu, embedded.
+- **Two backings, one interface.**
+  - **Hosted Cognee (default), paid for by the hackathon credits.** Redeem the code at
+    platform.cognee.ai/billing on Thursday. The memory service holds the API key and talks to
+    the platform over HTTPS, which also means n8n Cloud never needs the tunnel to reach memory.
+    Only synthetic data is ever sent.
+  - **Self-hosted Cognee in Docker (fallback).** The LLM is Sarvam through LiteLLM as an
+    OpenAI-compatible custom endpoint, embeddings are **fastembed** locally with no key, and
+    storage is Postgres with pgvector in a separate `cognee` database with an embedded Kùzu
+    graph.
+
+  `MEMORY_BACKEND=hosted|self|stub` switches between them. **Development uses `stub`, or `self`
+  with its LLM pointed at the fakes**, so memory costs nothing; `hosted` is used only in live
+  windows (§16a). Live check S6 proves both before anything depends on either. In seed mode,
+  memory writes are batched and `improve` runs once at the end, not once per day.
+- **Configuration.** One dataset per shop (`shop_<merchant_id>`), the same on both backings.
 - **What is remembered:**
   - the shop profile narrative
   - payer relationships learned from claims ("handle X is the owner's spouse, per their answer
@@ -489,10 +519,11 @@ POST /forget    {merchant_id}   (demo reset)
 - **Guardrail.** Recalled memory that influences a proposal is logged in `memory_refs` and never
   counts toward tiers 1 or 2. Payer facts that rules depend on are also written
   deterministically to `ops.payer_facts`.
-- **Fallback.** If Cognee's LLM extraction misbehaves with Sarvam, write typed DataPoints
-  directly, with no LLM extraction. If Cognee is down, `/recall` returns empty with
-  `degraded: true`. Labelling continues with a lower confidence cap, which produces more
-  questions and never wrong labels.
+- **Fallback.** If Cognee's LLM extraction misbehaves, write typed DataPoints directly, with no
+  LLM extraction. If the credits run out or the platform is unreachable, switch
+  `MEMORY_BACKEND` to `self`. If both are down, `/recall` returns empty with `degraded: true`,
+  and labelling continues with a lower confidence cap, which produces more questions and never
+  wrong labels.
 
 ---
 
@@ -504,11 +535,15 @@ Workflow JSON is committed, and `tasks.py export-n8n` and `import-n8n` round-tri
 n8n public API (the API key comes from Cloud settings). The same files import into the local
 n8n (`docker compose --profile local-n8n up`).
 
+**All development and testing happens on the local n8n against the fakes.** Its credentials
+point at `services/fakes`, so nothing spends credits. Workflows are imported into n8n Cloud, and
+its live credentials created, only in live window L2 (§16a).
+
 | ID | Trigger | Steps |
 |---|---|---|
 | **WF10 nightly-provenance** | Schedule 02:00 IST; webhook `{merchant?, as_of, mode: live\|seed, from?, to?}` | Credits since the last run → classify-rules → split: settled ones go to proposals (batch); hard cases loop through memory recall, the Sarvam labelling agent, the schema check and proposals → select-questions → (live) WF30 morning questions → threshold → (warning due) WF30 warning → memory improve → WF60 |
-| **WF30 merchant-outbound** (sub) | Execute Workflow | Template and language → optional Bulbul → channel switch: WhatsApp node (template message outside the 24h window, interactive buttons inside it) or core `/assistant/outbound` (the in-app assistant, plus a Web Push nudge) → `question.asked` or log |
-| **WF31 merchant-inbound** | WhatsApp Trigger (signature verified); webhook from the in-app assistant | Normalise → audio goes to Saaras → button payload routes directly, otherwise intent via Sarvam → switch: answers to `/ledger/claims`; status via turnover/threshold → reply; `report_freeze` → WF20 lookup; notice image/PDF → WF40; correction → `claim.annotated` (tier 4, told so); dispute → WF50; `hide_income` → fixed refusal → reply (guards) → memory remember (session) |
+| **WF30 merchant-outbound** (sub) | Execute Workflow | Template and language → optional Bulbul → channel switch: Twilio through an HTTP Request node with a configurable base URL, so development hits the fakes (numbered replies, one message every three seconds, inside the 24h window) or core `/assistant/outbound` (the in-app assistant, plus a Web Push nudge) → `question.asked` or log |
+| **WF31 merchant-inbound** | Webhook from Twilio (`X-Twilio-Signature` checked in a Code node); webhook from the in-app assistant | Normalise → audio goes to Saaras → an app button tap or a WhatsApp numbered reply routes directly, otherwise intent via Sarvam → switch: answers to `/ledger/claims`; status via turnover/threshold → reply; `report_freeze` → WF20 lookup; notice image/PDF → WF40; correction → `claim.annotated` (tier 4, told so); dispute → WF50; `hide_income` → fixed refusal → reply (guards) → memory remember (session) |
 | **WF20 freeze-response** | Core webhook on `case.opened(freeze)` | isolate → payer history and bill → tiers → escalation-check → grievance (template, Sarvam facts paragraph, guards) → packs (PDF) → WF30 acknowledgement to the merchant (no claims, no promises) → approval record with `$execution.resumeUrl` → **Wait (resume on webhook)** → approved: outbox send, WF30 status, metrics / rejected or escalated: WF50 |
 | **WF21 lea-inquiry** (P1) | Core webhook on `lea_inquiry` | Same evidence assembly → officer approval → outbox reply. **No WF30 node exists in this workflow**; a test asserts it. |
 | **WF40 notice-response** | WF31, or core webhook on `notice_served` | Media → Sarvam Vision → extraction → extraction guard → case → turnover, threshold and tiers → tax pack PDF → CA and merchant explainers → approval Wait → deliver: explainer to the merchant, English export link for the CA |
@@ -523,9 +558,13 @@ day's selected questions through the conversation API, using realistic delays, a
 later corrections. All of this uses the sim clock, so a year of chain history exists before the
 demo starts. At the end, `pg_dump` saves a **seed snapshot**, which reset restores.
 
-Seed mode runs on the **local n8n** against the VM's core, never on Cloud. A year of daily runs
+Seed mode runs on the **local n8n** against the local core, never on Cloud. A year of daily runs
 plus their sub-workflows would burn a large share of the Cloud execution quota, because Cloud
 counts sub-workflow, manual and test runs.
+
+During development the seed runs against the fakes, for free. **The demo's final seed runs once,
+in live window L2**, so the year's AI proposals come from the real model; that snapshot is then
+reused by every rehearsal, because `reset` restores it.
 
 ### 10.1 Making it the best use of n8n (prize track)
 
@@ -539,7 +578,7 @@ below is real product logic, not decoration:
 | **Human review of AI tool calls** | The WF31 agent's `record_correction` tool needs merchant confirmation before it runs |
 | **Wait node, resumed by webhook** | WF20/WF40/WF21 pause for officer approval; the officer app calls `resumeUrl` |
 | **n8n Form Trigger** | Fallback approval page, and a CA upload form ("send us the notice") |
-| **WhatsApp Trigger and WhatsApp Business Cloud nodes** | WF31 inbound and WF30 outbound (templates, interactive buttons, voice notes) |
+| **Webhook plus HTTP Request to Twilio** | WF31 inbound (signature checked in a Code node) and WF30 outbound (numbered replies, audio); the base URL is a credential, so the same nodes hit the fakes in development |
 | **Execute Workflow (sub-workflows)** | WF30 outbound and WF50 escalation, reused by every flow |
 | **Schedule Trigger** | WF10 nightly at 02:00 IST, WF60 anchor at 23:55 IST |
 | **Error workflow** | WF90 for every workflow: logs to `ops` and posts an alert card to the officer app |
@@ -551,7 +590,7 @@ below is real product logic, not decoration:
 
 | Constraint | Design response |
 |---|---|
-| **Execution quota** (the voucher tier's monthly cap covers production, manual and sub-workflow runs) | Batch inside one execution (Loop Over Items rather than one sub-workflow per credit); seed on local n8n; count executions per rehearsal on Thursday and budget for them. A full demo run should need about 25 executions. |
+| **Execution quota** (the voucher tier's monthly cap covers production, manual and sub-workflow runs) | Development runs on the local n8n, so Cloud executions happen only in live windows (§16a). Batch inside one execution (Loop Over Items rather than one sub-workflow per credit); seed on local n8n; count executions per rehearsal on Thursday and budget for them. A full demo run should need about 25 executions. |
 | **Concurrency limit** on production executions | Freeze and notice flows are rare; WhatsApp inbound queues briefly, which is acceptable |
 | **`$env` is blocked in nodes** | All config comes from **credentials** (one HTTP Header Auth per role key, Sarvam, WhatsApp) plus a `GET /config` call to core; nothing is read from env |
 | **Webhook response time** | Core fires webhooks fire-and-forget; workflows answer immediately with "Respond to Webhook" and continue asynchronously |
@@ -563,19 +602,41 @@ below is real product logic, not decoration:
 
 ## 11. Channels, owned by B
 
-**WhatsApp (Meta Cloud API test number)**
-- Set up a Meta developer app with a test number and add up to 5 recipient phones (the team
-  plus a demo phone).
-- The permanent access token lives in n8n credentials. The webhook points straight at the
-  **n8n Cloud** WhatsApp Trigger URL (already public HTTPS), with the `X-Hub-Signature-256`
-  check.
-- **The 24-hour window matters.** Morning questions are business-initiated, so they need an
-  approved **utility template** ("You have {n} payments to confirm", with a "Show me" quick
-  reply) in English, Kannada and Hindi. **Submit the templates Thursday night.** Once the
-  merchant taps, the session is open and questions go out as interactive button messages.
-  Fallback: the merchant says "hi" first.
-- Voice notes are received as OGG/Opus, and media is fetched through the Graph API into
-  `ops.media` with a sha256.
+**WhatsApp (Twilio Sandbox for WhatsApp)**
+
+Meta's Cloud API needs a business portfolio and verification, so we use Twilio's sandbox
+instead: a Twilio account and the shared sandbox number `+1 415 523 8886`, with nothing to
+verify.
+
+- **Joining.** Each phone sends `join <two-word code>` to the sandbox number once. **The join
+  expires three days later**, so every phone re-joins on demo morning (§17, Saturday).
+- **Inbound.** Twilio posts each message to an **n8n Cloud webhook**, which is already public,
+  so the tunnel is not in this path. WF31 starts with a Code node that checks
+  `X-Twilio-Signature` (HMAC-SHA1 of the URL and sorted parameters with the auth token) and
+  drops anything that fails.
+- **Outbound.** The n8n Twilio node, or an HTTP Request, sending from
+  `whatsapp:+14155238886`. **The sandbox allows one message every three seconds**, so the
+  three questions go one at a time behind a short Wait.
+- **No tap buttons on this channel.** Interactive quick replies need approved WhatsApp
+  templates, which the sandbox does not offer. Questions therefore go out as numbered options:
+  *"₹15,000 on Sunday night. Reply 1 sale · 2 family · 3 my own money · 4 not sure"*. The reply
+  parser accepts a digit, a word in any supported language, or a voice note. Numbered replies
+  are how most Indian WhatsApp bots already work, so this is realistic rather than a
+  compromise. **The tap experience lives in the in-app assistant** (M2 and M6), which we
+  control end to end.
+- **Business-initiated messages still need a pre-approved template**, and the sandbox only has
+  generic ones. So the morning nudge is either sent inside the 24-hour window the merchant
+  opened by messaging first, or delivered in the app with a Web Push nudge. In the demo the
+  merchant always speaks first (the voice note about declining payments), which opens the
+  window.
+- **Media.** Voice notes and notice photos arrive as Twilio media URLs, fetched with the
+  account SID and auth token into `ops.media` with a sha256. Outbound audio (Bulbul) has to be
+  a public URL, which the tunnel provides.
+- **Cost.** Twilio's trial credit covers a demo's worth of messages.
+- **In development, Twilio is the fakes service.** WF30 and WF31 reach Twilio through a
+  configurable base URL, so locally they hit `services/fakes`. It captures outbound messages in
+  a local outbox page, and `tasks.py fake-wa "1"` posts a signed inbound message. Real WhatsApp
+  is used only in live windows.
 
 **In-app Hisaab Assistant** (screen M6 of the merchant app, §12)
 - The same conversation, inside the Paytm-style app: chat bubbles, tappable chips, hold-to-talk
@@ -601,7 +662,7 @@ Paytm for Business, not a hackathon dashboard.
 - **Installable PWA** (`vite-plugin-pwa`).
   - Manifest with standalone display, navy theme colour, app icons.
   - An offline shell that keeps the last Home data.
-  - The team's and demo phones install it from the VM URL with "Add to Home screen".
+  - The team's and demo phones install it from the tunnel URL with "Add to Home screen".
 - **Laptops and the projector.** A `PhoneFrame` wrapper centres the app in a device bezel
   (412×892). `/stage` shows the merchant and officer phones side by side.
 - **Branding, handled responsibly.**
@@ -686,7 +747,7 @@ carry an "Open in Paytm" deep link to the matching app screen.
 **Quality bar**
 - Playwright e2e on Pixel 7 (412×915) and small-Android (360×800) viewports, with screenshot
   comparisons for M1, M2, M5 and O2.
-- Lighthouse mobile: installable PWA, performance ≥ 85 when served from the VM.
+- Lighthouse mobile: installable PWA, performance ≥ 85 when served through the tunnel.
 - Every string lives in i18n. Kannada and Hindi are reviewed by a person. Nothing truncates at
   360 px in Kannada, which runs longer than English.
 - AA contrast, 48 px targets, and a read-aloud button (Bulbul) on M2 and M5 cards (P1).
@@ -747,6 +808,8 @@ demos: WF99 (the permission refusal), a `hide_income` voice note (the ethical re
   no-innocence phrases, extraction.
 - **Permissions:** the matrix above.
 - **Outbox:** refuses to send an unapproved pack.
+- **Network guard:** pytest blocks every socket that isn't local (Postgres, core, memory,
+  fakes). A test that tries to reach a paid service fails instead of spending credits.
 
 **`eval/`**
 - `baseline.py`: rules-only labels.
@@ -754,11 +817,15 @@ demos: WF99 (the permission refusal), a `hide_income` voice note (the ethical re
   F1, unclassified and false-confidence rates, exempt/taxable split (POS vs QR-only),
   **turnover ₹ error per merchant**.
 - `agent_eval.py`: runs WF10 in seed mode on a stratified sample of eval hard cases (about
-  500) → agent vs baseline.
-- `beats.py`: end-to-end through the n8n Cloud webhooks and the in-app assistant (below).
+  500) → agent vs baseline. **It needs the real model, so it runs only in live window L3**, with
+  its own budget; during development it runs on the fakes to test the wiring.
+- `beats.py`: end-to-end through n8n webhooks and the in-app assistant (below). By default it
+  runs on the local n8n and the fakes, for free; `--live` runs it against n8n Cloud and the
+  real providers, which happens once, in window L2.
 - `report.py` → `eval/report.json`, shown at `/eval`.
 - **n8n Evaluations** (`WF10-eval`, P1): the same hard-case sample as an n8n Data Table, so
-  label-match metrics also show up in n8n's own Evaluations tab.
+  label-match metrics also show up in n8n's own Evaluations tab. Wired on the fakes; the real
+  run is part of live window L3.
 
 **Frontend tests (Playwright, `services/web/e2e`, owned by B)**
 - Pixel 7 (412×915) and small-Android (360×800) viewports.
@@ -816,34 +883,55 @@ demos: WF99 (the permission refusal), a `hide_income` voice note (the ethical re
 
 ## 16. Deployment and operations
 
-- **n8n: n8n Cloud** (voucher), holding every live workflow and credential. WhatsApp's webhook
-  points at the Cloud trigger URL.
+**Nothing here costs money.** There is no server: everything runs on the build laptop in
+Docker, and the internet reaches it through a free Cloudflare quick tunnel.
+
+- **n8n: n8n Cloud** (voucher), holding every live workflow and credential. Twilio's webhook
+  points at the Cloud trigger URL, which is public on its own.
 - **`docker-compose.yml`:**
   - `postgres` (pgvector/pgvector:pg16; databases hisaab, cognee, n8n-local)
   - `core` (:8000)
   - `memory` (:8100)
   - `web` (the PWA's static build)
-  - `caddy` (automatic HTTPS: `api.<domain>` → core, `mem.<domain>` → memory, `app.<domain>`
-    → web)
+  - `caddy` (:8080, **one origin, routed by path**: `/api/*` → core, `/mem/*` → memory,
+    everything else → web; no TLS here, the tunnel terminates it)
   - **profile `local-n8n`**: `n8n` (:5678, `DB_TYPE=postgresdb`,
-    `GENERIC_TIMEZONE=Asia/Kolkata`) for seeding and fallback
+    `GENERIC_TIMEZONE=Asia/Kolkata`) for seeding and as the offline fallback
 
   Named volumes, and health checks on every service.
-- **Primary host.** One cloud VM (4 vCPU / 8 GB) with a domain, or a named cloudflared tunnel
-  if there's no domain. **It must be up with HTTPS on Thursday night**, because n8n Cloud has
-  to reach core's stubs. Installing the PWA also requires HTTPS.
-- **Fallback 1.** The laptop runs the full stack plus the `local-n8n` profile (Docker Desktop
-  with WSL2), exposed through a cloudflared quick tunnel. Workflows and credentials are already
-  imported, and core's `N8N_BASE_URL` gets switched over.
-- **Fallback 2.** A recorded screen capture of all beats, made Saturday morning.
-- **Environment variables** (`.env.example`, annotated):
+- **The tunnel.** `cloudflared tunnel --url http://localhost:8080` gives a free
+  `https://<random>.trycloudflare.com` with no account, no domain and no interstitial page.
+  One hostname serves everything because Caddy routes by path and the PWA calls `/api/...` on
+  its own origin. HTTPS is what makes the PWA installable and the microphone usable on the
+  phones.
+- **The hostname changes whenever the tunnel restarts,** which is the one real cost of not
+  having a server. `python tasks.py publish` handles it in a single command: it reads the new
+  hostname, writes it into core's config, rewrites the base URL inside the n8n Cloud workflows
+  through the public API, and points the Twilio sandbox webhook at the right n8n URL. Run it
+  after every restart, and once more before judging.
+- **Stable-hostname option.** ngrok's free tier includes one static domain, so the URL never
+  changes; the cost is an interstitial page on each device's first visit. Keep it as plan B if
+  the changing hostname becomes annoying.
+- **Fallbacks.**
+  1. Tunnel drops → restart it and run `tasks.py publish` (about 30 s).
+  2. No usable internet → the `local-n8n` profile plus the app on `http://localhost` **on the
+     laptop**, which is a secure origin, so the microphone and the PWA still work, shown
+     through `/stage` on the projector. WhatsApp is unavailable in this mode; the in-app
+     assistant carries the demo.
+  3. A recorded screen capture of every beat, made Saturday morning.
+- **Laptop hygiene**, since it is now the only host: sleep disabled, charger and phone hotspot
+  ready, Docker Desktop (WSL2) given at least 8 GB, and nothing else heavy running. Postgres,
+  Cognee and the local embedding model all live here.
+- **Environment variables** (`.env.example`, annotated; **real keys go only in `.env.live`**,
+  §16a):
+  - `HISAAB_LIVE=0` (default) and `FAKES_URL`
   - `SARVAM_API_KEY`
-  - `WA_TOKEN`, `WA_PHONE_ID`, `WA_APP_SECRET`, `WA_VERIFY_TOKEN`
+  - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, `TWILIO_SANDBOX_CODE`
   - `KEY_RAILS`, `KEY_PROVENANCE`, `KEY_CONVERSATION`, `KEY_EVIDENCE`, `KEY_OFFICER`,
     `KEY_ADMIN`
-  - `N8N_BASE_URL` (Cloud or local), `N8N_API_KEY` (public API, for import/export),
-    `N8N_WEBHOOK_SECRET`
-  - `CORE_PUBLIC_URL`, `MEMORY_PUBLIC_URL`, `APP_PUBLIC_URL`
+  - `N8N_BASE_URL` (Cloud or local), `N8N_API_KEY` (public API, for import/export and
+    `publish`), `N8N_WEBHOOK_SECRET`
+  - `PUBLIC_URL` (the current tunnel hostname, written by `tasks.py publish`)
   - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (Web Push, P1)
   - Cognee's `LLM_*` and `EMBEDDING_*`
   - `ANCHOR_GITHUB_TOKEN`, `ANCHOR_REPO`
@@ -851,9 +939,63 @@ demos: WF99 (the permission refusal), a `hide_income` voice note (the ethical re
 
   The n8n voucher code is **not** an env var and never goes into git. Add
   `N8N CREDITS .docx.pdf` to `.gitignore`.
-- **Commands** (all through `tasks.py`, so they work in PowerShell and bash): `up`,
-  `generate`, `migrate`, `seed` (replay the year on local n8n and snapshot), `reset`, `test`,
-  `e2e` (Playwright), `eval`, `beats`, `export-n8n` and `import-n8n` (with `--target cloud|local`).
+- **Commands** (all through `tasks.py`, so they work in PowerShell and bash): `up`, `tunnel`,
+  `publish`, `generate`, `migrate`, `seed` (replay the year on local n8n and snapshot),
+  `reset`, `test`, `e2e` (Playwright), `eval`, `beats`, `usage`, `fake-wa`, `export-n8n` and
+  `import-n8n` (with `--target cloud|local`). Anything that touches a paid service needs
+  `--live` and only runs in a live window (§16a).
+
+---
+
+## 16a. Credit-free development: fakes, guards and live windows
+
+**The rule:** nothing is built or tested against a service that spends credits. That covers
+Sarvam, Twilio, hosted Cognee and n8n Cloud executions. Development, unit tests, `beats`, CP1,
+CP2 and most rehearsals run entirely on local stand-ins. Paid services are touched only in five
+**live windows** (L1–L5) that are planned, budgeted and logged.
+
+**Local stand-ins**
+
+| Paid service | Stand-in during development | How it stays realistic |
+|---|---|---|
+| n8n Cloud executions | Self-hosted n8n (`local-n8n` profile), same workflow JSON | Identical workflows; only the credentials differ |
+| Sarvam (chat and tool calls, STT, TTS, translate, Vision) | `services/fakes`, an OpenAI-compatible, Sarvam-shaped API | Replays **recorded cassettes** of real responses from the live windows. Otherwise it answers with deterministic rules: labels from the rules skill, transcripts from a sidecar text file, a short tone for TTS, English text tagged with the language for translate, and the PDF's own text layer for Vision |
+| Twilio WhatsApp | `services/fakes` mimicking the Messages API and media URLs | Outbound messages land in a local outbox page; `tasks.py fake-wa` posts signed inbound messages; the in-app assistant covers the phone experience |
+| Hosted Cognee | `MEMORY_BACKEND=stub` (Postgres only) or `self` (Docker, fastembed, LLM pointed at the fakes) | The same memory-service interface; `hosted` only in live windows |
+| Cloudflare tunnel, OpenTimestamps, GitHub | Free, and not needed day to day: the local n8n reaches core on the Docker network, and anchors go to a local file sink | Real anchors are made in the live windows |
+
+**Enforcement, so this is a control rather than a promise**
+- `HISAAB_LIVE=0` by default. Every provider client (core's Sarvam and Twilio clients, the
+  memory service) refuses a real endpoint unless `HISAAB_LIVE=1`, with a readable error.
+- **Real keys live only in `.env.live`** (gitignored), loaded only by `tasks.py --live …`. The
+  everyday `.env` holds fake keys, so a mistake cannot spend money.
+- The local n8n's credentials point at the fakes. n8n Cloud credentials are created in window
+  L2, not before.
+- pytest blocks every non-local socket; Playwright blocks external requests, and fonts are
+  self-hosted. A test that reaches out fails.
+- Every live call is written to `ops.provider_usage` (provider, endpoint, units, window), and
+  `tasks.py usage` prints spend against the budgets below.
+
+**Record and replay.** A live window run with `--record` saves each request and response to
+`services/fakes/cassettes/<provider>/`, keyed by a hash of the normalised request. The fakes
+replay exact matches first and fall back to their rules. So each real call is paid for once
+and reused for the rest of the build.
+
+**Live windows and starting budgets**
+
+These are the only times credits are spent. Adjust the numbers once the balances are known
+(tasks 0.1, 0.1b and 0.3). If a window needs more than its budget, stop and decide; don't let
+it run on.
+
+| Window | When | What runs live | Sarvam calls | Twilio messages | Cognee ops | n8n Cloud executions |
+|---|---|---|---|---|---|---|
+| **L1 live checks** | Thu night (2B) | S1–S8 with one or two calls each, and one batched translation of the i18n templates, all recorded as cassettes | ≤ 60 | ≤ 10 | ≤ 10 | ≤ 10 |
+| **L2 integration pass** | CP3, Sat 00:30 | Import to n8n Cloud; one `beats --live` pass; the final demo seed on the real model; snapshot | ≤ 500 | ≤ 30 | ≤ 300 | ≤ 60 |
+| **L3 agent measurement** (P1, optional) | After L2, only if the budget allows | `agent_eval` on a sample of eval hard cases, and the WF10-eval run | ≤ 200 | 0 | 0 | ≤ 5 |
+| **L4 live rehearsal** | Sat morning | Exactly one full rehearsal on real services; the others use the fakes | ≤ 80 | ≤ 30 | ≤ 30 | ≤ 30 |
+| **L5 demo** | Judging | The warm-up and the demo itself | ≤ 80 | ≤ 30 | ≤ 30 | ≤ 30 |
+
+Everything outside these windows spends zero. If money is short, L3 is the first thing to drop.
 
 ---
 
@@ -865,34 +1007,36 @@ demos: WF99 (the permission refusal), a `hide_income` voice note (the ethical re
 
 | Time | A | B |
 |---|---|---|
-| First 15 min | **Redeem the n8n Cloud voucher** (following n8n's redemption guide) · create the Meta developer app · request the Sarvam key · add the voucher PDF to `.gitignore` | ← same |
+| First 15 min | **Redeem the n8n Cloud voucher** and the **Cognee credits** (code at platform.cognee.ai/billing) · create the Twilio account and open the WhatsApp sandbox · request the Sarvam key · add the voucher PDF to `.gitignore` | ← same |
 | Next 45 min | **Together:** freeze the contracts: ledger kinds, role matrix, endpoint list with request/response JSON (including the `/app/*` read models), LLM output schemas, workflow boundaries. Create branch `bfi`, archive the old tree, add the compose skeleton. | ← same |
-| Next 4 h | **VM with Caddy HTTPS first** (n8n Cloud needs it). Postgres and Alembic; `ledger.entries` with chain, triggers, grants and verify; tests. Core **stub endpoints returning fixture JSON** for every route, deployed to the VM, so B is never blocked. | Spikes with a go/no-go each (below) |
-| Next 3 h | `sim/` v2: catalog, world process, demo scenario and assertions | Meta test number; **submit utility templates**; n8n Cloud WhatsApp Trigger reaching a hello-world reply · capture Paytm for Business screenshots → `design/tokens.ts` · web app shell: `PhoneFrame`, `AppBar`, `BottomNav`, PWA manifest, fonts, installed on one Android phone |
+| Next 4 h | Compose with Caddy on :8080, the free `cloudflared` tunnel for the phones, and `tasks.py publish`. Then Postgres and Alembic; `ledger.entries` with chain, triggers, grants and verify; tests. Core **stub endpoints returning fixture JSON** for every route, reachable through the tunnel, so B is never blocked. | Spikes with a go/no-go each (below) |
+| Next 3 h | `sim/` v2 (**done 17 Sep**) · **`services/fakes`** (Sarvam- and Twilio-shaped APIs that replay the L1 cassettes), the `HISAAB_LIVE` switch, the network guard and `ops.provider_usage` (§16a) | Join both phones to the Twilio sandbox; one live round trip (Twilio → n8n Cloud webhook → reply) inside L1, recorded as a cassette; WF31's webhook tested locally with `tasks.py fake-wa` · capture Paytm for Business screenshots → `design/tokens.ts` · web app shell: `PhoneFrame`, `AppBar`, `BottomNav`, PWA manifest, fonts, installed on one Android phone from the tunnel URL |
 
-**Spikes (B, Thursday)**
+**Live checks (B, Thursday): live window L1, the only paid calls before CP3.** Each check
+makes one or two real calls within the L1 budget, records them as cassettes for the fakes, and
+stops.
 
 | # | Spike | Fallback if it fails |
 |---|---|---|
 | S1 | `sarvam-105b` tool calling and JSON-schema output, in Kannada and English | JSON in the prompt, Python validation, one retry |
-| S2 | Saaras v3 on a real WhatsApp OGG voice note in Kannada | ffmpeg → WAV; text-only on stage |
-| S3 | Bulbul v3 audio → WhatsApp voice note | Text replies (P1 anyway) |
+| S2 | Saaras v3 on a real WhatsApp voice note in Kannada, fetched from the Twilio media URL | ffmpeg → WAV; text-only on stage |
+| S3 | Bulbul v3 audio served from the tunnel and sent back through Twilio | Text replies (P1 anyway) |
 | S4 | Sarvam Vision on a specimen notice photo | Notice chosen from events; OCR shown on the PDF only |
 | S5 | n8n OpenAI-compatible credential pointed at Sarvam, for the AI Agent and structured parser | HTTP Request nodes calling Sarvam directly |
-| S6 | Cognee v1.x `remember`/`recall` with Sarvam, fastembed and pgvector | Typed DataPoints without LLM extraction; last resort is a memory service backed by Postgres with the same interface |
+| S6 | **Cognee with the hackathon credits**: `remember`/`recall` against the hosted platform from our memory service, and the self-hosted path (Sarvam, fastembed, pgvector) as the fallback. Pin the version. | Typed DataPoints without LLM extraction; last resort is a memory service backed by Postgres behind the same interface |
 | S7 | n8n Cloud Wait node resumed by a call from the officer app through core | n8n Form "approve" page |
-| S8 | n8n Cloud → core stubs on the VM with role keys; the public API exports and imports a workflow; **count executions for one fake beat** | Local n8n with a tunnel; tighter batching |
+| S8 | n8n Cloud → core stubs through the tunnel with role keys; the public API exports, imports and rewrites a workflow's base URL (`tasks.py publish`); **count executions for one fake beat** | Local n8n; tighter batching |
 
 ### Fri 18 Sep: build day (checkpoints are hard gates)
 
 | Time | A | B |
 |---|---|---|
-| 08:00–13:00 | Generator complete (demo, dev, eval) and `score.py`/`baseline.py`; rails replayer and sim clock; `classify_rules`, `payer_history` (strictly prior), `question_budget`; proposals, questions and claims endpoints live (replacing stubs); `/app/home` and `/assistant/*` read models | memory service; WF10 (live and seed), WF30, WF31 (buttons, text, voice-in) on **n8n Cloud**; prompts v1; i18n generation; **M0, M1 Home, M2 Confirm, M6 Assistant** |
-| **13:00 CP1** | **Ordinary Tuesday end to end:** jump to 10 Mar 02:00 → WF10 on Cloud → 3 Kannada questions on WhatsApp **and** in M2 on the installed PWA → taps → `claim.answered` in the chain, machine label intact | ← joint test |
+| 08:00–13:00 | Generator complete (demo, dev, eval) and `score.py`/`baseline.py`; rails replayer and sim clock; `classify_rules`, `payer_history` (strictly prior), `question_budget`; proposals, questions and claims endpoints live (replacing stubs); `/app/home` and `/assistant/*` read models | memory service; WF10 (live and seed), WF30, WF31 (buttons, text, voice-in) on the **local n8n against the fakes**; prompts v1; i18n generation; **M0, M1 Home, M2 Confirm, M6 Assistant** |
+| **13:00 CP1** | **Ordinary Tuesday end to end:** jump to 10 Mar 02:00 → WF10 on the **local n8n against the fakes (no credits)** → 3 Kannada questions in the fakes' WhatsApp outbox **and** in M2 on the installed PWA → taps → `claim.answered` in the chain, machine label intact | ← joint test |
 | 13:00–19:00 | `turnover`, `threshold`, `isolate`, `tiers`, `escalation`; `packs` and PDF; grievance template and `legal/citations.yaml`; all guards; freeze detector; approvals and outbox gate; `/app/cases`, `/app/officer/*` read models | WF20, WF40 (Vision), WF50, WF90; **M5 Case tracker, O1 Queue, O2 Case** with the sticky approve bar; approval → resume wiring |
-| **19:00 CP2** | **Freeze end to end:** declines and lien → case → isolate (UTR and amount/date, decoy) → pack PDF → Wait → **officer approves on a phone** → outbox → M5 stepper advances on the merchant's phone | ← joint test |
+| **19:00 CP2** | **Freeze end to end (local n8n and fakes, no credits):** declines and lien → case → isolate (UTR and amount/date, decoy) → pack PDF → Wait → **officer approves on a phone** → outbox → M5 stepper advances on the merchant's phone | ← joint test |
 | 19:00–00:30 | Anchors (OTS and git) and WF60 support; tamper endpoints; permissions tests; `simulate_merchant.py`; **seed the year on local n8n and snapshot**; `beats.py`; eval run and `report.json`; **`/ledger` explorer and `/eval` pages** (built from the shared components) | M3 Payments, M4 Payment detail, M7 Turnover and CA share, O3; `/demo` remote and `/stage`; Playwright suite; WF99 and the `hide_income` refusal; WF10-eval; Bulbul replies; second merchant in Hindi; WF21; export all workflows to git |
-| **00:30 CP3** | **`tasks.py beats` all green against the VM and n8n Cloud** (including B8). Snapshot. Import the same workflows into local n8n and run `beats` once to prove the fallback. | ← joint |
+| **00:30 CP3** | **Live window L2.** `beats` green on the local n8n and the fakes first (free). Then import to n8n Cloud, create the live credentials, and run **one** `beats --live` pass through the tunnel (including B8). Run the final demo seed live and snapshot it. Check `tasks.py usage` against the L2 budget. | ← joint |
 
 **Cut rule.** If CP2 or CP3 slips, drop P1 items starting from the *end* of §2's priority
 list (WF21 no-tip-off and the eval split run go first; Vision OCR goes last). Never cut P0, and
@@ -902,9 +1046,9 @@ never cut tests covering P0. The build sequence is in [PHASES.md](PHASES.md).
 
 | Block | Both |
 |---|---|
-| Morning | Fresh `reset` then `beats` on the VM and the laptop · 3 timed rehearsals with **two real phones** (merchant and officer) plus `/stage` on the projector · UI polish pass against the reference screenshots (spacing, type, Kannada line breaks) · record the fallback video · check remaining n8n Cloud executions · fix-only mode |
+| Morning | Start the tunnel and `tasks.py publish` · **re-join both phones to the Twilio sandbox** (the join expires after three days) · fresh `reset` then `beats` on the local n8n and the fakes (free) · 3 timed rehearsals with **two real phones** (merchant and officer) plus `/stage` on the projector: the first two on the local n8n and the fakes, **only the third live (window L4)** · UI polish pass against the reference screenshots (spacing, type, Kannada line breaks) · record the fallback video · `tasks.py usage` against the L4 and L5 budgets · fix-only mode |
 | Midday | Update the deck and README with **measured** numbers from `eval/report.json`, replacing targets · check the legal items in §22 · tag `demo-final` |
-| Before judging | **Feature freeze 2 h before judging** · reset · warm up the VM (one nightly run, one Sarvam call) · phones charged, recipients whitelisted |
+| Before judging | **Feature freeze 2 h before judging** · reset · `tasks.py publish` once more and confirm the hostname in n8n and Twilio · warm up (one nightly run, one Sarvam call) · phones charged and joined to the sandbox, laptop on charger with sleep disabled |
 
 ---
 
@@ -914,17 +1058,22 @@ never cut tests covering P0. The build sequence is in [PHASES.md](PHASES.md).
 |---|---|
 | Sarvam tool calls or JSON unreliable | Schema-validated output, one retry, template-only fallback; buttons skip the LLM |
 | Sarvam latency or credits during the demo | The seeded year is precomputed; live calls only in live beats; warm up before judging |
-| Cognee v1 API or LLM extraction friction | Pinned version; typed DataPoints; Postgres-backed fallback behind the same interface |
-| WhatsApp template not approved in time | Merchant opens with "hi" (session messages need no template); the in-app assistant |
-| Venue network | VM primary, phone hotspot, laptop stack, video |
+| Cognee: hosted platform down, credits exhausted, or v1 API friction | The memory service keeps one interface with three backings: hosted Cognee, self-hosted Cognee, and a Postgres-only stub. Switching is one env var, rehearsed at CP3. |
+| Twilio sandbox has no tap buttons, and business-initiated messages need a template | Numbered replies and voice on WhatsApp; the merchant speaks first, which opens the 24-hour window; tap buttons live in the app |
+| Twilio sandbox join expires after three days | Both phones re-join on Saturday morning; the join QR is in the run-of-show notes |
+| Sandbox sends one message every three seconds | Questions go out one at a time behind a Wait node; there are never more than three a day |
+| Venue network, and the laptop is now the only host | Phone hotspot first; tunnel restart plus `tasks.py publish` in about 30 s; then offline mode (local n8n, app on `http://localhost`); then the recorded video. Sleep disabled, charger attached. |
+| Tunnel hostname changes on restart | `tasks.py publish` rewrites core config, the n8n Cloud workflows and the Twilio webhook in one command; ngrok's free static domain is plan B |
 | n8n Cloud execution quota runs out | Batching inside executions; seed on local n8n; per-rehearsal execution budget measured in S8; check the count Saturday morning; local n8n fallback |
-| n8n Cloud outage, or it can't reach the VM | Local n8n with the same JSON and credentials; `N8N_BASE_URL` switch rehearsed at CP3 |
+| n8n Cloud outage, or it can't reach the laptop | Local n8n with the same JSON and credentials; `N8N_BASE_URL` switch rehearsed at CP3 |
 | n8n Wait executions lost | The approval record stores `resume_url`; if an execution is gone, core re-runs the approval branch through a sub-workflow; a resumable test is part of CP2 |
 | UI polish swallows the build time | Tokens and components on Thursday; screens are built only from shared components; polish is a Saturday-morning block; P1 screens are cut before P0 logic |
 | Paytm look drifts into copying brand assets | Paytm-*style* tokens and layout only; wordmark set in type; no copied logos or illustrations; "Prototype · synthetic data" tag |
 | Kannada text breaks the phone layout | Playwright screenshot diffs in Kannada; flexible chips that wrap; no fixed-width labels |
 | Scope versus 1.5 days | Stub-first contract; strict P0/P1/P2; hard checkpoints |
 | Legal inaccuracy (SOP limits, citations) | Allowlist with a `verified` flag; unverified citations render with a ⚠ and **block approval**; thresholds in config |
+| Fakes drift from the real APIs, so something passes locally and fails live | The fakes replay cassettes recorded from real calls; every response is validated against the same schemas; L2 runs one full live `beats` pass at CP3, well before judging |
+| Credits run out mid-build or before judging | Zero spend outside the live windows, enforced in code; a budget per window; `tasks.py usage` before each window; L3 is optional and dropped first |
 | Overclaiming | Synthetic-data and SIMULATED stamps on packs, outbox and seeded anchors; targets ≠ results until measured |
 
 ---
@@ -936,13 +1085,15 @@ This follows deck v2: lead with the freeze.
 **Stage setup**
 - The projector shows `/stage`: the merchant phone and officer phone frames side by side, with
   the n8n Cloud execution strip.
-- Two real Android phones have the PWA installed; the merchant phone also has WhatsApp.
+- Two real Android phones have the PWA installed from the tunnel URL; the merchant phone is
+  joined to the Twilio WhatsApp sandbox.
 - The presenter holds a third phone running `/demo` as a remote.
 
 1. **09:30, Tuesday 24 Mar.**
    - The remote starts the declines. The merchant's M1 Home turns red ("Payments on hold"), and
      the officer's O1 Queue buzzes.
-   - On WhatsApp, the merchant sends a Kannada voice note: "my payments are failing".
+   - On WhatsApp, the merchant sends a Kannada voice note: "my payments are failing". (That
+     also opens Twilio's 24-hour window for everything the agent sends back.)
    - The agent acknowledges without promising anything. Switch to n8n Cloud: WF20 is running.
    - The officer taps into O2, which shows:
      - ₹4,200 at 19:47 on 21 Mar, with "UTR ✓" and "Amount + date ✓"
@@ -955,7 +1106,7 @@ This follows deck v2: lead with the freeze.
 2. **Rewind: how that record was made.**
    - Jump to 10 Mar 02:00 and run the nightly.
    - 39 credits come in, and M1 shows "3 payments to confirm". In M2, tap, tap, then answer
-     the third by voice.
+     the third by voice. The same three questions arrive on WhatsApp as numbered replies.
    - 36 settle silently, and the ₹23 payment is left alone.
    - Open M4 on one payment: the machine label and their answer sit side by side, each dated.
      `/ledger` shows them hash-linked.
@@ -982,25 +1133,30 @@ This follows deck v2: lead with the freeze.
 
 1. `python tasks.py up && python tasks.py migrate && python tasks.py generate --only demo`
 2. `python tasks.py test`: all pytest suites green (chain, triggers, as-of, skills golden
-   values, guards, permissions, outbox gate).
-3. `python tasks.py import-n8n --target cloud` and `--target local`, then create the
-   credentials listed in `n8n/README.md` in both (one per role, Sarvam and WhatsApp).
+   values, guards, permissions, outbox gate), run with `HISAAB_LIVE=0` and the network guard
+   on: **zero** calls to paid services.
+3. `python tasks.py import-n8n --target local`, and create the local credentials listed in
+   `n8n/README.md` (one per role, plus Sarvam and Twilio pointed at the fakes). The Cloud
+   import and its live credentials happen only in window L2 (`--target cloud --live`).
 4. `python tasks.py seed`: replays the year through WF10 seed mode on **local n8n** with
-   `simulate_merchant`, then takes the snapshot. Check `GET /ledger/verify` returns ok, and that
+   `simulate_merchant`, against the fakes (the final live seed is part of L2), then takes the
+   snapshot. Check `GET /ledger/verify` returns ok, and that
    questions a day stay within budget in the seed report.
-5. `python tasks.py beats`: B1 to B7 green against the VM with n8n Cloud, then once against
-   local n8n.
+5. `python tasks.py beats`: B1 to B7 green on the local n8n and the fakes, for free. In
+   window L2 only: `tasks.py tunnel && tasks.py publish`, then `tasks.py beats --live` once
+   against n8n Cloud and the real providers.
 6. `python tasks.py e2e`: Playwright green at 412 px and 360 px, in Kannada and English (B8).
-7. **Manual, on real phones:**
-   - install the PWA from `https://app.<domain>`
+7. **Manual, on real phones (live window L4, once; rehearse on the fakes before that):**
+   - install the PWA from the tunnel URL, and join the merchant phone to the Twilio sandbox
    - the merchant phone completes beats 1, 2 and 4 on WhatsApp (voice note and photo), then
      again in the in-app assistant and M2
    - the officer phone approves from O2
    - `/stage` mirrors both phones on the laptop
 8. `python tasks.py eval` → `eval/report.json` → the `/eval` page renders. Numbers are copied
    into the deck only from this file.
-9. `python tasks.py reset && python tasks.py beats`: green again in under 2 min total. Record
-   the n8n Cloud execution count before and after, for the quota budget.
+9. `python tasks.py reset && python tasks.py beats`: green again in under 2 min total.
+10. `python tasks.py usage`: live spend appears only inside the live windows, within each
+    window's budget.
 
 ---
 
@@ -1035,7 +1191,9 @@ exempt-share apportionment rationale), `tools/README.md` (why the classifier ask
 3. CGST s.2(6), s.22, s.23 and s.25 wording for the verdict text; the 30-day registration
    window.
 4. A scale figure for freezes (NCRP/I4C volumes or petition counts). Never invent one.
-5. Meta WhatsApp test-number limits and template approval status.
+5. Twilio sandbox facts, confirmed on the account: the join code and its three-day expiry, the
+   one-message-per-three-seconds limit, which templates the sandbox allows, and how much trial
+   credit is left.
 6. **n8n Cloud voucher:** redeemed on Thursday; note the plan tier, monthly execution cap,
    concurrency limit, instance version and public API access. The voucher lasts a month and
    expires a week after the event. The voucher PDF stays out of git.
