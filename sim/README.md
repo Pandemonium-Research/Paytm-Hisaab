@@ -7,7 +7,8 @@ guessed.
 
 This is Phase 3 of [PHASES.md](../PHASES.md) and §5 of
 [IMPLEMENTATION_PLAN.md](../IMPLEMENTATION_PLAN.md). It is a clean rewrite. The v1 design notes
-in [DATA.md](../DATA.md) were its specification, but no v1 code or results are reused.
+in [DATA.md](../archive/agent-labs-2026-09-12/DATA.md) were its specification, but no v1 code or
+results are reused.
 
 > **The one rule.** Product code (core, n8n workflows, the memory service, the web app) reads
 > `data/<split>/visible/` only. `hidden/` is for `eval/`, the demo answer key and the
