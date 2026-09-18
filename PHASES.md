@@ -647,8 +647,11 @@ in this phase.
 **Owner:** A · **When:** Fri 13:00–19:00 · **Depends on:** 4, 2L · **Refs:** §6 tiers, §7,
 §14, §2 (lines we won't cross)
 
-- [ ] **6.1** Tiers in `current_view`, plus `POST /skills/tiers` returning ₹ and count per tier
+- [x] **6.1** Tiers in `current_view`, plus `POST /skills/tiers` returning ₹ and count per tier
       and the shape figure.
+      `current_view` takes an optional `p_opened_at`, so the tier is decided beside
+      `effective_label` and the two cannot drift. Boundary crossing is covered on both sides;
+      all four tiers are always returned. 92 Postgres tests pass (`cc79297`).
 - [ ] **6.2** `POST /skills/turnover`: apportionment by value for unbilled QR sales, excluded
       buckets with txn IDs, coverage, workings.
 - [ ] **6.3** `POST /skills/threshold`: aware of `gst_status`; projected date and days of
@@ -659,8 +662,11 @@ in this phase.
       badges, one decoy, recorded bill/device/geo and 339 seven-day credits. Ambiguous and missing
       matches remain explicit; merchant and clock bounds are covered by Postgres tests.
 - [ ] **6.5** `POST /skills/escalation-check`, with the rules and thresholds read from config.
-- [ ] **6.6** Guards: `citations` (the allowlist; unverified entries block approval),
-      `no-innocence`, `extraction`.
+- [x] **6.6** Guards: `citations` (the allowlist; unverified entries block approval),
+      `no-innocence`, `extraction`. **`numbers` is done too** — it shares the figure parser with
+      `extraction`, so writing them apart would have meant two number parsers disagreeing.
+      `language` stays a stub. Every guard is deterministic: no LLM, no network, no database.
+      Guards fail closed, including on an unreadable or unparseable `citations.yaml`.
 - [ ] **6.7** Grievance template filled from `legal/citations.yaml`.
 - [x] **6.8 (prototype freeze scope)** Real `POST /cases` and `POST /packs`: actual JSON and
       English ReportLab PDF with synthetic/simulated stamps, then `pack.built` with actual PDF
