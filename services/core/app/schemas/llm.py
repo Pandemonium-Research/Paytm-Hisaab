@@ -25,13 +25,16 @@ from datetime import date as Date  # aliased: NoticeExtraction has a field named
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import ConfigDict, Field
+
+from .common import AnswerChoice, ContractModel, Money, PredictionLabel
 
 
-class _Strict(BaseModel):
-    """Reject unknown keys, so a drifting prompt fails loudly instead of losing a field."""
+class _Strict(ContractModel):
+    """A's strict wire contract (unknown keys rejected, so a drifting prompt fails loudly instead of
+    losing a field), plus whitespace stripping, because model output often carries stray spaces."""
 
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    model_config = ConfigDict(str_strip_whitespace=True)
 
 
 # --------------------------------------------------------------------------------------
@@ -39,58 +42,10 @@ class _Strict(BaseModel):
 # --------------------------------------------------------------------------------------
 
 
-class Label(str, Enum):
-    """The seven ledger labels, mirroring `sim.catalog.LABELS` exactly.
-
-    Kept in lockstep with the simulator on purpose: `eval/score.py` scores predictions against
-    these, so any divergence would silently tank the measured accuracy.
-    """
-
-    TAXABLE_SUPPLY = "taxable_supply"
-    EXEMPT_SUPPLY = "exempt_supply"
-    PERSONAL_TRANSFER = "personal_transfer"
-    INTER_ACCOUNT = "inter_account"
-    NON_BUSINESS = "non_business"
-    REFUND_REVERSAL = "refund_reversal"
-    DUPLICATE = "duplicate"
-
-
-class PredictedLabel(str, Enum):
-    """`Label` plus `unclassified`, which is an allowed *answer* but never a ground truth.
-
-    Mirrors `sim.catalog.PREDICTION_LABELS`. A model that is unsure must say so here rather than
-    guess: an unclassified credit becomes a question candidate, and a wrong confident label does
-    not.
-    """
-
-    TAXABLE_SUPPLY = "taxable_supply"
-    EXEMPT_SUPPLY = "exempt_supply"
-    PERSONAL_TRANSFER = "personal_transfer"
-    INTER_ACCOUNT = "inter_account"
-    NON_BUSINESS = "non_business"
-    REFUND_REVERSAL = "refund_reversal"
-    DUPLICATE = "duplicate"
-    UNCLASSIFIED = "unclassified"
-
-
-class MerchantAnswer(str, Enum):
-    """What a merchant may tap on M2, or reply with a digit on WhatsApp.
-
-    Mirrors the keys of `sim.catalog.ANSWER_CHOICES`. The enum keeps all 7; each channel shows a
-    subset (WhatsApp numbers 4, the M2 chips show 5, voice and free text reach all 7). The decision
-    and the measurements behind it are under Decisions in `n8n/README.md`.
-
-    TODO(1.4): A's `AnswerChoice` is the same enum. Once A's schemas land, import it here and
-    delete this class, so there is one definition (agreed with A, 18 Sep).
-    """
-
-    SALE = "sale"
-    FAMILY = "family"
-    OWN_MONEY = "own_money"
-    LOAN_OR_GIFT = "loan_or_gift"
-    REFUND = "refund"
-    DOUBLE_PAYMENT = "double_payment"
-    NOT_SURE = "not_sure"
+# `PredictionLabel` and `AnswerChoice` come from `common.py` (A's), which mirrors
+# `sim.catalog.PREDICTION_LABELS` and `sim.catalog.ANSWER_CHOICES`. They were duplicated here until
+# A's schemas landed (18 Sep). Each channel shows a subset of `AnswerChoice`: WhatsApp numbers 4,
+# the M2 chips show 5, and voice or free text reach all 7 (see Decisions in `n8n/README.md`).
 
 
 class EvidenceKind(str, Enum):
@@ -120,7 +75,7 @@ class HardCaseLabel(_Strict):
     which caps confidence at 0.85 and appends `label.proposed`.
     """
 
-    label: PredictedLabel = Field(
+    label: PredictionLabel = Field(
         description="Best label, or 'unclassified' when the evidence does not support one."
     )
     confidence: float = Field(
@@ -180,7 +135,7 @@ class IntentSlots(_Strict):
         default=None,
         description="Credit the message is about, when the merchant names one or replies to a question.",
     )
-    answer: MerchantAnswer | None = Field(
+    answer: AnswerChoice | None = Field(
         default=None,
         description="Only for answer_question / correct_label. Must be one of the tap choices.",
     )
@@ -223,11 +178,10 @@ class NoticeExtraction(_Strict):
     date: Date = Field(description="Date on the notice.")
     period_from: Date
     period_to: Date
-    claimed_turnover_paise: int = Field(
-        ge=0,
+    claimed_turnover: Money = Field(
         description=(
-            "Turnover the notice claims, in paise as an integer. Paise because every amount in "
-            "core is an integer; a float here would round-trip badly against the OCR text."
+            "Turnover the notice claims, in whole rupees (A's `Money`: never paise or a float). The "
+            "extraction guard checks it against `claimed_turnover_as_printed`."
         ),
     )
     claimed_turnover_as_printed: str = Field(
@@ -295,9 +249,6 @@ class HandoffSummary(GeneratedProse):
 
 
 __all__ = [
-    "Label",
-    "PredictedLabel",
-    "MerchantAnswer",
     "EvidenceKind",
     "HardCaseLabel",
     "Intent",
