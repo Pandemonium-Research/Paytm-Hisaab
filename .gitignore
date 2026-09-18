@@ -1,8 +1,7 @@
-# Generated datasets (reproducible: python -m synth.generate, ~1 min).
-# Ignore the contents, not the folder itself, so the exceptions below still apply.
+# Generated datasets (reproducible: python -m sim.generate, about 30 s).
+# Ignore the contents, not the folder itself, so the exception below still applies.
 /data/*
 !/data/README.md
-!/data/reference/
 
 # Knowledge graph, rebuilt by `graphify update .`
 graphify-out/
@@ -52,3 +51,7 @@ scratch/
 
 # SQLite provenance ledger, rebuilt by the nightly pass
 *.db
+
+# Hackathon voucher and reference screenshots: never in git
+N8N CREDITS .docx.pdf
+/design/reference/
