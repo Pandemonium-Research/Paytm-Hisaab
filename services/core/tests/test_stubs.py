@@ -121,6 +121,7 @@ REAL_ENDPOINTS = {
     "POST /skills/classify-rules",
     "POST /skills/select-questions",
     "POST /skills/isolate",
+    "POST /skills/tiers",
     "POST /cases",
     "POST /packs",
     "PUT /app/profile",

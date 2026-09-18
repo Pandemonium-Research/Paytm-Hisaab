@@ -5,6 +5,7 @@ from ..db import get_connection
 from ..skills.classify_rules import classify
 from ..skills.isolate import isolate
 from ..skills.question_budget import select_questions
+from ..skills.tiers import tiers
 
 from ..schemas.api import skills as models
 from ._stub import add_post
@@ -27,10 +28,14 @@ def isolation(body: models.IsolateRequest, role=Depends(require_role("POST /skil
     return isolate(connection, body)
 
 
+@router.post("/skills/tiers", response_model=models.TiersResponse)
+def evidence_tiers(body: models.TiersRequest, role=Depends(require_role("POST /skills/tiers")), connection=Depends(get_connection)):
+    return tiers(connection, body)
+
+
 for endpoint, path, request, response in (
     ("POST /skills/turnover", "/skills/turnover", models.TurnoverRequest, models.TurnoverResponse),
     ("POST /skills/threshold", "/skills/threshold", models.ThresholdRequest, models.ThresholdResponse),
-    ("POST /skills/tiers", "/skills/tiers", models.TiersRequest, models.TiersResponse),
     ("POST /skills/escalation-check", "/skills/escalation-check", models.EscalationCheckRequest, models.EscalationCheckResponse),
 ):
     add_post(router, area="skills", endpoint=endpoint, path=path, request_model=request, response_model=response)
