@@ -10,9 +10,12 @@ waiting for each other or editing the same files.
 **Current queue, 18 Sep:** [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) overrides the historical
 ordering below. Payments/questions/answers, assistant forwarding/delivery and repeatable reset
 are complete. CP1 passes on B's local stack; A's rerun with the credit window is pending.
-A has delivered 6.9/6.10 and the four prototype case/officer reads (6.11). Isolation and
-packs/PDF (6.4/6.8) are next; turnover reads wait for 6.2.
-B has prepared WF20/O1/O2/M5; connect and verify them for CP2 when those handoffs land.
+A has delivered 6.4/6.8 freeze isolation and actual JSON/PDF packs, 6.9/6.10 detector and
+approval/send gate, and four prototype case/officer reads (6.11). Minimal H8 core handoff is ready.
+B should bound WF20 polling and connect O1/O2/M5 for joint CP2; A supports that integration.
+Turnover (6.2), threshold (6.3) and their report/read follow next; notice PDFs remain deferred.
+Cursor build jobs should cover one helper or endpoint each, with exact contracts and acceptance
+checks; A validates each result before dependent delegation.
 The remaining credit-guard block does not block this queue. Keep lane ownership and
 contracts; defer extra security, legal research, measurement, memory/voice and polish.
 

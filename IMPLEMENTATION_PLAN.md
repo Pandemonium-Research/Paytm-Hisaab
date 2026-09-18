@@ -8,9 +8,13 @@ and polish are deferred. Existing API contracts and lane ownership remain in for
 Payments, proposals, questions, answers and M1/M2 reads persist in Postgres. Repeatable reset
 is complete, and CP1 passes on B's local stack; A's rerun with the credit window is pending.
 Assistant forwarding and persisted app delivery are implemented; assistant SSE is deferred with M6.
-A has delivered the freeze detector, approval/send gate and four case/officer reads
-(6.9/6.10/6.11 prototype scope). Isolation and packs/PDF (6.4/6.8) are next, then the joint
-WF20/officer-screen check for CP2. `/app/turnover` waits for the real turnover skill (6.2).
+A has delivered freeze isolation and actual JSON/English PDF packs (6.4/6.8 prototype scope),
+the detector, approval/send gate and four case/officer reads (6.9/6.10/6.11 prototype scope).
+The core HTTP lifecycle passes; the joint bounded WF20/officer-screen/merchant-tracker check
+is next for CP2. Full-period tiers and notice/Indic PDFs remain deferred. Turnover (6.2),
+threshold (6.3) and their report/read follow; `/app/turnover` still waits for 6.2.
+Delegate one helper or endpoint per Cursor build job, with exact contracts and acceptance
+checks, and validate it before assigning dependent work.
 
 **Paytm Build for India AI Hackathon · Bengaluru · Track 3: Autonomous AI Teammates · Sat 19 Sep 2026**
 Stack: n8n Cloud (voucher) · Sarvam AI · Cognee (hackathon credits) · Python/FastAPI · PostgreSQL · WhatsApp via Twilio · Paytm-style mobile PWA

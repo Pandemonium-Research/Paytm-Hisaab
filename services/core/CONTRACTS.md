@@ -144,6 +144,25 @@ Outbox times come from ledger business time rather than wall-clock insertion tim
 remain null unless recorded, and the current entire-account freeze reports zero usable balance;
 simulated delivery is no evidence of bank release. `/app/turnover` still waits for the real skill.
 
+`POST /skills/isolate` reads persisted, merchant-scoped evidence at the earlier of `as_of` and
+the sim clock. UTR and amount/IST-date matching are independent badges; ambiguous candidates
+are not guessed. Same-amount alternatives, validated bill links, terminal/geo and the seven-day
+credit count come from recorded data.
+
+`POST /cases` (evidence) validates a visible owned trigger (`lien_marked` for freeze,
+`notice_served` for notice) and returns the original case/entry on retry. The case is dated to
+the trigger, and the request's `sim_at` is its visibility cutoff.
+`POST /packs` (evidence) builds freeze JSON and an English PDF from actual isolation evidence.
+Tier amounts explicitly cover the selected disputed payment only. `pack.built` records the
+actual PDF SHA-256; the same case/type/build time returns its original pack and entry. Missing
+or inconsistent recorded artifacts fail with 500; builds before case opening or beyond the sim
+clock fail with 422. Notice packs return 422 until their report is implemented.
+
+Build responses expose `/api/packs/<opaque-pack-id>.json` and `.pdf` through Caddy. Core serves
+`GET /packs/{id}.json|pdf` with the existing officer read role key. Only recorded artifacts
+inside the configured pack directory are served; unknown, missing or future packs return 404.
+Officer case `pdf_url` uses the same download path. No credentials are included in the URLs.
+
 `GET /credits` takes an optional `from` and `to`, a **half-open window `[from, to)`** on the
 payment's `ts`: a credit exactly at `from` is returned, one exactly at `to` is not. Both need a
 UTC offset, because the chain stores UTC and the screens answer IST, so a bare date would have

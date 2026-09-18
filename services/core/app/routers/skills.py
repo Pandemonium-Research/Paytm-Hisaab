@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 from ..auth import require_role
 from ..db import get_connection
 from ..skills.classify_rules import classify
+from ..skills.isolate import isolate
 from ..skills.question_budget import select_questions
 
 from ..schemas.api import skills as models
@@ -20,10 +21,15 @@ def rules(body: models.ClassifyRulesRequest, role=Depends(require_role("POST /sk
 def select(body: models.SelectQuestionsRequest, role=Depends(require_role("POST /skills/select-questions")), connection=Depends(get_connection)):
     return select_questions(connection, body)
 
+
+@router.post("/skills/isolate", response_model=models.IsolateResponse)
+def isolation(body: models.IsolateRequest, role=Depends(require_role("POST /skills/isolate")), connection=Depends(get_connection)):
+    return isolate(connection, body)
+
+
 for endpoint, path, request, response in (
     ("POST /skills/turnover", "/skills/turnover", models.TurnoverRequest, models.TurnoverResponse),
     ("POST /skills/threshold", "/skills/threshold", models.ThresholdRequest, models.ThresholdResponse),
-    ("POST /skills/isolate", "/skills/isolate", models.IsolateRequest, models.IsolateResponse),
     ("POST /skills/tiers", "/skills/tiers", models.TiersRequest, models.TiersResponse),
     ("POST /skills/escalation-check", "/skills/escalation-check", models.EscalationCheckRequest, models.EscalationCheckResponse),
 ):

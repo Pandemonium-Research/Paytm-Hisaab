@@ -2,26 +2,53 @@ from fastapi import APIRouter, BackgroundTasks, Depends
 
 from ..auth import require_role
 from ..cases import approvals
+from ..cases import serve as artifact_serve
+from ..cases.build import build_pack
+from ..cases.open import create_case
 from ..db import get_connection
 from ..ledger.mutations import wire_entry
 from ..schemas.api import cases as models
 from ..schemas.ledger import EntryKind
-from ._stub import add_post
 
 router = APIRouter(tags=["cases and packs"])
 
-# 6.8 builds the pack JSON and PDF; until then these two return fixtures.
-for endpoint, path, request, response, kind in (
-    ("POST /cases", "/cases", models.CreateCaseRequest, models.CreateCaseResponse, EntryKind.CASE_OPENED),
-    ("POST /packs", "/packs", models.BuildPackRequest, models.BuildPackResponse, EntryKind.PACK_BUILT),
+
+@router.post("/cases", response_model=models.CreateCaseResponse)
+def open_case(
+    body: models.CreateCaseRequest,
+    role=Depends(require_role("POST /cases", EntryKind.CASE_OPENED)),
+    connection=Depends(get_connection, scope="function"),
 ):
-    add_post(router, area="cases", endpoint=endpoint, path=path, request_model=request, response_model=response, entry_kind=kind)
+    return create_case(connection, body, role)
 
 
-# The decision routes use scope="function" for the same reason as POST /rails/events: the resume
-# must reach the waiting workflow only after the decision has committed, or WF20 re-reads core and
-# finds nothing. `workflow_resumed` therefore reports that a resume was scheduled for after commit,
-# since its delivery happens once the response has gone (D38).
+@router.post("/packs", response_model=models.BuildPackResponse)
+def build(
+    body: models.BuildPackRequest,
+    role=Depends(require_role("POST /packs", EntryKind.PACK_BUILT)),
+    connection=Depends(get_connection, scope="function"),
+):
+    return build_pack(connection, body, role)
+
+
+@router.get("/packs/{pack_id}.json")
+def pack_json(
+    pack_id: str,
+    role=Depends(require_role("GET /app/officer/cases/{id}")),
+    connection=Depends(get_connection),
+):
+    return artifact_serve.artifact_response(connection, pack_id, "json")
+
+
+@router.get("/packs/{pack_id}.pdf")
+def pack_pdf(
+    pack_id: str,
+    role=Depends(require_role("GET /app/officer/cases/{id}")),
+    connection=Depends(get_connection),
+):
+    return artifact_serve.artifact_response(connection, pack_id, "pdf")
+
+
 def decision(pack_id, body, role, connection, background, *, approve):
     entry, resume_url = approvals.decide(connection, pack_id, body, role, approve=approve)
     status = "approved" if approve else "rejected"

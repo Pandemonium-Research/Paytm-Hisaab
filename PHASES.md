@@ -3,7 +3,8 @@
 **Active priority, 18 Sep:** deliver a functioning prototype. Follow
 [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) for the current queue and completion evidence.
 Payments/questions/answers persist and CP1 passes on B's local stack. A has delivered the
-freeze detector, approval/send gate and case reads; evidence packs are next for CP2.
+freeze detector, isolation, actual freeze packs/PDF, approval/send gate and case reads.
+The joint WF20/officer-screen/merchant-tracker check is next for CP2.
 Historical P0 labels and
 "never cut" rules below do not make additional hardening, legal research, evaluations or polish
 prerequisites for these gates; the user's current prototype scope takes precedence.
@@ -652,14 +653,25 @@ in this phase.
       buckets with txn IDs, coverage, workings.
 - [ ] **6.3** `POST /skills/threshold`: aware of `gst_status`; projected date and days of
       warning; exclusively-exempt verdict.
-- [ ] **6.4** `POST /skills/isolate`: matching by UTR **and independently** by amount and date;
+- [x] **6.4** `POST /skills/isolate`: matching by UTR **and independently** by amount and date;
       same-amount candidates; bill, device and geo; the 7-day count.
+      Persistent, as-of reads validated on the actual visible demo: `DM0038619` matched by both
+      badges, one decoy, recorded bill/device/geo and 339 seven-day credits. Ambiguous and missing
+      matches remain explicit; merchant and clock bounds are covered by Postgres tests.
 - [ ] **6.5** `POST /skills/escalation-check`, with the rules and thresholds read from config.
 - [ ] **6.6** Guards: `citations` (the allowlist; unverified entries block approval),
       `no-innocence`, `extraction`.
 - [ ] **6.7** Grievance template filled from `legal/citations.yaml`.
-- [ ] **6.8** `POST /cases` and `POST /packs`: pack JSON and PDF (WeasyPrint, Noto Indic
-      fonts, SIMULATED and prototype stamps), then `pack.built`.
+- [x] **6.8 (prototype freeze scope)** Real `POST /cases` and `POST /packs`: actual JSON and
+      English ReportLab PDF with synthetic/simulated stamps, then `pack.built` with actual PDF
+      SHA-256. Build retries return the same artifacts; missing recorded files fail explicitly.
+      Downloads require the officer key and respect sim-clock rewind. Grading covers only the
+      selected disputed payment. Cursor draft was supervised and corrected by A; 15 new Postgres
+      tests pass (88 total), alongside 163 core and 19 fakes tests. Rebuilt core passed an isolated
+      real HTTP lien → isolate/build → approve → send → case reads lifecycle; test data rolled back.
+      Both exported PDF pages were rendered and inspected. Joint WF20/screens CP2 remains pending.
+- [ ] **6.8 report/rendering follow-up** Notice packs, full-period evidence grading and Indic
+      rendering remain deferred. Notice builds return 422 until the turnover report exists.
 - [x] **6.9** Freeze detector: a lien, or declines followed by a lien, opens `case.opened` and
       fires the n8n webhook.
       A `lien_marked` event opens `case.opened(freeze)`, keyed `CASE-FREEZE-<event_id>`, so a replayed
@@ -673,14 +685,14 @@ in this phase.
       09:30 in 0.03 s; a probe standing in for WF20 got the right path and secret and found the case
       already committed when told; the replayed lien opened nothing and sent nothing; with n8n
       stopped a lien still returned 200 and opened its case; `GET /ledger/verify` ok. The CP1
-      snapshot was restored afterwards. `POST /cases` (evidence) is still a fixture: it is 6.8's.
+      snapshot was restored afterwards. Explicit evidence-role `POST /cases` is now real in 6.8.
 - [x] **6.10** Approvals: the `resume_url` is stored; `/packs/{id}/approve|reject` appends an
       entry and resumes the Wait; `/outbox/{pack}/send` refuses without `pack.approved`, then
       appends `pack.sent`.
       The gate reads the ledger, not `ops.approvals` (D37); decisions are final and retries return
       the original; sends are simulated and idempotent. The resume URL lives on the pack's approval
       record and is called after commit, only at `N8N_BASE_URL`'s origin (D38). `record_pack` is the
-      recording half of `POST /packs`, which stays a fixture until 6.8 renders the PDF. 14 Postgres
+      recording half now used by 6.8's actual JSON/PDF build. At this checkpoint, 14 Postgres
       tests (61 in all); eight deliberate breakages of the gate each fail one, including a gate that
       trusts the status column, decisions that are not final, a resume URL allowed anywhere, and a
       rejection beside an approval. Running stack, with a probe as WF20's Wait: send before approval

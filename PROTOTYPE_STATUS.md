@@ -21,7 +21,7 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Freeze detector (6.9) | Complete; the lien opens `CASE-FREEZE-<event>` and WF20 is told after commit |
 | A | Approvals and the outbox gate (6.10) | Complete; the gate reads the ledger, decisions are final, sends are simulated |
 | A | Four case/officer read models (6.11 prototype scope) | Complete; Composer 2.5 implementation, A review/fixes, Postgres and HTTP checks |
-| A | Payment isolation (6.4) and real freeze packs/PDF (6.8) | Next; closes the remaining core gap for CP2 |
+| A | Payment isolation (6.4) and real freeze packs/PDF (6.8) | Complete in prototype freeze scope; actual artifacts and isolated HTTP lifecycle verified |
 | B | Minimal WF10, including the hard-case Sarvam branch | Complete; passes against the real stack |
 | B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Complete; real reads and persisted taps |
 | Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **Passes cold on B's machine** (117 s); A's machine is ~10x slower and timed out. Awaiting a re-run on A's with the credit window. Real-provider path (L1) pending |
@@ -33,9 +33,9 @@ Lien event → case → isolate disputed payment and show decoy → evidence pac
 
 | Owner | Work | Status |
 |---|---|---|
-| A | Case creation, isolation, pack, approve/reject/send and case read models | Freeze detector (6.9), approvals/outbox gate (6.10) and case reads (6.11 prototype scope) done; isolation and packs/PDF next |
-| B | WF20, O1/O2 and M5 | Prepared locally against existing contracts; approval/rejection orchestration checks pass; H8/CP2 pending |
-| Both | Officer approval and simulated send end to end | Pending |
+| A | Case creation, isolation, pack, approve/reject/send and case read models | Complete in prototype freeze scope; minimal H8 core handoff ready |
+| B | WF20, O1/O2 and M5 | Prepared locally; connect the real pack handoff, bound the polling loop and run CP2 |
+| Both | Officer approval and simulated send end to end | Core HTTP lifecycle passes; joint n8n, officer-screen and merchant-tracker check pending |
 
 Then add turnover/threshold and the notice report. A selected specimen notice can precede OCR.
 
@@ -93,8 +93,8 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
   workflow is resumed after commit, only at our own n8n. On the running stack, send before approval
   was 409, approval with the evidence key 403, officer approval 200, reject afterwards 409, and send
   simulated; a probe standing in for WF20's Wait found the decision already committed when resumed.
-  61 Postgres tests; eight deliberate breakages of the gate each fail one. `POST /packs` itself is
-  still a fixture: its recording half (`record_pack`) is real and waits on 6.8's PDF.
+  61 Postgres tests at this checkpoint; eight deliberate breakages of the gate each fail one.
+  The real `POST /packs` build now uses this recording half (`record_pack`), delivered in 6.8 below.
 
 - **A: freeze detector, 6.9 (18 Sep, D35, D36).** A `lien_marked` event opens
   `case.opened(freeze)` as `CASE-FREEZE-<event_id>`, dated to the lien, and `POST /rails/events`
@@ -117,8 +117,20 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
   Running core returns empty demo case lists and unknown-case 404; a separate HTTP lifecycle on
   the isolated test database passed open → awaiting approval → approved → sent → rewind. Test data
   was rolled back and the shared demo clock was untouched. `/app/turnover` remains deferred to 6.2.
-- Cursor's read-only review of 6.9/6.10 found no blocker in their implemented flows. The known
-  fixture `POST /packs` prevents WF20's joint approval/send path; that is the next core task.
+- Cursor's read-only review of 6.9/6.10 found no blocker in their implemented flows. Its known
+  fixture-pack integration gap is now closed by the real 6.8 build.
+- **A: isolation and freeze evidence packs, 6.4/6.8 prototype scope (18 Sep).** Independent UTR
+  and amount/date matching returns the actual disputed credit, same-amount decoy, recorded bill,
+  terminal/geo and seven-day count. `POST /cases` persists cases; `POST /packs` writes actual JSON
+  and an English ReportLab PDF, records its SHA-256 and returns the original build on retry.
+  Officer-authenticated artifact downloads follow the sim clock. Grading covers the selected
+  disputed payment only; full-period tiers, notice PDFs and Indic rendering remain deferred.
+  Composer built from A's spec; A reviewed, corrected and verified the result. Validation:
+  **163 core, 88 Postgres and 19 fakes tests pass.** An isolated real HTTP run found `DM0038619`
+  by both badges, one decoy and 339 seven-day credits, then built → approved → sent with a valid
+  chain. Unapproved send was 409, missing artifact key 403 and rewind download 404. Both PDF
+  pages were rendered and inspected. Test data was rolled back; the shared CP1 clock/data stayed
+  unchanged. Core was rebuilt with the new dependency; the joint WF20/screens check is still pending.
 
 - **A: half-open credit window on `GET /credits` (18 Sep, D34).** `from` and `to` are optional
   aware instants bounding `[from, to)` on the payment's `ts`: `from` is inclusive, `to` exclusive,
@@ -157,12 +169,12 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
   three questions. That is what made reset the blocker. Open question for B: did the passing run
   print `(resumed run: the questions already existed...)`, and how long did its WF10 execution take?
 
-**Current limitation:** assistant SSE, evidence skills (tiers/isolation/turnover/threshold),
-explicit case creation (`POST /cases`), pack generation (`POST /packs`) and `/app/turnover` still
-return fixtures. The first gate passes on B's local stack; the real-provider check is pending.
-A lien opens a real freeze case (6.9), officer decisions and the gated simulated send are real
-(6.10), case/officer reads are real, and snapshot/reset works. CP2 still needs real isolation and packs/PDF before its
-joint workflow and screen check.
+**Current limitation:** assistant SSE, full-period tiers, turnover/threshold/escalation skills
+and `/app/turnover` remain unfinished. Freeze packs grade only the selected disputed payment and
+use English PDFs; notice pack builds return 422 until their report is implemented. The first
+gate passes on B's local stack; the real-provider check is pending. The freeze backend now works
+through actual case, isolation, pack, officer decision, simulated delivery and read models.
+CP2 still needs its joint workflow and screen check.
 
 ### Integration notes for B
 
@@ -179,11 +191,13 @@ joint workflow and screen check.
   both aware instants (a bare date is refused). WF10 should pass its `window_from`/`window_to`
   straight through instead of paging and filtering in the Code node. `services/core/CONTRACTS.md`
   has the full semantics.
-- A lien now opens a real case and core POSTs WF20's `{case_id, merchant_id, opened_at, trigger}` after
-  commit; `services/core/CONTRACTS.md` shows the body. **Do not fire WF20 at the stack yet:**
-  `POST /packs` still returns a fixture pack that real approval cannot find. Officer-case reads
-  now report the real ID/status, but WF20's 5 s Wait loop has no bound. B needs a loop limit
-  before CP2; A's next handoff replaces pack/isolation fixtures.
+- A lien opens a real case and core POSTs WF20's `{case_id, merchant_id, opened_at, trigger}` after
+  commit; `services/core/CONTRACTS.md` shows the body. Isolation and `POST /packs` now return real
+  evidence and pack IDs. B should bound WF20's 5 s polling loop, then run a controlled local CP2
+  with O1/O2 and M5. n8n remains stopped on A's stack until that integration run.
+- Pack responses expose `/api/packs/<opaque-id>.json` and `.pdf`; downloads require the officer
+  role header, already supported by the web download helper. Tier amounts describe the selected
+  disputed payment, not the merchant's full-period evidence coverage.
 - Approve/reject/send are real (`services/core/CONTRACTS.md` has the semantics). WF20's send is gated
   in core on the ledger, and `workflow_resumed: true` now means a resume is scheduled after commit.
   The frozen `BuildPackRequest` has no resume URL field. Polling uses the real officer-case status;
@@ -223,3 +237,6 @@ separation. Local n8n is the initial target; Cloud `$env` is still unresolved fo
 - Commit and push completed slices; update this file and A's own phase checkboxes with evidence.
 - No Codex or Claude coauthor trailers. No history rewrite is part of this queue.
 - Test behavior that can break the two gates; do not add unrelated hardening as a prerequisite.
+- Give Cursor one helper or endpoint per build job, with exact inputs, outputs and acceptance
+  checks. A reviews and validates each result before assigning dependent work; A runs commands
+  that Cursor's approval settings block.

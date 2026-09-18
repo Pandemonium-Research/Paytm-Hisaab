@@ -120,6 +120,9 @@ REAL_ENDPOINTS = {
     "GET /app/cases", "GET /app/officer/queue", "GET /app/officer/cases/{id}", "GET /app/officer/outbox",
     "POST /skills/classify-rules",
     "POST /skills/select-questions",
+    "POST /skills/isolate",
+    "POST /cases",
+    "POST /packs",
     "PUT /app/profile",
     "POST /packs/{id}/approve", "POST /packs/{id}/reject", "POST /outbox/{pack}/send",
 }
