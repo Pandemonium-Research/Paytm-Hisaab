@@ -93,7 +93,7 @@ beats) → CP3 → 12. A delay on this path delays the demo. Anything off it can
       concurrency limit, instance version and public API access in `n8n/README.md`.
       → **Pro for a month: 10,000 executions, 20 concurrent, 7-day logs, public API
       included.** `pandemonium-research.app.n8n.cloud`; the API key works (checked 18 Sep)
-      and expires 16 Dec. The instance version is still to be read from Help → About n8n.
+      and expires 16 Dec. **n8n@2.39.7**; pin the local n8n to the same image.
 - [x] **0.1b** Redeem the **Cognee hackathon credits** at platform.cognee.ai/billing, and note
       the API key, the credit balance and where it runs out.
       → **$45 at $1 per million tokens (about 45M tokens)**. Hosted API docs:
@@ -163,7 +163,8 @@ These are frozen before anyone builds, so neither lane waits on the other.
 **Owner:** A · **Depends on:** 1 · **Refs:** §4, §6, §7, §14, §16
 
 - [ ] **2A.1** `docker-compose.yml`: postgres (pgvector), core, memory placeholder, web, caddy,
-      and the `local-n8n` profile. `tasks.py` with `up`, `migrate` and `test`.
+      and the `local-n8n` profile, pinned to `n8nio/n8n:2.39.7`, the version on n8n Cloud.
+      `tasks.py` with `up`, `migrate` and `test`.
 - [ ] **2A.2** Caddy in compose on :8080 routing one origin by path (`/api/*` → core, `/mem/*`
       → memory, everything else → web), and the free `cloudflared` quick tunnel, which the
       phones need (HTTPS for the PWA and the microphone). The local n8n reaches core on the
