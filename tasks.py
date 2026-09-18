@@ -121,6 +121,15 @@ def cmd_n8n(args: argparse.Namespace, environment: dict[str, str]) -> None:
         if not args.live:
             raise SystemExit("--target cloud requires --live; use --target local during development")
         _require_live(environment, "n8n Cloud workflow import/export")
+    else:
+        # Match compose/core defaults even when .env predates the current stack. The
+        # credentials template otherwise imports empty role keys while core uses dev-*.
+        environment = environment.copy()
+        defaults: dict[str, str] = {}
+        load_env_file(ROOT / ".env.example", defaults)
+        for name, value in defaults.items():
+            if value and not environment.get(name):
+                environment[name] = value
     command = [sys.executable, "n8n/cli.py", args.action, "--target", args.target]
     if getattr(args, "activate", False):
         command.append("--activate")

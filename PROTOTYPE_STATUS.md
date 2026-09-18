@@ -15,7 +15,7 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Persistent clock, rails ingestion/replay and merchant/credit reads | Complete |
 | A | Real proposals, questions, claims and derived current view | Complete |
 | A | Rules, question selection, M1/M2 reads and language preference | Complete |
-| A | App-message forwarding and persisted assistant delivery | Complete; live workflow smoke pending |
+| A | App-message forwarding and persisted assistant delivery | Complete; real local WF31/WF30 smoke passed |
 | A | Repeatable demo seed/reset and first-gate integration check | Next |
 | B | Minimal WF10, including the hard-case Sarvam branch | Built/imported locally (`6152c98`); real integration pending |
 | B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Built/running locally (`6152c98`); real integration pending |
@@ -40,10 +40,13 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
 - B: WF30 and WF31's signed numbered-reply path work against the fixtures (`e5b25ab`).
 - A: database roles/migrations, chain append/verify and mutation controls (`e499483`).
 - A: B's local n8n environment settings and workflow import/export task commands.
-- A: Phase 4 payment backend now persists rails, proposals, questions and merchant answers.
+- A (`732a65d`): Phase 4 payment backend now persists rails, proposals, questions and merchant answers.
   M1/M2 and payment/history reads use Postgres; preferred language is saved.
 - A: assistant inbound forwards unchanged JSON to B's WF31; WF30 app messages persist in
   `ops.conversations`. A failed workflow connection returns 502 instead of fixture success.
+- Real local workflow smoke passed: app tap → core forwarding → B's WF31 → persisted
+  family answer → WF30 → persisted Kannada acknowledgement (`ನಿಮ್ಮ ಉತ್ತರ ದಾಖಲಾಗಿದೆ.`).
+  It used a separate synthetic merchant, leaving the demo window available for B's WF10.
 - Running-core smoke: a saved family answer closes the question, retains its machine label
   and survives a core restart. The generated 68-credit window selects exactly the expected
   ₹7,500, ₹4,850 and ₹15,000 payments; ₹23 is skipped and Raghu has two prior purchases.
@@ -69,6 +72,12 @@ rails events does not yet open cases or process a freeze.
 - Question IDs must stay the same on retries. Both selection and question writes enforce
   three per merchant per business day; answers preserve the machine label.
 - `GET /config` is real; prompts and other unlisted skills remain fixtures.
+- `tasks.py import-n8n --target local --activate` fills missing local environment values from
+  `.env.example`. This keeps imported credentials aligned with core's fake defaults, even
+  when an existing `.env` predates the role keys. Cloud import still requires explicit live mode.
+- The web app is built and served at `http://localhost:8080/?merchant=MID_DEMO_SAHANA`;
+  its real Home API reports the persisted business date and balance. No demo questions are
+  prefilled: WF10 must create them during CP1.
 
 B's first-gate runner is ready:
 `python n8n/tests/check_first_gate.py --merchant MID_DEMO_SAHANA --restart-core`.

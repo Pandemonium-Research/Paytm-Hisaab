@@ -523,6 +523,14 @@ up to a day later and more family money comes by QR.
 
 Each item replaces its stub in the running stack as soon as it lands.
 
+**Prototype status, 18 Sep (`732a65d`):** 4.1–4.8 plus M1/M2/payment reads, language
+preference and assistant forwarding/persisted outbound are implemented. 173 core, 35 Postgres
+and 19 fakes checks pass. Full visible replay and answer persistence through core restart pass.
+A real app tap also passes core forwarding → B's WF31 → persisted claim → WF30 Kannada
+acknowledgement, with the machine proposal preserved.
+B's workflows/screens are available in `6152c98`; combined CP1 remains pending the WF10
+window/default-merchant integration. SSE, extra guards and polishing are deferred by the active queue.
+
 - [x] **4.1** `clock.py` (`sim_now`), `POST /sim/clock`.
 - [x] **4.2** `POST /rails/credits|bills|events` and `POST /sim/replay`, with an optional
       real-time factor. Prototype uses cutoff replay; pacing is deferred.
@@ -540,7 +548,8 @@ Each item replaces its stub in the running stack as soon as it lands.
 - [ ] **4.11** Read models `/app/home`, plus `/assistant/inbound|stream|outbound`: SSE, with
       inbound forwarded to the WF31 webhook along with `N8N_WEBHOOK_SECRET`.
       M1/M2/payment reads, language preference, assistant forwarding and persisted outbound
-      messages are real. Assistant SSE is deferred with M6 in the prototype queue.
+      messages are real; the local WF31/WF30 app-answer smoke passed. Assistant SSE is
+      deferred with M6 in the prototype queue.
 - [ ] **4.12** Tests: 10 Mar selects exactly the 3 seeded credits; the ₹23 payment is never
       asked about; no data after `as_of` leaks through; rules golden cases.
       Running-container check: all 68 visible credits on 8–9 Mar select ₹7,500, ₹4,850 and
