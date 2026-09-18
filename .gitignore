@@ -60,3 +60,6 @@ N8N CREDITS .docx.pdf
 # bare-name variant that is otherwise NOT ignored.
 env.live
 env.*.live
+
+# Per-machine runtime state written by `tasks.py publish` (the current tunnel hostname)
+/services/core/runtime/

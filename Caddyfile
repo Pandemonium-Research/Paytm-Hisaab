@@ -1,0 +1,39 @@
+:8080 {
+	encode zstd gzip
+
+	log {
+		output stdout
+		format console
+	}
+
+	@allowedCors {
+		path /api/* /mem/*
+		header Origin http://localhost:8080
+		header Origin {$PUBLIC_URL:http://localhost:8080}
+	}
+	header @allowedCors Access-Control-Allow-Origin "{http.request.header.Origin}"
+	header @allowedCors Access-Control-Allow-Headers "Content-Type, X-Hisaab-Key"
+	header @allowedCors Access-Control-Allow-Methods "GET, POST, OPTIONS"
+	header @allowedCors Vary "Origin"
+
+	@preflight {
+		path /api/* /mem/*
+		method OPTIONS
+		header Origin http://localhost:8080
+		header Origin {$PUBLIC_URL:http://localhost:8080}
+		header Access-Control-Request-Method *
+	}
+	respond @preflight "" 204
+
+	handle_path /api/* {
+		reverse_proxy core:8000
+	}
+
+	handle_path /mem/* {
+		reverse_proxy memory:8100
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}

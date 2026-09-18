@@ -1,0 +1,7 @@
+{
+  "POST /guards/numbers": {"guard": "numbers", "passed": true, "offending_spans": []},
+  "POST /guards/citations": {"guard": "citations", "passed": true, "offending_spans": []},
+  "POST /guards/no-innocence": {"guard": "no-innocence", "passed": true, "offending_spans": []},
+  "POST /guards/extraction": {"guard": "extraction", "passed": true, "offending_spans": []},
+  "POST /guards/language": {"guard": "language", "passed": true, "offending_spans": []}
+}

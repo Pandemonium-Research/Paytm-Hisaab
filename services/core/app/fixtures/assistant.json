@@ -1,0 +1,5 @@
+{
+  "POST /assistant/inbound": {"accepted": true, "conversation_id": "CONV1", "forwarded_to_workflow": true},
+  "GET /assistant/stream": {"event": {"event_id": "AE1", "event": "status", "data": "connected"}},
+  "POST /assistant/outbound": {"message_id": "M-OUT-1", "published": true}
+}

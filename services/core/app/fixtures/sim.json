@@ -1,0 +1,7 @@
+{
+  "POST /sim/clock": {"sim_at": "2026-03-24T09:30:00+05:30"},
+  "POST /sim/replay": {"split": "demo", "sim_at": "2026-03-24T09:30:00+05:30", "transactions_replayed": 339, "events_replayed": 2},
+  "POST /sim/reset": {"split": "demo", "reset": true, "sim_at": "2025-04-01T00:00:00+05:30"},
+  "POST /sim/tamper": {"tampered": true, "merchant_id": "MID_DEMO_SAHANA", "chain_index": 1},
+  "POST /anchors/run": {"anchor_id": "A1", "digest_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "simulated": true}
+}

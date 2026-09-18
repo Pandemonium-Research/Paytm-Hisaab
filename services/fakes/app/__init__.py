@@ -1,0 +1,1 @@
+"""Local provider stand-ins."""

@@ -1,0 +1,3 @@
+{
+  "GET /prompts/{name}": {"name": "hard-case-label", "version": "v1", "text": "Fixture prompt. The versioned prompt files arrive in Lane B.", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+}

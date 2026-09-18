@@ -1,0 +1,70 @@
+{
+  "GET /merchants/{id}": {
+    "merchant_id": "MID_DEMO_SAHANA",
+    "business_name": "Sahana Stores",
+    "owner_name": "Sahana",
+    "mcc": "5411",
+    "category": "mixed_kirana",
+    "supply_kind": "goods",
+    "gst_status": "unregistered",
+    "gstin": null,
+    "locality": "Jayanagar",
+    "city": "Bengaluru",
+    "state": "Karnataka",
+    "pincode": "560041",
+    "geo": {"lat": 12.925, "lon": 77.5938},
+    "preferred_language": "kn-IN",
+    "terminals": ["POS01"],
+    "linked_own_accounts": ["sahana-own@upi"],
+    "settlement_account": "XXXX1234",
+    "onboarded_on": "2025-04-01",
+    "data_window": ["2025-04-01", "2026-03-31"]
+  },
+  "GET /credits": {
+    "items": [{
+      "transaction": {
+        "txn_id": "DM0000001", "merchant_id": "MID_DEMO_SAHANA",
+        "ts": "2026-03-21T19:47:00+05:30", "direction": "CR", "amount": 4200,
+        "channel": "UPI_POS", "counterparty_id": "P123",
+        "counterparty_handle": "payer@upi", "counterparty_name": "DEMO CUSTOMER",
+        "terminal_id": "POS01", "pos_bill_id": "BDM0000001", "utr": "608119000001",
+        "orig_txn_id": null, "note": ""
+      },
+      "machine_label": "taxable_supply", "claim_label": null,
+      "effective_label": "taxable_supply", "tier": 1, "conflict": false, "entry_refs": [1]
+    }],
+    "next_cursor": null,
+    "as_of": "2026-03-24T09:30:00+05:30"
+  },
+  "GET /credits/{txn}": {
+    "transaction": {
+      "txn_id": "DM0000001", "merchant_id": "MID_DEMO_SAHANA",
+      "ts": "2026-03-21T19:47:00+05:30", "direction": "CR", "amount": 4200,
+      "channel": "UPI_POS", "counterparty_id": "P123",
+      "counterparty_handle": "payer@upi", "counterparty_name": "DEMO CUSTOMER",
+      "terminal_id": "POS01", "pos_bill_id": "BDM0000001", "utr": "608119000001",
+      "orig_txn_id": null, "note": ""
+    },
+    "machine_label": "taxable_supply", "claim_label": null,
+    "effective_label": "taxable_supply", "tier": 1, "conflict": false, "entry_refs": [1]
+  },
+  "GET /credits/by-utr/{utr}": {
+    "transaction": {
+      "txn_id": "DM0000001", "merchant_id": "MID_DEMO_SAHANA",
+      "ts": "2026-03-21T19:47:00+05:30", "direction": "CR", "amount": 4200,
+      "channel": "UPI_POS", "counterparty_id": "P123",
+      "counterparty_handle": "payer@upi", "counterparty_name": "DEMO CUSTOMER",
+      "terminal_id": "POS01", "pos_bill_id": "BDM0000001", "utr": "608119000001",
+      "orig_txn_id": null, "note": ""
+    },
+    "machine_label": "taxable_supply", "claim_label": null,
+    "effective_label": "taxable_supply", "tier": 1, "conflict": false, "entry_refs": [1]
+  },
+  "GET /payers/{cp}/history": {
+    "merchant_id": "MID_DEMO_SAHANA", "counterparty_id": "P123",
+    "as_of": "2026-03-24T09:30:00+05:30", "strictly_prior_credit_count": 4,
+    "channels": ["UPI_QR", "UPI_POS"], "merchant_has_paid_them": false,
+    "twin_txn_ids": [], "own_account_cue": false, "surname_cue": false,
+    "payer_facts": []
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "POST /app/push/subscribe": {"subscription_id": "PUSH-1", "subscribed": true},
+  "GET /config": {"environment": "local", "live": false, "default_locale": "en-IN", "supported_locales": ["en-IN", "kn-IN", "hi-IN"], "vapid_public_key": null}
+}

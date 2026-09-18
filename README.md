@@ -34,10 +34,36 @@ WhatsApp sandbox · a React PWA styled after Paytm for Business.
 | [data/](data/README.md) | Generated splits (gitignored) |
 | [archive/agent-labs-2026-09-12/](archive/agent-labs-2026-09-12/) | The earlier Agent Labs build. Kept for reference, never imported |
 
-## Try what exists so far
+## Local quickstart
 
 ```bash
-python -m sim.generate                  # all four splits, about 30 s
+python tasks.py up
+curl http://localhost:8080/api/healthz
+open http://localhost:8080/api/docs       # use start on Windows
+python tasks.py test
+```
+
+The default stack starts PostgreSQL with pgvector, core, the provider fakes and Caddy. Memory
+and web are declared under the `surfaces` profile because Lane B owns their Dockerfiles. Add
+`--surfaces` once those exist, and add `--local-n8n` for the pinned local n8n fallback. Until
+the web service lands, `/` and `/mem/*` correctly return 502 while `/api/*` remains available.
+
+For a phone, run `python tasks.py tunnel` in one terminal. It always uses HTTP/2. Then run
+`python tasks.py publish` in another terminal to write the captured hostname into core's
+runtime config. It does not contact n8n Cloud or Twilio. Only `python tasks.py --live publish`
+loads `.env.live` and updates those remote settings, and it refuses unless that file sets
+`HISAAB_LIVE=1`.
+
+Simulator generation remains available through the same runner:
+
+```bash
+python tasks.py generate                 # all four splits, about 30 s
+python tasks.py generate --only demo
+```
+
+Then the rules-only baseline and its score on the eval split, which need no stack:
+
+```bash
 python -m eval.baseline data/eval
 python -m eval.score data/eval data/eval/predictions_baseline.csv
 ```

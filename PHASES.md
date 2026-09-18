@@ -166,9 +166,13 @@ These are frozen before anyone builds, so neither lane waits on the other.
 
 **Owner:** A · **Depends on:** 1 · **Refs:** §4, §6, §7, §14, §16
 
-- [ ] **2A.1** `docker-compose.yml`: postgres (pgvector), core, memory placeholder, web, caddy,
+- [x] **2A.1** `docker-compose.yml`: postgres (pgvector), core, memory placeholder, web, caddy,
       and the `local-n8n` profile, pinned to `n8nio/n8n:2.39.7`, the version on n8n Cloud.
       `tasks.py` with `up`, `migrate` and `test`.
+      → `python tasks.py up` brings db, core, fakes and caddy up healthy from an empty volume.
+      memory and web sit behind the `surfaces` profile until B's Dockerfiles land (D19). The db
+      init is `.sql`, not `.sh`: the shell script failed from the bind mount and the extra
+      databases were silently never created (D25). `migrate` is a placeholder until 2A.3.
 - [ ] **2A.2** Caddy in compose on :8080 routing one origin by path (`/api/*` → core, `/mem/*`
       → memory, everything else → web), and the free `cloudflared` quick tunnel (`--protocol http2`), which the
       phones need (HTTPS for the PWA and the microphone). The local n8n reaches core on the
@@ -404,7 +408,9 @@ up to a day later and more family money comes by QR.
 ### Still pending
 
 - [x] **3.16** Commit `sim/` and `eval/` (`db5c16b`, `cb47fe0`).
-- [ ] **3.17** Wire `tasks.py generate` to `python -m sim.generate` (lands with 2A.1).
+- [x] **3.17** Wire `tasks.py generate` to `python -m sim.generate` (lands with 2A.1).
+      → Passes `--only`, `--out` and `--force` through. `sim.generate` refuses to overwrite a
+      split it did not write, so the current `data/demo` (no manifest) needs `--force`.
 - [ ] **3.18** Grep test proving nothing under `services/` or `n8n/` reads `hidden/` (add with
       2A.8; `services/` doesn't exist yet).
 - [ ] **3.19** Decide the deck figures. The data now gives a ₹53.17L notice claim (deck v2 says

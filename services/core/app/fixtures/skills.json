@@ -1,0 +1,9 @@
+{
+  "POST /skills/classify-rules": {"results": [{"txn_id": "DM0000001", "result": {"txn_id": "DM0000001", "label": "taxable_supply", "confidence": 1.0, "rule_id": "bill-v1", "ask": false, "reason": "A POS bill is linked."}}]},
+  "POST /skills/select-questions": {"selected": [{"txn_id": "DM0000002", "payer_id": "P124", "priority": 750.0, "expires_at": "2026-03-31T09:30:00+05:30"}], "expired_txn_ids": [], "remaining_daily_budget": 2},
+  "POST /skills/turnover": {"merchant_id": "MID_DEMO_SAHANA", "taxable": 3000000, "exempt": 1100000, "aggregate": 4100000, "estimated_unbilled_taxable": 100000, "estimated_unbilled_exempt": 50000, "excluded": [{"txn_id": "DM0000003", "amount": 15000, "label": "inter_account", "reason": "Transfer from a linked own account."}], "coverage_fraction": 0.96, "workings": [{"description": "Billed and apportioned sales.", "amount": 4100000, "estimated": true}]},
+  "POST /skills/threshold": {"threshold": 4000000, "registration_required": true, "reason": "Aggregate turnover crossed the goods threshold.", "crossed_on": "2026-03-14", "projected_crossing_on": null, "trailing_60_day_run_rate": 480000, "warning_days": 14},
+  "POST /skills/isolate": {"matched": {"txn_id": "DM0000001", "utr": "608119000001", "amount": 4200, "ts": "2026-03-21T19:47:00+05:30", "counterparty_name": "DEMO CUSTOMER"}, "found_by": ["utr", "amount_date"], "same_amount_candidates": [{"txn_id": "DM0000004", "utr": "608119000004", "amount": 4200, "ts": "2026-03-18T12:00:00+05:30", "counterparty_name": "REGULAR CUSTOMER"}], "bill": {"bill_id": "BDM0000001", "line_items": ["Onions", "Rice"], "total": 4200}, "device": {"terminal_id": "POS01", "device_id": "DEV01", "geo": {"lat": 12.925, "lon": 77.5938}}, "seven_day_credit_count": 339},
+  "POST /skills/tiers": {"totals": [{"tier": 1, "amount": 4200, "count": 1}, {"tier": 2, "amount": 5000, "count": 2}], "strong_shape_fraction": 1.0},
+  "POST /skills/escalation-check": {"escalate": false, "reasons": []}
+}
