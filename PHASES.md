@@ -279,9 +279,17 @@ and 2C.3) is part of live window L1 and is recorded as cassettes.
       keyed like the real APIs, on `:8200` in compose. STT, TTS, translation and Vision are the
       rest, and they replay L1 cassettes that do not exist yet (needs H5). The cassette lookup
       seam is in place, marked `TODO(2F.2)`.
-- [ ] **2F.2** Record and replay: `--record` in a live window writes cassettes to
+- [x] **2F.2** Record and replay: `--record` in a live window writes cassettes to
       `services/fakes/cassettes/<provider>/`, keyed by a hash of the normalised request. Replay
       first, deterministic rules second.
+      → `python tasks.py --live --record up`. Verified through the container: a recorded answer
+      replays, an unrecorded request still falls back to the rules, and recording is off by
+      default. Both switches are required, refused twice over (D32). Normalisation keeps only
+      what changes a provider's answer, so a call recorded through n8n replays for core or curl
+      (D30); no credential can reach a cassette, and that is a test. Media bytes are out of scope
+      and the README says why (D31). The format is guarded by a committed golden cassette that
+      core's suite validates against the frozen model, since the two services cannot import each
+      other.
 - [ ] **2F.3** The `HISAAB_LIVE` switch in every provider client and the memory service. Real
       keys only in `.env.live`, loaded only by `tasks.py --live`. Core's clients are A's; the
       memory service's switch is B's, in 5.1.

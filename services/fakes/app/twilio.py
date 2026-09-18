@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 import hashlib
 import hmac
 import html
@@ -14,6 +15,8 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
+
+from . import cassettes
 
 
 router = APIRouter(prefix="/twilio", tags=["twilio"])
@@ -31,6 +34,8 @@ class StoredMedia:
 
 
 _media: dict[tuple[str, str, str], StoredMedia] = {}
+TWILIO_UPSTREAM = "https://api.twilio.com"
+
 _outbox: list[dict[str, Any]] = []
 _lock = Lock()
 
@@ -130,6 +135,35 @@ async def create_message(
     form = await _form(request)
     if not form.get("To") or not form.get("From"):
         raise HTTPException(status_code=400, detail="To and From are required.")
+
+    normalised = cassettes.normalise(
+        method=request.method,
+        path=request.url.path,
+        query=dict(request.query_params),
+        headers=dict(request.headers),
+        body=dict(sorted(form.items())),
+    )
+    if cassettes.recording():
+        status, headers, raw = cassettes.forward(
+            upstream=TWILIO_UPSTREAM,
+            method="POST",
+            path=request.url.path.removeprefix("/twilio"),
+            query=dict(request.query_params),
+            headers={
+                "content-type": "application/x-www-form-urlencoded",
+                "authorization": request.headers.get("authorization", ""),
+            },
+            raw_body=urllib.parse.urlencode(form).encode("utf-8"),
+        )
+        recorded = json.loads(raw) if raw else None
+        cassettes.save(
+            provider="twilio", endpoint=request.url.path, normalised=normalised,
+            status=status, headers=headers, body=recorded,
+            live_window=cassettes.live_window(),
+        )
+        return JSONResponse(recorded, status_code=status)
+    if replay := cassettes.replay("twilio", normalised):
+        return JSONResponse(replay.get("body"), status_code=replay.get("status", 200))
 
     canonical = "&".join(f"{key}={form[key]}" for key in sorted(form))
     sid = "SM" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:32]

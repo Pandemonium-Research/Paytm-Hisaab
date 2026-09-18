@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 
+from . import cassettes
 from .sarvam import router as sarvam_router
 from .twilio import router as twilio_router
+
+cassettes.record_guard()
 
 app = FastAPI(title="Hisaab fakes", version="0.1.0")
 app.include_router(sarvam_router)

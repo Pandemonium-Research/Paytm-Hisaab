@@ -1,0 +1,43 @@
+{
+  "endpoint": "/sarvam/v1/chat/completions",
+  "live_window": "L1",
+  "normalised_request": {
+    "body": {
+      "messages": [
+        {
+          "content": "ಇದು ಮಾರಾಟವೇ?",
+          "role": "user"
+        }
+      ],
+      "model": "sarvam-105b"
+    },
+    "headers": {
+      "content-type": "application/json"
+    },
+    "method": "POST",
+    "path": "/sarvam/v1/chat/completions",
+    "query": {}
+  },
+  "provider": "sarvam",
+  "recorded_at": "2026-09-18T18:30:00+00:00",
+  "request_key": "952722c6bf0a7fd63ef1dd8727cbf8786f8228b386eaf77fb96506ffe9b23d4a",
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "ಹೌದು, ಮಾರಾಟ.",
+            "role": "assistant"
+          }
+        }
+      ]
+    },
+    "headers": {
+      "content-type": "application/json"
+    },
+    "status": 200
+  },
+  "schema_version": 1
+}

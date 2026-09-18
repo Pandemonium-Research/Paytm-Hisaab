@@ -45,7 +45,7 @@ def load_env_file(path: Path, environment: dict[str, str]) -> None:
         environment[name] = value
 
 
-def command_env(live: bool) -> dict[str, str]:
+def command_env(live: bool, record: bool = False) -> dict[str, str]:
     environment = os.environ.copy()
     load_env_file(ROOT / ".env", environment)
     if live:
@@ -54,6 +54,17 @@ def command_env(live: bool) -> dict[str, str]:
             raise SystemExit("--live requires .env.live; real keys are never loaded otherwise")
         load_env_file(live_file, environment)
     environment.setdefault("HISAAB_LIVE", "0")
+    if record:
+        # Recording without live mode would spend the window's budget and write cassettes of the
+        # fakes' own answers. Refuse here as well as in the fakes, so it fails before anything runs.
+        if not live or environment.get("HISAAB_LIVE") != "1":
+            raise SystemExit(
+                "--record requires --live and HISAAB_LIVE=1 in .env.live. Recording against the "
+                "fakes would produce worthless cassettes."
+            )
+        environment["HISAAB_RECORD"] = "1"
+    else:
+        environment["HISAAB_RECORD"] = "0"
     return environment
 
 
@@ -437,6 +448,11 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="load .env.live; paid-provider commands still require HISAAB_LIVE=1",
     )
+    result.add_argument(
+        "--record",
+        action="store_true",
+        help="record provider responses as cassettes (2F.2); requires --live",
+    )
     subcommands = result.add_subparsers(dest="command", required=True)
 
     up = subcommands.add_parser("up", help="build and start the local core stack")
@@ -483,7 +499,7 @@ def parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = parser().parse_args()
-    environment = command_env(args.live)
+    environment = command_env(args.live, getattr(args, "record", False))
     try:
         args.func(args, environment)
     except subprocess.CalledProcessError as exc:

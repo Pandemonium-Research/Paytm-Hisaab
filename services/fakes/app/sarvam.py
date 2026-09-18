@@ -8,6 +8,8 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from . import cassettes
+
 
 router = APIRouter(prefix="/sarvam/v1", tags=["sarvam"])
 
@@ -217,9 +219,17 @@ def _selected_tool(body: dict[str, Any]) -> dict[str, Any] | None:
     return tools[0]
 
 
-def _cassette_response(_request_key: str) -> dict[str, Any] | None:
-    # TODO(2F.2): Look up and return an exact recorded response before applying local rules.
-    return None
+SARVAM_UPSTREAM = "https://api.sarvam.ai"
+
+
+def _normalised(request: Request, body: Any) -> dict[str, Any]:
+    return cassettes.normalise(
+        method=request.method,
+        path=request.url.path,
+        query=dict(request.query_params),
+        headers=dict(request.headers),
+        body=body,
+    )
 
 
 @router.post("/chat/completions")
@@ -247,9 +257,33 @@ async def chat_completions(
     if not isinstance(body, dict) or not isinstance(body.get("messages"), list):
         raise HTTPException(status_code=400, detail="messages must be an array.")
 
-    request_key = hashlib.sha256(_canonical(body).encode("utf-8")).hexdigest()
-    if replay := _cassette_response(request_key):
-        return JSONResponse(replay)
+    normalised = _normalised(request, body)
+    request_key = cassettes.request_key(normalised)
+
+    if cassettes.recording():
+        # A live window: pay for the real answer once, keep it, and hand it straight back.
+        status, headers, raw = cassettes.forward(
+            upstream=SARVAM_UPSTREAM,
+            method="POST",
+            path=request.url.path.removeprefix("/sarvam"),
+            query=dict(request.query_params),
+            headers={"content-type": "application/json", "authorization": authorization or ""},
+            raw_body=json.dumps(body).encode("utf-8"),
+        )
+        recorded = json.loads(raw) if raw else None
+        cassettes.save(
+            provider="sarvam",
+            endpoint=request.url.path,
+            normalised=normalised,
+            status=status,
+            headers=headers,
+            body=recorded,
+            live_window=cassettes.live_window(),
+        )
+        return JSONResponse(recorded, status_code=status)
+
+    if replay := cassettes.replay("sarvam", normalised):
+        return JSONResponse(replay.get("body"), status_code=replay.get("status", 200))
 
     text = _request_text(body)
     label = _rule_label(text)

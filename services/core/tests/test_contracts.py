@@ -231,3 +231,24 @@ def test_claim_records_the_answer_and_rejects_an_inferred_label() -> None:
 
 def test_llm_schemas_import_the_shared_common_types() -> None:
     assert import_module("app.schemas.llm")
+
+
+def test_golden_cassette_from_the_fakes_matches_the_frozen_format() -> None:
+    """The fakes write cassettes; core froze the format. This is what stops them drifting.
+
+    The two run in different containers with different virtualenvs, so neither can import the
+    other. A committed example that both sides check is the cheapest guard available, and the
+    failure it prevents is only discoverable in a paid live window.
+    """
+    import json
+    from pathlib import Path
+
+    from app.schemas.cassette import ProviderCassette
+
+    golden = Path(__file__).resolve().parents[3] / "services/fakes/tests/data/golden-cassette.json"
+    assert golden.is_file(), golden
+    cassette = ProviderCassette.model_validate(json.loads(golden.read_text(encoding="utf-8")))
+    assert cassette.live_window.value == "L1"
+    assert len(cassette.request_key) == 64
+    # A cassette is committed to the repo, so it must never carry a credential.
+    assert "authorization" not in {k.lower() for k in cassette.normalised_request.headers}

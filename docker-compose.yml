@@ -45,8 +45,14 @@ services:
       - path: .env
         required: false
     environment:
-      HISAAB_LIVE: "0"
+      # Default off. Recording needs both, and tasks.py --live --record sets them together.
+      HISAAB_LIVE: ${HISAAB_LIVE:-0}
+      HISAAB_RECORD: ${HISAAB_RECORD:-0}
+      HISAAB_LIVE_WINDOW: ${HISAAB_LIVE_WINDOW:-L1}
       FAKES_INTERNAL_URL: http://fakes:8200
+    volumes:
+      # Cassettes recorded in a live window must survive the container: B commits them (2F.2).
+      - ./services/fakes/cassettes:/app/cassettes
     healthcheck:
       test: ["CMD", ".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8200/healthz', timeout=2)"]
       interval: 5s
