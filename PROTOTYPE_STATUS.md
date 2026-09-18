@@ -1,6 +1,6 @@
 # Functioning prototype: current scope and status
 
-Updated 18 September 2026. This is the active build queue; the larger phase plan remains a
+Updated 19 September 2026. This is the active build queue; the larger phase plan remains a
 backlog. The user has prioritized working behavior over additional security, legal research,
 measurement and polish.
 
@@ -35,10 +35,16 @@ Lien event → case → isolate disputed payment and show decoy → evidence pac
 | Owner | Work | Status |
 |---|---|---|
 | A | Case creation, isolation, pack, approve/reject/send and case read models | Complete in prototype freeze scope; minimal H8 core handoff ready |
+| A | Evidence tiers (6.1) | Complete; `current_view` takes an optional case boundary and decides the tier beside `effective_label`, so the two cannot drift. `POST /skills/tiers` always returns all four tiers plus the shape figure (`cc79297`) |
+| A | Output guards (6.6) | Complete; `numbers`, `citations`, `no-innocence` and `extraction` are deterministic and fail closed. `language` stays a stub. This is the guards half of CP2's grievance line that B is waiting on (`423c2b6`) |
 | B | WF20, O1/O2 and M5 | Complete; real pack handoff, bounded polling and the cold CP2 run all pass |
 | Both | Officer approval and simulated send end to end | **Passes cold on B's machine**; pending a re-run on A's |
 
 Then add turnover/threshold and the notice report. A selected specimen notice can precede OCR.
+
+**Next for A:** turnover (6.2) and threshold (6.3), then the grievance template (6.7), which
+needs 6.6's citations guard and is what completes CP2's grievance line. Specs for 6.2 and 6.3 are
+written and ready to delegate.
 
 ## Delivered
 

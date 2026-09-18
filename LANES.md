@@ -7,13 +7,16 @@ waiting for each other or editing the same files.
 **A = Ledger and skills:** core API, database, skills, fakes, data, eval, infra.
 **B = Agent and surfaces:** n8n workflows, Sarvam, Cognee, WhatsApp, the PWA, prompts, legal.
 
-**Current queue, 18 Sep:** [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) overrides the historical
+**Current queue, 19 Sep:** [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) overrides the historical
 ordering below. Payments/questions/answers, assistant forwarding/delivery and repeatable reset
 are complete. CP1 passes on B's local stack; A's rerun with the credit window is pending.
 A has delivered 6.4/6.8 freeze isolation and actual JSON/PDF packs, 6.9/6.10 detector and
 approval/send gate, and four prototype case/officer reads (6.11). Minimal H8 core handoff is ready.
-B should bound WF20 polling and connect O1/O2/M5 for joint CP2; A supports that integration.
-Turnover (6.2), threshold (6.3) and their report/read follow next; notice PDFs remain deferred.
+Both gates now pass cold on B's machine (`7b67bb0`): CP2 ran from a real lien through the pack,
+the O2 approval and the gated outbox. A has since added evidence tiers (6.1) and the four output
+guards (6.6), the half of CP2's grievance line that was blocking B.
+Turnover (6.2), threshold (6.3) and the grievance template (6.7) follow next; notice PDFs remain
+deferred. A's cold re-run of both gates is still outstanding.
 Cursor build jobs should cover one helper or endpoint each, with exact contracts and acceptance
 checks; A validates each result before dependent delegation.
 The remaining credit-guard block does not block this queue. Keep lane ownership and
