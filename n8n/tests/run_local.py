@@ -12,6 +12,7 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
+NOW = '2026-03-10T02:00:00+05:30'
 
 
 def docker(*args, capture=False):
@@ -33,6 +34,21 @@ def webhook(path, body, secret=True):
     return urllib.request.urlopen(request, timeout=10).status
 
 
+def await_webhook(path, timeout=180):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        try:
+            webhook(path, {}, secret=False)
+            return
+        except urllib.error.HTTPError as error:
+            if error.code != 404:
+                return
+        except OSError:
+            pass
+        time.sleep(2)
+    raise AssertionError("Webhook " + path + " never registered")
+
+
 def await_state(predicate, timeout=40):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
@@ -51,6 +67,12 @@ def cleanup(ids):
                           ("workflow_history", '"workflowId"'), ("workflow_entity", "id")]:
         docker("exec", "-T", "db", "psql", "-U", "hisaab", "-d", "n8n-local", "-c",
                f"DELETE FROM {table} WHERE {column} IN ({listed})", capture=True)
+
+
+def freeze_execution():
+    sql = ('SELECT e.status, d.data FROM execution_entity e JOIN execution_data d ON d."executionId" = e.id '
+           "WHERE e.\"workflowId\" = 'testhisaabWF20mvp001' ORDER BY e.id DESC LIMIT 1")
+    return docker('exec', '-T', 'db', 'psql', '-U', 'hisaab', '-d', 'n8n-local', '-tAc', sql, capture=True).stdout.strip()
 
 
 def run_tests():
@@ -74,13 +96,20 @@ def run_tests():
                     node["webhookId"] = "test-" + node["webhookId"]
                 if node["type"].endswith("executeWorkflow"):
                     node["parameters"]["workflowId"] = ids[node["parameters"]["workflowId"]]
+                if node['name'] == 'Freeze context':
+                    # Exercise exhaustion quickly in the isolated copy; product still allows 120 polls.
+                    node['parameters']['jsCode'] = node['parameters']['jsCode'].replace(
+                        'max_polls: 120', "max_polls: b.case_id === 'CASE-TIMEOUT' ? 2 : 120")
             Path(folder, f.name).write_text(json.dumps(workflow), encoding="utf-8")
         docker("cp", folder + "/.", "n8n:/tmp/hisaab-workflow-test")
         docker("exec", "-T", "n8n", "n8n", "import:workflow", "--separate", "--input=/tmp/hisaab-workflow-test")
         for wid in ids.values():
             docker("exec", "-T", "n8n", "n8n", "publish:workflow", "--id=" + wid)
     docker("restart", "n8n")
-    time.sleep(12)
+    # n8n answers healthz seconds before it registers webhooks, and a sleep long enough on a warm
+    # machine is short on a cold one: a 404 here reads as a missing workflow, not a late one.
+    # The unauthenticated probe below is a 401 or 403 once registered, so wait for it to stop 404ing.
+    await_webhook("hisaab/wf10-nightly")
     try:
         mock("/test/reset", {})
         try:
@@ -93,10 +122,16 @@ def run_tests():
         assert len(state["proposals"]) == 3
         assert [p["proposal"]["source"] for p in state["proposals"]] == ["rule", "agent", "rule"]
         assert state["pages"] == [None, "page2"], state["pages"]
+        assert state['question_reads'] == ['MID_TEST'], 'WF10 duplicated its shared question read'
+        # The window is now asked for, not filtered out afterwards, so assert what WF10 asked:
+        # the two IST days before business time, as instants, and one probe for as_of.
+        assert state["windows"] == [{"from": None, "to": None, "limit": "1"},
+            {"from": "2026-03-07T18:30:00.000Z", "to": "2026-03-09T18:30:00.000Z",
+             "limit": "200"}], state["windows"]
         assert all(h["as_of"] == "2026-03-09T12:00:00+05:30" for h in state["histories"])
         assert all(p["proposal"]["confidence"] <= 0.85 for p in state["proposals"] if p["proposal"]["source"] == "agent")
         assert {p['txn_id'] for p in state['proposals']} == {'T1', 'T2', 'T3'}
-        print("PASS: IST window excludes old/end-boundary credits, pagination, prior history, rule/Sarvam-fake branches, proposals, questions, WF30", flush=True)
+        print("PASS: WF10 asks for its IST window (old/end-boundary credits never fetched), pagination, prior history, rule/Sarvam-fake branches, proposals, questions, WF30", flush=True)
         # Tap the second question, then replay it. Neither request may answer the first.
         q = state["questions"][1]
         envelope = {"merchant_id": "MID_TEST", "message_id": "test-tap", "content_type": "text",
@@ -128,6 +163,21 @@ def run_tests():
         time.sleep(7)
         assert len(mock()["deliveries"]) == 1
         print("PASS: rejected pack is never sent")
+        body = {"case_id": "CASE-TIMEOUT", "merchant_id": "MID_TEST", "opened_at": NOW}
+        webhook("hisaab/wf20-freeze", body)
+        await_state(lambda s: s['polls'].count('CASE-TIMEOUT') == 2)
+        time.sleep(7)
+        state = mock()
+        assert state['polls'].count('CASE-TIMEOUT') == 2 and len(state['deliveries']) == 1
+        expired = freeze_execution()
+        assert expired.startswith('error|') and 'Approval wait expired' in expired, expired[:300]
+        mock('/test/decision', {'case_id': 'CASE-TIMEOUT', 'status': 'approved'})
+        webhook('hisaab/wf20-freeze', body)
+        await_state(lambda s: len(s['deliveries']) == 2)
+        webhook('hisaab/wf20-freeze', body)
+        time.sleep(7)
+        assert len(mock()['deliveries']) == 2
+        print('PASS: approval wait stops at its budget; retry reads approval and sent retries do not send again')
     finally:
         cleanup(ids.values())
         docker("restart", "n8n")

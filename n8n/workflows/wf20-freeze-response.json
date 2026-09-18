@@ -40,7 +40,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "\nconst b = $input.first().json.body;\nif (!b?.case_id || !b.merchant_id || !b.opened_at) throw new Error('case.opened needs case_id, merchant_id, opened_at');\nreturn [{json:b}];\n"
+        "jsCode": "\nconst b = $input.first().json.body;\nif (!b?.case_id || !b.merchant_id || !b.opened_at) throw new Error('case.opened needs case_id, merchant_id, opened_at');\nreturn [{json: {...b, max_polls: 120}}];\n"
       }
     },
     {
@@ -72,12 +72,25 @@
       }
     },
     {
+      "id": "5b4598fb-ec70-5c66-9614-118a730cfac7",
+      "name": "Poll budget",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nlet previous;\ntry { previous = $('Check decision').item.json; } catch { previous = {poll_count: 0}; }\nreturn [{json: {poll_count: previous.poll_count + 1}}];\n"
+      }
+    },
+    {
       "id": "63ed9af2-c589-5094-a6fd-6cba7038490f",
       "name": "Wait for officer",
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        660,
+        880,
         0
       ],
       "parameters": {
@@ -92,7 +105,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        880,
+        1100,
         0
       ],
       "parameters": {
@@ -116,11 +129,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1100,
+        1320,
         0
       ],
       "parameters": {
-        "jsCode": "\nconst view = $input.first().json;\nconst built = $('Build evidence pack').first().json;\nif (view.case.case_id !== built.case_id || view.pack_id !== built.pack_id) throw new Error('Officer decision is for a different case or pack');\nreturn [{json: {...view, approved:view.status === 'approved',\n  terminal:['sent','rejected','escalated'].includes(view.status)}}];\n"
+        "jsCode": "\nconst view = $input.first().json;\nconst built = $('Build evidence pack').first().json;\nif (view.case.case_id !== built.case_id || view.pack_id !== built.pack_id) throw new Error('Officer decision is for a different case or pack');\nreturn [{json: {...view, poll_count: $('Poll budget').item.json.poll_count, approved:view.status === 'approved',\n  terminal:['sent','rejected','escalated'].includes(view.status)}}];\n"
       }
     },
     {
@@ -129,7 +142,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1320,
+        1540,
         0
       ],
       "parameters": {
@@ -161,7 +174,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1540,
+        1760,
         0
       ],
       "parameters": {
@@ -188,12 +201,57 @@
       }
     },
     {
+      "id": "bac3a852-6a20-5dec-ad09-df4ca73d7cc1",
+      "name": "Polls remaining?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Polls remaining?",
+              "leftValue": "={{ String($json.poll_count < $('Freeze context').first().json.max_polls) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5d30b550-0c4f-5e80-8358-109d2802400a",
+      "name": "Approval wait expired",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nthrow new Error('Officer approval wait expired after 120 polls. The pack remains awaiting approval; retry this case webhook after review. Nothing was sent.');\n"
+      }
+    },
+    {
       "id": "69bc2f1a-3087-5407-8b36-efef99513266",
       "name": "Merchant simulation clock",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1760,
+        2420,
         0
       ],
       "parameters": {
@@ -226,7 +284,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1980,
+        2640,
         0
       ],
       "parameters": {
@@ -254,7 +312,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2200,
+        2860,
         0
       ],
       "parameters": {
@@ -267,7 +325,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [
-        2420,
+        3080,
         0
       ],
       "parameters": {
@@ -282,7 +340,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2640,
+        3300,
         0
       ],
       "parameters": {}
@@ -312,6 +370,17 @@
       ]
     },
     "Build evidence pack": {
+      "main": [
+        [
+          {
+            "node": "Poll budget",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Poll budget": {
       "main": [
         [
           {
@@ -428,7 +497,25 @@
         ],
         [
           {
-            "node": "Wait for officer",
+            "node": "Polls remaining?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Polls remaining?": {
+      "main": [
+        [
+          {
+            "node": "Poll budget",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Approval wait expired",
             "type": "main",
             "index": 0
           }

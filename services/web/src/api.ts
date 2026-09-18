@@ -24,6 +24,18 @@ export interface OfficerCase {
   case: OfficerCaseRow; pack_id: string | null; status: string; timeline: string[]
   tier_totals: (DisplayAmount & { label: string })[]; chain_ok: boolean; pdf_url: string | null
 }
+interface IsolationPayment {
+  txn_id: string; utr: string; amount: number; ts: string; counterparty_name: string
+}
+export interface FreezePack {
+  pack_id: string; case_id: string; merchant_id: string
+  isolation: {
+    matched: IsolationPayment | null; found_by: ('utr' | 'amount_date')[]
+    same_amount_candidates: IsolationPayment[]; seven_day_credit_count: number
+    bill: { bill_id: string; line_items: string[]; total: number } | null
+    device: { terminal_id: string; device_id: string; geo: { lat: number; lon: number } } | null
+  }
+}
 
 export const merchant = new URLSearchParams(location.search).get('merchant') || 'MID_DEMO_SAHANA'
 const base = import.meta.env.VITE_API_BASE || '/api'

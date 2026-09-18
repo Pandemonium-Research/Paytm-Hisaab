@@ -24,7 +24,8 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Payment isolation (6.4) and real freeze packs/PDF (6.8) | Complete in prototype freeze scope; actual artifacts and isolated HTTP lifecycle verified |
 | B | Minimal WF10, including the hard-case Sarvam branch | Complete; passes against the real stack |
 | B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Complete; real reads and persisted taps |
-| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **Passes cold on B's machine** (117 s); A's machine is ~10x slower and timed out. Awaiting a re-run on A's with the credit window. Real-provider path (L1) pending |
+| B | WF10 reads A's credit window instead of paging the history | Complete; 61 calls -> 2, WF10 117 s -> 55 s |
+| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **Passes cold on B's machine**; the credit window cut WF10 from 117 s to 55 s. Awaiting A's re-run. Real-provider path (L1) pending |
 
 ## Second gate: freeze and approval
 
@@ -34,8 +35,8 @@ Lien event → case → isolate disputed payment and show decoy → evidence pac
 | Owner | Work | Status |
 |---|---|---|
 | A | Case creation, isolation, pack, approve/reject/send and case read models | Complete in prototype freeze scope; minimal H8 core handoff ready |
-| B | WF20, O1/O2 and M5 | Prepared locally; connect the real pack handoff, bound the polling loop and run CP2 |
-| Both | Officer approval and simulated send end to end | Core HTTP lifecycle passes; joint n8n, officer-screen and merchant-tracker check pending |
+| B | WF20, O1/O2 and M5 | Complete; real pack handoff, bounded polling and the cold CP2 run all pass |
+| Both | Officer approval and simulated send end to end | **Passes cold on B's machine**; pending a re-run on A's |
 
 Then add turnover/threshold and the notice report. A selected specimen notice can precede OCR.
 
@@ -60,6 +61,35 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
 - `python tasks.py replay --split demo --until 2026-03-10T02:00:00+05:30` loads visible
   records only; repeating it does not duplicate source records or observed-credit evidence.
 
+- **B: the second gate passes cold, end to end (18 Sep).** From the `cp2-before-freeze` snapshot,
+  `python n8n/tests/check_freeze_gate.py --prepare` replayed to one second before the visible lien,
+  posted that lien through `/rails/events`, and core's after-commit hook started WF20. WF20 built
+  the real pack; the evidence JSON showed `DM0038619` found by **both** badges, the 18 March
+  same-amount decoy listed and not selected, 1 of 339 seven-day credits, the real bill and POS01,
+  and Tier 1 at Rs 4,200. The PDF's SHA-256 matched the build, an identical rebuild returned the
+  same pack, and an unapproved send was refused with 409 while the outbox stayed empty. An officer
+  then approved through **O2 at 360 px in a real browser**, WF20's Wait loop read the decision and
+  sent through core's gated outbox, and an already-open **M5** advanced to `sent` with the
+  simulated-delivery line. A fresh 412 px session saw the sent state, both viewports downloaded a
+  PDF whose hash matched, no page error or external request occurred, exactly one simulated
+  delivery exists, `GET /ledger/verify` is ok, and reposting the sent case to WF20 created no
+  second delivery. Voice, notice, grievance and physical-phone checks stay deferred.
+- **B: WF20's approval wait is now bounded (18 Sep).** The five-second poll loop stops after 120
+  polls (at least ten minutes) with an actionable error, leaving the unsent pack for officer
+  review, instead of waiting forever on a decision that never comes. `run_local.py` proves it
+  offline: an isolated copy with a two-poll budget ends `error` with `Approval wait expired`, sends
+  nothing, and a repost after the approval lands reuses the pack, reads the decision and delivers
+  once; a further repost of the sent case delivers nothing more.
+- **B: WF10 reads its window instead of paging the history (18 Sep).** WF10 now resolves
+  `window_from`/`window_to` to instants once, in a `Credit window` node that still owns the IST
+  rule, and passes them to A's `[from, to)`. One run is **2 credit calls** (a one-row read for
+  business time, then the window) against 61 before, and the cold gate fell from **132 s wall /
+  117.4 s WF10 to 71 s wall / 55.3 s WF10**. A duplicate `/app/questions` read per credit is gone
+  too; it was exhausting core's connection pool on the 68-credit window. `run_local.py` now asserts
+  the window WF10 *asks* for, because the boundary credits are no longer fetched at all, and the
+  offline double enforces the same 422s core does. Re-verified cold after both changes:
+  `check_first_gate --browser --restart-core` passed in 93 s wall with WF10 at 54.6 s, driving
+  the two M2 taps through a real browser rather than the API.
 - **B: CP1 passes cold, in one invocation (18 Sep).** From an empty database restored by
   `tasks.py reset` (0 proposals, 0 questions), a single `check_first_gate --restart-core` run
   finished in **132 s wall, WF10 itself 117.4 s**, and reported three *new* questions. A's run on a

@@ -24,12 +24,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--merchant', default='MID_DEMO_SAHANA')
     parser.add_argument('--restart-core', action='store_true')
+    parser.add_argument('--keep-outbox', action='store_true',
+        help='Do not restart the fakes first. The WhatsApp outbox then still holds earlier runs, '
+             'so an identical question cannot be told from a newly sent one.')
     parser.add_argument('--browser', action='store_true', help='Two real M2 taps, then one signed WhatsApp reply')
     parser.add_argument('--timeout', type=int, default=1800, metavar='SECONDS',
         help='Seconds to wait for WF10 and for persistence (default 1800). WF10 took 112 s on a '
              '16 GiB machine and over 1200 s on a smaller one. Interrupting it leaves the window '
              'part-labelled, and WF10 skips labelled credits, so that database cannot select three '
              'questions again without tasks.py reset.')
+    parser.add_argument('--http-timeout', type=int, default=60, metavar='SECONDS',
+        help='Timeout for each core read (default 60); classification can contend with app reads')
     args = parser.parse_args()
     env = cli.load_env()
     if env.get('HISAAB_LIVE', '0') != '0':
@@ -44,24 +49,36 @@ def main():
             headers['X-Hisaab-Key'] = env.get('KEY_' + role.upper(), 'dev-' + role)
         r = urllib.request.Request(base + path, headers=headers,
             data=json.dumps(body).encode() if body is not None else None)
-        with urllib.request.urlopen(r, timeout=15) as response:
+        with urllib.request.urlopen(r, timeout=args.http_timeout) as response:
             raw = response.read()
             return json.loads(raw) if raw else {}
 
     def wait(predicate, description):
-        for attempt in range(args.timeout):
-            value = predicate()
+        deadline = time.monotonic() + args.timeout
+        last_update = 0
+        while time.monotonic() < deadline:
+            try:
+                value = predicate()
+            except (TimeoutError, ConnectionResetError):
+                value = None
             if value:
                 return value
-            if attempt % 15 == 0:
+            if time.monotonic() - last_update > 20:
                 print('Waiting for ' + description, flush=True)
-            time.sleep(1)
+                last_update = time.monotonic()
+            time.sleep(5)
         raise AssertionError('Timed out waiting for ' + description)
+
+    def reachable(url):
+        try:
+            return bool(urllib.request.urlopen(url, timeout=5).read() is not None)
+        except Exception:
+            return False
 
     def wf10_execution():
         # Status and duration of the newest WF10 run, read from the local n8n database.
         # No SQL string literals here, so the row is filtered in Python instead of quoted inline.
-        sql = ('select "workflowId", status, '
+        sql = ('select id, "workflowId", status, '
                'round(extract(epoch from ("stoppedAt" - "startedAt"))::numeric, 1) '
                'from execution_entity order by id desc limit 20')
         result = subprocess.run(['docker', 'compose', 'exec', '-T', 'db', 'psql', '-U',
@@ -70,9 +87,9 @@ def main():
                                 encoding='utf-8', errors='replace')
         for row in (result.stdout or '').splitlines():
             parts = row.split('|')
-            if len(parts) == 3 and parts[0] == 'hisaabWF10mvp001':
-                return parts[1], parts[2]
-        return 'unknown', '?'
+            if len(parts) == 4 and parts[1] == 'hisaabWF10mvp001':
+                return parts[0], parts[2], parts[3]
+        return None, 'unknown', '?'
 
     m = urllib.parse.quote(args.merchant, safe='')
     home = request('/app/home?merchant=' + m)
@@ -81,18 +98,31 @@ def main():
     if home['as_of'][:10] != '2026-03-10' and home['as_of'][:10] != '2026-03-09':
         raise SystemExit('Load the demo through 10 Mar 02:00 IST before running CP1')
     outbox_url = 'http://localhost:8200/twilio/outbox'
+    if not args.keep_outbox:
+        # The fakes hold the outbox in memory, and tasks.py reset does not touch them, so after a
+        # reset the previous run's identical Kannada question is still sitting there and the
+        # novelty check below fails on a genuinely cold run. Start the outbox empty instead.
+        subprocess.run(['docker', 'compose', 'restart', 'fakes'], cwd=ROOT, check=True)
+        wait(lambda: reachable(outbox_url), 'the fakes to come back')
     before_outbox = urllib.request.urlopen(outbox_url).read().decode()
     resumed = len(request('/app/questions?merchant=' + m)['items']) == 3
+    previous_execution = wf10_execution()[0]
     request('/hisaab/wf10-nightly', body={'merchant_id': args.merchant, 'as_of': home['as_of'], 'mode': 'live',
         'channel': 'whatsapp', 'to': 'whatsapp:+919999999999',
         'window_from': '2026-03-08', 'window_to': '2026-03-10'}, workflow=True)
-    questions = wait(lambda: (q if len((q := request('/app/questions?merchant=' + m))['items']) == 3 else None), 'the three demo questions')
     # A resumed run can find three questions an earlier invocation left behind, so the gate has to
     # look at WF10 itself: a run that died still ends with the questions sitting there, and without
     # this the checkpoint reports PASS over a broken workflow.
-    status, seconds = wf10_execution()
+    def finished_execution():
+        run = wf10_execution()
+        return run if run[0] != previous_execution and run[1] in ('success', 'error', 'canceled', 'crashed') else None
+    execution_id, status, seconds = wait(finished_execution, 'this WF10 execution to finish')
     assert status == 'success', f'WF10 execution ended {status} after {seconds}s, not success'
     print(f'WF10 execution: {status} in {seconds}s', flush=True)
+    # M2 also computes settlement totals. Monitor the invocation directly instead of adding
+    # repeated core reads during classification, then check its output once it succeeds.
+    questions = request('/app/questions?merchant=' + m)
+    assert len(questions['items']) == 3, 'This successful run did not produce three questions'
     answers = {15000: 'own_money', 7500: 'family', 4850: 'sale'}
     assert {q['amount'] for q in questions['items']} == set(answers), questions
     ids = {q['question_id'] for q in questions['items']}
@@ -179,7 +209,7 @@ def main():
     assert {e['txn_id']: e['payload'] for e in final if e['kind'] == 'label.proposed'} == machine
     assert request('/ledger/verify?merchant=' + m, 'officer')['ok']
     assert not request('/app/questions?merchant=' + m)['items']
-    print('PASS CP1: real proposals → three questions → WF31 answers → unchanged machine proposals → verified chain' + (' → restart persistence' if args.restart_core else ''), flush=True)
+    print('PASS CP1: real proposals -> three questions -> WF31 answers -> unchanged machine proposals -> verified chain' + (' -> restart persistence' if args.restart_core else ''), flush=True)
 
 
 if __name__ == '__main__':

@@ -81,45 +81,59 @@ def wf10():
     w.node("02:00 IST", "scheduleTrigger", {"rule": {"interval": [
         {"field": "cronExpression", "expression": "0 2 * * *"}]}}, 1.2)
     w.code("Run context", """
-const input = $input.first().json.body || $input.first().json;
+const item = $input.first().json;
+// The 02:00 trigger carries a timestamp and no body: that is the one run allowed to say nothing.
+const scheduled = !item.body && item.timestamp !== undefined;
+const input = item.body || (scheduled ? {} : item);
 if (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');
 // An empty body used to start a real run against the default merchant, so probing whether the
 // webhook had registered classified a whole window and left the ledger part-labelled.
-if (!input.merchant_id && !input.merchant && !input.as_of) throw new Error('WF10 needs merchant_id or as_of; an empty body will not start a run');
+if (!scheduled && !input.merchant_id && !input.merchant && !input.as_of) throw new Error('WF10 needs merchant_id or as_of; an empty body will not start a run');
 return [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',
   as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,
   // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept
   // separate on purpose: reusing `to` for both sent the reply to a date string.
-  window_from: input.window_from || input.from || null, window_to: input.window_to || null,
-  cursor: null, credits: [], cursors: []}}];
+  window_from: input.window_from || input.from || null, window_to: input.window_to || null}}];
 """)
     w.http("Merchant", "={{ 'http://core:8000/merchants/' + encodeURIComponent($json.merchant_id) }}", "provenance")
+    # One row, read for its echoed as_of only: the window defaults are relative to the IST day
+    # start of business time, and the 02:00 trigger arrives without one. Asking the wall clock
+    # instead would classify whichever window the laptop happened to be in. It names Run context
+    # explicitly because this node's own input is the merchant, which carries no time.
+    w.http("Business time", "/credits", "provenance", query={
+        "merchant": "={{ $('Run context').first().json.merchant_id }}", "limit": "1"})
+    w.code("Credit window", r"""
+const state = $('Run context').first().json;
+const as_of = state.as_of || $input.first().json.as_of;
+// The one place the IST rule lives. The chain stores UTC and the screens answer IST, so a bare
+// date is resolved here, once, and core is only ever sent instants.
+const day = new Date(as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});
+const cutoff = new Date(day + 'T00:00:00+05:30');
+const instant = value => new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? value + 'T00:00:00+05:30' : value).getTime();
+const start = state.window_from ? instant(state.window_from) : cutoff.getTime() - 2 * 86400000;
+const end = state.window_to ? instant(state.window_to) : cutoff.getTime();
+if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > new Date(as_of).getTime()) throw new Error('Credit window must be [from, to) at or before as_of');
+return [{json: {...state, as_of, window_from: new Date(start).toISOString(),
+  window_to: new Date(end).toISOString(), cursor: null, credits: [], cursors: []}}];
+""")
     w.code("Page request", """
 let state;
-try { state = $('Collect page').item.json; } catch { state = $('Run context').first().json; }
+try { state = $('Collect page').item.json; } catch { state = $('Credit window').first().json; }
 return [{json: state}];
 """)
+    # Core applies the half-open [from, to) itself, so a run reads its own window instead of
+    # paging the whole history and discarding it: 1 call and 68 credits here, against 61 calls
+    # and 12,097 credits before, which was most of the classification run.
     w.http("Read credits", "/credits", "provenance", query={
         "merchant": "={{ $json.merchant_id }}", "limit": "200",
-        "as_of": "={{ $json.as_of || undefined }}", "cursor": "={{ $json.cursor || undefined }}"})
-    w.code("Collect page", r"""
+        "as_of": "={{ $json.as_of }}", "from": "={{ $json.window_from }}",
+        "to": "={{ $json.window_to }}", "cursor": "={{ $json.cursor || undefined }}"})
+    w.code("Collect page", """
 const state = $('Page request').item.json;
 const page = $input.first().json;
 if (page.next_cursor && state.cursors.includes(page.next_cursor)) throw new Error('Repeated credit cursor');
-const as_of = state.as_of || page.as_of;
-const day = new Date(as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});
-const cutoff = new Date(day + 'T00:00:00+05:30');
-const from = state.window_from || new Date(cutoff.getTime() - 2 * 86400000).toISOString();
-const to = state.window_to || cutoff.toISOString();
-const instant = value => new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? value + 'T00:00:00+05:30' : value).getTime();
-const start = instant(from), end = instant(to);
-if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > new Date(as_of).getTime()) throw new Error('Credit window must be [from, to) at or before as_of');
-const inWindow = page.items.filter(c => {
-  const ts = new Date(c.transaction.ts).getTime();
-  return ts >= start && ts < end && ts <= new Date(as_of).getTime();
-});
-return [{json: {...state, as_of, window_from: from, window_to: to,
-  credits: [...state.credits, ...inWindow], cursor: page.next_cursor,
+// The cursor stays inside the window, so this pages a busy window, not the history.
+return [{json: {...state, credits: [...state.credits, ...page.items], cursor: page.next_cursor,
   cursors: [...state.cursors, page.next_cursor].filter(Boolean)}}];
 """)
     w.test("More credits?", "={{ String(Boolean($json.cursor)) }}")
@@ -201,7 +215,12 @@ return [{json: {txn_id: t.txn_id, payer_id: t.counterparty_id, amount: t.amount,
   has_bill: Boolean(t.pos_bill_id), payer_fact_known: item.history.payer_facts.length > 0,
   proposed_at: entry.sim_at}}];
 """)
-    w.http("Open questions", "/app/questions", "app", query={"merchant": "={{ $('Run context').first().json.merchant_id }}"})
+    w.code("Classification complete", """
+// Loop's done output contains one candidate per credit. Collapse it before a shared read:
+// otherwise HTTP Request sends the same app/questions call once per credit, in parallel.
+return [{json: {merchant_id: $('Run context').first().json.merchant_id}}];
+""")
+    w.http("Open questions", "/app/questions", "app", query={"merchant": "={{ $json.merchant_id }}"})
     w.code("Selection request", """
 const state = $('Collect page').last().json;
 const open = $('Open questions').first().json.items;
@@ -240,7 +259,7 @@ return $input.first().json.selected.map(q => {
     w.node("Each question", "splitInBatches", {"batchSize": 1, "options": {}}, 3)
     w.node("Ask via WF30", "executeWorkflow", {"source": "database", "workflowId": "hisaabWF30out001", "options": {"waitForSubWorkflow": True}}, 1)
     w.node("Done", "noOp")
-    w.chain("Nightly webhook", "Run context", "Merchant", "Page request", "Read credits", "Collect page", "More credits?")
+    w.chain("Nightly webhook", "Run context", "Merchant", "Business time", "Credit window", "Page request", "Read credits", "Collect page", "More credits?")
     w.link("02:00 IST", "Run context")
     w.link("More credits?", "Page request")
     w.link("More credits?", "Unlabelled credits", 1)
@@ -251,7 +270,7 @@ return $input.first().json.selected.map(q => {
     w.link("Rule settled?", "Hard-case request", 1)
     w.chain("Hard-case request", "Sarvam hard case (local fake)", "Validate agent proposal", "Persist proposal")
     w.chain("Rule proposal", "Persist proposal", "Question candidate", "Each credit")
-    w.chain("Each credit", "Open questions", "Selection request", "Select questions", "Question messages", "Each question")
+    w.chain("Each credit", "Classification complete", "Open questions", "Selection request", "Select questions", "Question messages", "Each question")
     w.link("Each question", "Ask via WF30", 1)
     w.link("Ask via WF30", "Each question")
     w.link("Each question", "Done")
@@ -363,9 +382,14 @@ def wf20():
     w.code("Freeze context", """
 const b = $input.first().json.body;
 if (!b?.case_id || !b.merchant_id || !b.opened_at) throw new Error('case.opened needs case_id, merchant_id, opened_at');
-return [{json:b}];
+return [{json: {...b, max_polls: 120}}];
 """)
     w.http("Build evidence pack", "/packs", "evidence", "={{ JSON.stringify({merchant_id:$json.merchant_id, case_id:$json.case_id, pack_type:'freeze', sim_at:$json.opened_at}) }}")
+    w.code("Poll budget", """
+let previous;
+try { previous = $('Check decision').item.json; } catch { previous = {poll_count: 0}; }
+return [{json: {poll_count: previous.poll_count + 1}}];
+""")
     w.node("Wait for officer", "wait", {"amount": 5, "unit": "seconds"}, 1.1,
            webhookId=str(uuid.uuid5(uuid.NAMESPACE_URL, "wf20-wait")))
     w.http("Officer decision", "={{ 'http://core:8000/app/officer/cases/' + encodeURIComponent($('Freeze context').first().json.case_id) }}", "officer")
@@ -373,11 +397,15 @@ return [{json:b}];
 const view = $input.first().json;
 const built = $('Build evidence pack').first().json;
 if (view.case.case_id !== built.case_id || view.pack_id !== built.pack_id) throw new Error('Officer decision is for a different case or pack');
-return [{json: {...view, approved:view.status === 'approved',
+return [{json: {...view, poll_count: $('Poll budget').item.json.poll_count, approved:view.status === 'approved',
   terminal:['sent','rejected','escalated'].includes(view.status)}}];
 """)
     w.test("Approved?", "={{ String($json.approved) }}")
     w.test("Terminal decision?", "={{ String($json.terminal) }}")
+    w.test("Polls remaining?", "={{ String($json.poll_count < $('Freeze context').first().json.max_polls) }}")
+    w.code("Approval wait expired", """
+throw new Error('Officer approval wait expired after 120 polls. The pack remains awaiting approval; retry this case webhook after review. Nothing was sent.');
+""")
     w.http("Merchant simulation clock", "/app/home", "app", query={"merchant": "={{ $('Freeze context').first().json.merchant_id }}"})
     w.http("Simulated send (core gate)", "={{ 'http://core:8000/outbox/' + encodeURIComponent($('Build evidence pack').first().json.pack_id) + '/send' }}",
            "officer", "={{ JSON.stringify({destination:'bank-nodal-and-ncrp', sim_at:$json.as_of}) }}")
@@ -390,11 +418,13 @@ return [{json:{merchant_id:$('Freeze context').first().json.merchant_id,
 """)
     w.node("Notify via WF30", "executeWorkflow", {"source": "database", "workflowId": "hisaabWF30out001", "options": {}}, 1)
     w.node("Done", "noOp")
-    w.chain("Freeze opened", "Freeze context", "Build evidence pack", "Wait for officer", "Officer decision", "Check decision", "Approved?")
+    w.chain("Freeze opened", "Freeze context", "Build evidence pack", "Poll budget", "Wait for officer", "Officer decision", "Check decision", "Approved?")
     w.chain("Approved?", "Merchant simulation clock", "Simulated send (core gate)", "Send status", "Notify via WF30", "Done")
     w.link("Approved?", "Terminal decision?", 1)
     w.link("Terminal decision?", "Done")
-    w.link("Terminal decision?", "Wait for officer", 1)
+    w.link("Terminal decision?", "Polls remaining?", 1)
+    w.link("Polls remaining?", "Poll budget")
+    w.link("Polls remaining?", "Approval wait expired", 1)
     w.save("wf20-freeze-response.json")
 
 

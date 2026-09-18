@@ -60,7 +60,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "\nconst input = $input.first().json.body || $input.first().json;\nif (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');\n// An empty body used to start a real run against the default merchant, so probing whether the\n// webhook had registered classified a whole window and left the ledger part-labelled.\nif (!input.merchant_id && !input.merchant && !input.as_of) throw new Error('WF10 needs merchant_id or as_of; an empty body will not start a run');\nreturn [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',\n  as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,\n  // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept\n  // separate on purpose: reusing `to` for both sent the reply to a date string.\n  window_from: input.window_from || input.from || null, window_to: input.window_to || null,\n  cursor: null, credits: [], cursors: []}}];\n"
+        "jsCode": "\nconst item = $input.first().json;\n// The 02:00 trigger carries a timestamp and no body: that is the one run allowed to say nothing.\nconst scheduled = !item.body && item.timestamp !== undefined;\nconst input = item.body || (scheduled ? {} : item);\nif (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');\n// An empty body used to start a real run against the default merchant, so probing whether the\n// webhook had registered classified a whole window and left the ledger part-labelled.\nif (!scheduled && !input.merchant_id && !input.merchant && !input.as_of) throw new Error('WF10 needs merchant_id or as_of; an empty body will not start a run');\nreturn [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_SAHANA',\n  as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,\n  // `to` is the WhatsApp recipient. The classification window is window_from/window_to, kept\n  // separate on purpose: reusing `to` for both sent the reply to a date string.\n  window_from: input.window_from || input.from || null, window_to: input.window_to || null}}];\n"
       }
     },
     {
@@ -88,16 +88,66 @@
       }
     },
     {
-      "id": "7fbda1b9-e806-5c13-bd9b-845e4cd0f9e4",
-      "name": "Page request",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "b50047ce-b9c0-58d2-9e69-5df64dd1e666",
+      "name": "Business time",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
       "position": [
         880,
         0
       ],
       "parameters": {
-        "jsCode": "\nlet state;\ntry { state = $('Collect page').item.json; } catch { state = $('Run context').first().json; }\nreturn [{json: state}];\n"
+        "url": "http://core:8000/credits",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "merchant",
+              "value": "={{ $('Run context').first().json.merchant_id }}"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalProv01",
+          "name": "hisaab core provenance (local)"
+        }
+      }
+    },
+    {
+      "id": "c159a07e-0eeb-5c18-9e58-0411a8536dce",
+      "name": "Credit window",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst state = $('Run context').first().json;\nconst as_of = state.as_of || $input.first().json.as_of;\n// The one place the IST rule lives. The chain stores UTC and the screens answer IST, so a bare\n// date is resolved here, once, and core is only ever sent instants.\nconst day = new Date(as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});\nconst cutoff = new Date(day + 'T00:00:00+05:30');\nconst instant = value => new Date(/^\\d{4}-\\d{2}-\\d{2}$/.test(value) ? value + 'T00:00:00+05:30' : value).getTime();\nconst start = state.window_from ? instant(state.window_from) : cutoff.getTime() - 2 * 86400000;\nconst end = state.window_to ? instant(state.window_to) : cutoff.getTime();\nif (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > new Date(as_of).getTime()) throw new Error('Credit window must be [from, to) at or before as_of');\nreturn [{json: {...state, as_of, window_from: new Date(start).toISOString(),\n  window_to: new Date(end).toISOString(), cursor: null, credits: [], cursors: []}}];\n"
+      }
+    },
+    {
+      "id": "7fbda1b9-e806-5c13-bd9b-845e4cd0f9e4",
+      "name": "Page request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nlet state;\ntry { state = $('Collect page').item.json; } catch { state = $('Credit window').first().json; }\nreturn [{json: state}];\n"
       }
     },
     {
@@ -106,7 +156,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1100,
+        1540,
         0
       ],
       "parameters": {
@@ -129,7 +179,15 @@
             },
             {
               "name": "as_of",
-              "value": "={{ $json.as_of || undefined }}"
+              "value": "={{ $json.as_of }}"
+            },
+            {
+              "name": "from",
+              "value": "={{ $json.window_from }}"
+            },
+            {
+              "name": "to",
+              "value": "={{ $json.window_to }}"
             },
             {
               "name": "cursor",
@@ -151,11 +209,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1320,
+        1760,
         0
       ],
       "parameters": {
-        "jsCode": "\nconst state = $('Page request').item.json;\nconst page = $input.first().json;\nif (page.next_cursor && state.cursors.includes(page.next_cursor)) throw new Error('Repeated credit cursor');\nconst as_of = state.as_of || page.as_of;\nconst day = new Date(as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});\nconst cutoff = new Date(day + 'T00:00:00+05:30');\nconst from = state.window_from || new Date(cutoff.getTime() - 2 * 86400000).toISOString();\nconst to = state.window_to || cutoff.toISOString();\nconst instant = value => new Date(/^\\d{4}-\\d{2}-\\d{2}$/.test(value) ? value + 'T00:00:00+05:30' : value).getTime();\nconst start = instant(from), end = instant(to);\nif (!Number.isFinite(start) || !Number.isFinite(end) || start >= end || end > new Date(as_of).getTime()) throw new Error('Credit window must be [from, to) at or before as_of');\nconst inWindow = page.items.filter(c => {\n  const ts = new Date(c.transaction.ts).getTime();\n  return ts >= start && ts < end && ts <= new Date(as_of).getTime();\n});\nreturn [{json: {...state, as_of, window_from: from, window_to: to,\n  credits: [...state.credits, ...inWindow], cursor: page.next_cursor,\n  cursors: [...state.cursors, page.next_cursor].filter(Boolean)}}];\n"
+        "jsCode": "\nconst state = $('Page request').item.json;\nconst page = $input.first().json;\nif (page.next_cursor && state.cursors.includes(page.next_cursor)) throw new Error('Repeated credit cursor');\n// The cursor stays inside the window, so this pages a busy window, not the history.\nreturn [{json: {...state, credits: [...state.credits, ...page.items], cursor: page.next_cursor,\n  cursors: [...state.cursors, page.next_cursor].filter(Boolean)}}];\n"
       }
     },
     {
@@ -164,7 +222,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1540,
+        1980,
         0
       ],
       "parameters": {
@@ -196,7 +254,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1760,
+        2200,
         0
       ],
       "parameters": {
@@ -209,7 +267,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        1980,
+        2420,
         0
       ],
       "parameters": {
@@ -223,7 +281,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2200,
+        2640,
         0
       ],
       "parameters": {
@@ -260,7 +318,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2420,
+        2860,
         0
       ],
       "parameters": {
@@ -273,7 +331,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2640,
+        3080,
         0
       ],
       "parameters": {
@@ -301,7 +359,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2860,
+        3300,
         0
       ],
       "parameters": {
@@ -314,7 +372,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        3080,
+        3520,
         0
       ],
       "parameters": {
@@ -346,7 +404,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3300,
+        3740,
         0
       ],
       "parameters": {
@@ -359,7 +417,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3520,
+        3960,
         0
       ],
       "parameters": {
@@ -372,7 +430,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        3740,
+        4180,
         0
       ],
       "parameters": {
@@ -401,7 +459,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3960,
+        4400,
         0
       ],
       "parameters": {
@@ -414,7 +472,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4180,
+        4620,
         0
       ],
       "parameters": {
@@ -442,11 +500,24 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4400,
+        4840,
         0
       ],
       "parameters": {
         "jsCode": "\n// Use the persisted proposal, not a second model inference.\nconst entry = $input.first().json.entry;\nconst item = $('Rule result').item.json, t = item.credit.transaction;\nreturn [{json: {txn_id: t.txn_id, payer_id: t.counterparty_id, amount: t.amount,\n  label: entry.payload.label, confidence: entry.payload.confidence,\n  strictly_prior_credit_count: item.history.strictly_prior_credit_count,\n  has_bill: Boolean(t.pos_bill_id), payer_fact_known: item.history.payer_facts.length > 0,\n  proposed_at: entry.sim_at}}];\n"
+      }
+    },
+    {
+      "id": "528292af-582c-5c35-be15-49bf88ccb72e",
+      "name": "Classification complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5060,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Loop's done output contains one candidate per credit. Collapse it before a shared read:\n// otherwise HTTP Request sends the same app/questions call once per credit, in parallel.\nreturn [{json: {merchant_id: $('Run context').first().json.merchant_id}}];\n"
       }
     },
     {
@@ -455,7 +526,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4620,
+        5280,
         0
       ],
       "parameters": {
@@ -470,7 +541,7 @@
           "parameters": [
             {
               "name": "merchant",
-              "value": "={{ $('Run context').first().json.merchant_id }}"
+              "value": "={{ $json.merchant_id }}"
             }
           ]
         }
@@ -488,7 +559,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4840,
+        5500,
         0
       ],
       "parameters": {
@@ -501,7 +572,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5060,
+        5720,
         0
       ],
       "parameters": {
@@ -529,7 +600,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5280,
+        5940,
         0
       ],
       "parameters": {
@@ -542,7 +613,7 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        5500,
+        6160,
         0
       ],
       "parameters": {
@@ -556,7 +627,7 @@
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
       "position": [
-        5720,
+        6380,
         0
       ],
       "parameters": {
@@ -573,7 +644,7 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5940,
+        6600,
         0
       ],
       "parameters": {}
@@ -603,6 +674,28 @@
       ]
     },
     "Merchant": {
+      "main": [
+        [
+          {
+            "node": "Business time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Business time": {
+      "main": [
+        [
+          {
+            "node": "Credit window",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Credit window": {
       "main": [
         [
           {
@@ -690,7 +783,7 @@
       "main": [
         [
           {
-            "node": "Open questions",
+            "node": "Classification complete",
             "type": "main",
             "index": 0
           }
@@ -826,6 +919,17 @@
         [
           {
             "node": "Each credit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classification complete": {
+      "main": [
+        [
+          {
+            "node": "Open questions",
             "type": "main",
             "index": 0
           }

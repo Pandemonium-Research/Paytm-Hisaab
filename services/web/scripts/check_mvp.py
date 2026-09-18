@@ -27,6 +27,10 @@ def main():
             state = copy.deepcopy(fixtures)
             answers, decisions, pdf_headers, errors = [], [], [], []
             persist = {"enabled": False, "remove": None}
+            officer = state['GET /app/officer/cases/{id}']
+            isolation = json.loads((ROOT / 'services/core/app/fixtures/skills.json').read_text(encoding='utf-8'))['POST /skills/isolate']
+            pack = {'pack_id': officer['pack_id'], 'case_id': officer['case']['case_id'],
+                    'merchant_id': officer['case']['merchant_id'], 'isolation': isolation}
             context = browser.new_context(viewport={"width": width, "height": 820}, service_workers="block")
             page = context.new_page()
             page.on("pageerror", lambda error: errors.append(str(error)))
@@ -54,6 +58,8 @@ def main():
                 elif path.endswith(".pdf"):
                     pdf_headers.append(request.headers)
                     handler.fulfill(status=200, content_type="application/pdf", body=b"%PDF-1.4\n%%EOF"); return
+                elif path.startswith('/api/packs/') and path.endswith('.json'):
+                    data = pack
                 else:
                     key = 'GET ' + path.removeprefix('/api')
                     if path.startswith('/api/app/officer/cases/'):
@@ -93,6 +99,9 @@ def main():
             page.goto('http://localhost:8080/officer')
             page.get_by_role('button', name='Review case', exact=True).click()
             page.get_by_role('button', name='Download evidence PDF →', exact=True).wait_for()
+            page.get_by_text('UTR match', exact=True).wait_for()
+            page.get_by_text('Amount + date match', exact=True).wait_for()
+            page.get_by_text('1 selected from 339 credits in seven days.', exact=True).wait_for()
             page.get_by_role('button', name='Download evidence PDF →', exact=True).click()
             page.wait_for_timeout(200)
             assert pdf_headers

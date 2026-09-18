@@ -116,5 +116,6 @@ function Cases() {
     <p role="status" className="my-4 text-sm font-semibold">{c.status.replaceAll('_', ' ')}</p>
     {['rejected', 'escalated'].includes(c.status) ? <p className="text-sm text-muted">An officer is reviewing the next steps.</p> : <Stepper ariaLabel="Case progress" steps={stages.map((title, i) => ({ id: String(i), title,
       status: i < (statusIndex[c.status] ?? 0) || c.status === 'sent' ? 'complete' : i === (statusIndex[c.status] ?? 0) ? 'current' : 'upcoming' }))} />}
+    {c.case_type === 'freeze' && <p className="mt-4 text-xs text-muted">Evidence delivery is simulated. The bank decides whether to change the hold.</p>}
   </Card>)}</div>
 }

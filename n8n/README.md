@@ -72,8 +72,15 @@ and core webhooks use the `X-N8N-Webhook-Secret` Header Auth credential.
 - WF20 asks core to build the freeze pack from its persisted case and evidence, then uses a
   five-second Wait loop to read the officer decision. It checks matching case/pack IDs and only
   sends an `approved` pack through core's gated outbox. Rejected/escalated/sent cases stop.
+  The loop permits 120 polls (at least ten minutes), then ends with an actionable error and
+  leaves the unsent pack available for officer review. Reposting the original case body after
+  review reuses the pack and re-reads the decision; a sent case stops without another delivery.
   Delivery must report `simulated: true`. Core's frozen contracts have no resume-URL registration
   endpoint, so the initial loop polls instead of registering `$execution.resumeUrl`.
+- WF10 passes its aware `window_from`/`window_to` directly to core's half-open credit window,
+  and collapses the completed per-credit loop to one item before reading open questions.
+  The selector still receives every saved proposal. This avoids one duplicate HTTP read per
+  credit, which exhausted core's connection pool on the 68-credit demo window.
 - Memory, full-year seed, voice, generated translations, threshold warnings and Cloud import
   remain deferred. Question-budget proximity uses visible classified receipts and the demo's
   goods/services threshold; it does not produce a registration verdict or turnover forecast.
@@ -91,19 +98,40 @@ including answered questions, when selecting/appending questions: `GET /app/ques
 exposes open questions. For the second gate, `/packs` assembles isolation/decoy/bill/tiers from
 the case; the officer case read model's `status` should expose the current pack decision
 (`awaiting_approval`, `approved`, `rejected`, `escalated`, `sent`). The present O2 contract shows
-totals/timeline/PDF; individual isolation and decoy details need a later read-model handoff.
+totals/timeline/PDF. O2 additionally reads the officer-authenticated `/packs/<pack_id>.json`
+artifact, checks its case/pack/merchant identity, and shows the independent match badges,
+excluded same-amount payment, bill/device and seven-day count. Approval waits for that evidence
+to load. Tier totals explicitly cover the disputed payment only. M5 follows the persisted case
+status and says that simulated evidence delivery leaves the hold decision with the bank.
 
 **Validation:** production web build and Chromium checks at 360/412 px passed. Isolated copies
 in real local n8n passed pagination, both classification branches (Sarvam through the actual
 fake), proposal/question writes, explicit app answers, stale-tap rejection, reruns, approval
 before send and no send after rejection. Test helpers/workflows are removed after the run.
-These checks validate B orchestration; core still serves fixtures, so CP1/CP2 remain pending.
+These checks validate B orchestration. The real payment and freeze backends have now landed;
+joint checkpoint evidence is tracked in `PROTOTYPE_STATUS.md`. Full CP1/CP2 voice, memory,
+notice, grievance and physical-phone checks remain outside this prototype loop.
 
 ```powershell
 python n8n/tests/run_local.py
-# Once A loads the visible demo and real Phase 4 routes land:
-python n8n/tests/check_first_gate.py --restart-core
+python n8n/tests/check_first_gate.py --browser --restart-core
+# Publish current workflows first; prepare_cp1 supplies the visible demo mount if needed.
+python tasks.py import-n8n --target local --activate
+python n8n/tests/check_freeze_gate.py --prepare
+# Repeat the freeze checkpoint from its separately saved payment state:
+python tasks.py reset --name cp2-before-freeze --local-n8n
+python n8n/tests/check_freeze_gate.py --prepare
 ```
+
+The real CP2 runner snapshots before advancing the demo, replays to one second before the
+visible lien, and posts that lien through `/rails/events` so core starts WF20 automatically.
+It verifies the actual JSON/PDF and PDF hash, refuses an early send, posts the three declines
+at their actual later times, approves through O2 at 360 px, watches an already-open M5 advance,
+then checks a new 412 px browser session and a sent-case webhook retry. It also checks the
+original and retry WF20 executions succeeded. Set `HISAAB_BROWSER_EXECUTABLE` when Chromium
+is installed outside Playwright's expected cache; install Playwright in the Python environment
+or the ignored `services/web/.browser-check` directory. All endpoints are local, and external
+browser requests are blocked.
 
 Draft by B, 18 Sep. Frozen at Phase 1 sign-off; after that, changes need A's OK in chat
 (LANES.md §2).

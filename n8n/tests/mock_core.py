@@ -4,16 +4,24 @@ Runs on :8300 inside core's container, separately from its real API/database.
 This verifies B orchestration only; it is not the joint persistence checkpoint.
 """
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from datetime import datetime
 from urllib.parse import urlparse, parse_qs
 import json
 import threading
 
 NOW = "2026-03-10T02:00:00+05:30"
 state = {"proposals": [], "questions": [], "claims": [], "messages": [],
-         "histories": [], "pages": [], "packs": {}, "deliveries": []}
+         "histories": [], "pages": [], "windows": [], "polls": [], "question_reads": [], "packs": {}, "deliveries": []}
 roles = {"/ledger/proposals": "provenance", "/skills/classify-rules": "provenance",
          "/skills/select-questions": "provenance", "/ledger/questions": "conversation",
          "/ledger/claims": "conversation", "/assistant/outbound": "conversation", "/packs": "evidence"}
+
+
+def aware(value):
+    moment = datetime.fromisoformat(value)
+    if moment.tzinfo is None:
+        raise ValueError("A bare date would have to guess IST or UTC")
+    return moment
 
 
 def txn(tid, amount, bill=False):
@@ -55,13 +63,31 @@ class Handler(BaseHTTPRequestHandler):
         if u.path.startswith("/merchants/"):
             return self.reply({"merchant_id": "MID_TEST", "preferred_language": "kn-IN", "supply_kind": "goods"})
         if u.path == "/credits":
+            # Core applies the half-open [from, to) itself and rejects a bare date, so the double
+            # has to as well: otherwise WF10 could ask for the wrong window and still look right.
+            try:
+                window = [aware(q[key][0]) if key in q else None for key in ("from", "to")]
+            except ValueError:
+                return self.reply({"detail": "from and to need a UTC offset"}, 422)
+            since, until = window
+            if since and until and since >= until:
+                return self.reply({"detail": "The credit window must be [from, to) with from before to."}, 422)
             cursor = q.get("cursor", [None])[0]
+            if cursor is None:
+                state["windows"].append({"from": q.get("from", [None])[0], "to": q.get("to", [None])[0],
+                                         "limit": q.get("limit", [None])[0]})
+            inside = [c for c in credits
+                      if (since is None or aware(c["transaction"]["ts"]) >= since)
+                      and (until is None or aware(c["transaction"]["ts"]) < until)]
+            if q.get("limit", ["50"])[0] == "1":
+                return self.reply({"items": inside[:1], "as_of": NOW, "next_cursor": None})
             state["pages"].append(cursor)
-            page = credits[2:] if cursor == "page2" else credits[:2]
+            page = inside[2:] if cursor == "page2" else inside[:2]
             for c in page:
                 found = next((p for p in state["proposals"] if p["txn_id"] == c["transaction"]["txn_id"]), None)
                 c["machine_label"] = found["proposal"]["label"] if found else None
-            return self.reply({"items": page, "as_of": NOW, "next_cursor": None if cursor == "page2" else "page2"})
+            return self.reply({"items": page, "as_of": NOW,
+                               "next_cursor": None if cursor == "page2" or len(inside) <= 2 else "page2"})
         if u.path.startswith("/payers/"):
             state["histories"].append({"path": u.path, "as_of": q.get("as_of", [None])[0]})
             return self.reply({"strictly_prior_credit_count": 0, "merchant_has_paid_them": False,
@@ -69,12 +95,14 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/app/home":
             return self.reply({"as_of": NOW, "merchant_id": "MID_TEST"})
         if u.path == "/app/questions":
+            state['question_reads'].append(q.get('merchant', [None])[0])
             answered = {c["claim"]["question_id"] for c in state["claims"]}
             return self.reply({"items": [{"question_id": p["question"]["question_id"], "txn_id": p["txn_id"],
                 "question": p["question"]["text"], "language": p["question"]["language"]}
                 for p in state["questions"] if p["question"]["question_id"] not in answered]})
         if u.path.startswith("/app/officer/cases/"):
             cid = u.path.rsplit("/", 1)[-1]
+            state["polls"].append(cid)
             pack = state["packs"].get(cid, {})
             return self.reply({"case": {"case_id": cid}, "pack_id": pack.get("pack_id"),
                                "status": pack.get("status", "open")})
@@ -124,7 +152,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply({"published": True, "message_id": str(len(state["messages"]))})
         if path == "/packs":
             pid = "PACK-" + body["case_id"]
-            state["packs"][body["case_id"]] = {"pack_id": pid, "status": "awaiting_approval"}
+            state["packs"].setdefault(body["case_id"], {"pack_id": pid, "status": "awaiting_approval"})
             return self.reply({"pack_id": pid, "case_id": body["case_id"]})
         if path.startswith("/outbox/"):
             pid = path.split("/")[2]

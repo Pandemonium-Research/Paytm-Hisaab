@@ -728,29 +728,55 @@ in this phase.
 - [ ] **7.1** **WF50 escalation-handoff** (sub-workflow).
 - [ ] **7.2** **WF90 error-handler**, set as the error workflow on every workflow.
 - [ ] **7.3** Prompts: `notice_extract`, `grievance_facts`, `ca_explainer`, `handoff_summary`.
-- [ ] **7.4** **WF20 freeze-response**:
+- [x] **7.4** **WF20 freeze-response** (prototype freeze scope):
       - isolate → tiers → escalation → grievance → pack
       - acknowledge the merchant
       - **Wait, resumed by webhook** → outbox, or WF50
+      → Core's after-commit hook starts WF20 from the real lien; WF20 asks core to build the
+      persisted pack, then a five-second Wait loop reads the officer decision and sends only an
+      `approved` pack through the gated outbox. **The loop is bounded at 120 polls** (at least ten
+      minutes), then ends with an actionable error leaving the unsent pack for review; reposting
+      the case afterwards reuses the pack and delivers once, and a sent case delivers nothing more.
+      Core's frozen contracts have no resume-URL registration endpoint, so this polls rather than
+      registering `$execution.resumeUrl`. Grievance and escalation stay deferred (6.5–6.7).
 - [ ] **7.5** **WF40 notice-response**:
       - Sarvam Vision → extraction → guard → turnover, threshold and tiers → pack
       - explainers → Wait → deliver
       - fallback: the notice is chosen from events
 - [ ] **7.6** Add the threshold warning to WF10 (beat B3).
-- [ ] **7.7** Screen **M5** Case tracker, with freeze and tax variants.
-- [ ] **7.8** Screens **O1** Queue and **O2** Case, with the sticky "Approve and send" bar → core
+- [x] **7.7** Screen **M5** Case tracker, freeze variant.
+      → Follows the persisted case status and advances to `sent` while open; it says evidence
+      delivery is simulated and the bank decides the hold. The tax variant needs 6.2/6.3.
+- [x] **7.8** Screens **O1** Queue and **O2** Case, with the sticky "Approve and send" bar → core
       approve → Wait resumes.
+      → O2 also reads the officer-authenticated `/packs/<id>.json`, checks its case/pack/merchant
+      identity and shows both match badges, the excluded same-amount payment, bill/device and the
+      seven-day count; approval waits for that evidence. Tier totals describe the disputed payment
+      only. Verified at 360 px and 412 px with no page error and no external request.
 
 ### ✅ CP2: Freeze (driver A; Fri 19:00 in the original schedule)
 
-- [ ] Start the declines and the lien: a case opens automatically and WF20 runs on the local
+- [x] Start the declines and the lien: a case opens automatically and WF20 runs on the local
       n8n against the fakes (no credits).
-- [ ] Isolation shows "UTR ✓" and "Amount + date ✓". The decoy is listed and not chosen.
+      → `python n8n/tests/check_freeze_gate.py --prepare` replays to one second before the visible
+      lien and posts it through `/rails/events`; core opens `CASE-FREEZE-DME00002` and starts WF20
+      after commit. The three declines that follow the lien are posted at their own later times.
+- [x] Isolation shows "UTR ✓" and "Amount + date ✓". The decoy is listed and not chosen.
+      → `DM0038619` is found by both badges; the 18 March same-amount payment is listed and not
+      selected; 1 of 339 seven-day credits.
 - [ ] A pack PDF exists with a bill and tiers. The grievance passes every guard, with verified
       citations only.
+      → **Half done.** The real PDF exists with the bill, POS01 and Tier 1 at ₹4,200, and its
+      SHA-256 matches the build; an identical rebuild returns the same pack. The grievance and its
+      guards need 6.6/6.7, so this line stays open.
 - [ ] The officer approves **on a phone**: the Wait resumes, the outbox gets it, and
       `pack.sent` is appended.
+      → **Passes in a 360 px browser session,** not yet on a physical phone (2D.5): an unapproved
+      send is refused 409 with an empty outbox, then O2's approval resumes WF20's wait, core's
+      gated outbox records exactly one simulated delivery, and `GET /ledger/verify` stays ok.
 - [ ] M5 advances on the merchant's phone.
+      → **Passes in a browser** (an already-open M5 advances to `sent`, and a fresh 412 px session
+      sees it); a physical phone waits on 2D.5.
 - [ ] WF40 runs once with the specimen photo through the fake Vision (the L1 cassette), and the verdict says "must
       register".
 
