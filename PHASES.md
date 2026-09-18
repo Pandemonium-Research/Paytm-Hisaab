@@ -177,7 +177,8 @@ These are frozen before anyone builds, so neither lane waits on the other.
       → `python tasks.py up` brings db, core, fakes and caddy up healthy from an empty volume.
       memory and web sit behind the `surfaces` profile until B's Dockerfiles land (D19). The db
       init is `.sql`, not `.sh`: the shell script failed from the bind mount and the extra
-      databases were silently never created (D25). `migrate` is a placeholder until 2A.3.
+      databases were silently never created (D25). `migrate` now runs the 2A.3 role bootstrap
+      and Alembic upgrade.
 - [x] **2A.2** Caddy in compose on :8080 routing one origin by path (`/api/*` → core, `/mem/*`
       → memory, everything else → web), and the free `cloudflared` quick tunnel (`--protocol http2`), which the
       phones need (HTTPS for the PWA and the microphone). The local n8n reaches core on the
@@ -190,20 +191,32 @@ These are frozen before anyone builds, so neither lane waits on the other.
       `trycloudflare.com` name can fail to resolve on the laptop for a minute or more, because
       the first lookup caches NXDOMAIN; `dig @1.1.1.1 <host>` shows it is live. Phones on mobile
       data are unaffected.
-- [ ] **2A.3** Alembic with separate owner and app DB roles. Tables for the `rails`, `ledger`
+- [x] **2A.3** Alembic with separate owner and app DB roles. Tables for the `rails`, `ledger`
       and `ops` schemas (§6).
-- [ ] **2A.4** `ledger.entries` and `ledger.chain_heads`. A `BEFORE UPDATE OR DELETE OR TRUNCATE`
+      → `hisaab_owner` owns migrations; the running core connects as `hisaab_app`.
+      Role bootstrap and Alembic run safely on existing volumes as well as fresh ones.
+- [x] **2A.4** `ledger.entries` and `ledger.chain_heads`. A `BEFORE UPDATE OR DELETE OR TRUNCATE`
       trigger. The app role gets `INSERT, SELECT` only.
-- [ ] **2A.5** `ledger/chain.py`: canonical JSON, append under a row lock with `recorded_at`
+      → UPDATE/DELETE use a row trigger; TRUNCATE uses a statement trigger. All three reject
+      owner mutations too; runtime grants reject them before the trigger can run.
+- [x] **2A.5** `ledger/chain.py`: canonical JSON, append under a row lock with `recorded_at`
       from `clock_timestamp()`, and `verify`.
-- [ ] **2A.6** `auth.py`: role keys, the per-role check on entry kinds, 403s with a readable
+      → Zero-based merchant chains with 32-byte zero genesis. Envelope timestamps normalize
+      to UTC microseconds; payloads round-trip through JSONB before hashing. Verify reads
+      entries and heads in one snapshot. Anchors are added in 8.4; HTTP fixtures in Phase 4.
+- [x] **2A.6** `auth.py`: role keys, the per-role check on entry kinds, 403s with a readable
       reason.
+      → The append primitive shares the same kind check, so internal jobs cannot bypass it.
 - [x] **2A.7** Stub endpoints for every route in 1.3, returning fixture JSON, reachable
       through the tunnel.
       → 49 contracted operations, each validating against its response model, behind role-key
       auth. Checked through the tunnel. The contract amendments D9–D15 are packet 2b.
-- [ ] **2A.8** Tests: hashing is deterministic, the trigger blocks update/delete/truncate,
+- [x] **2A.8** Tests: hashing is deterministic, the trigger blocks update/delete/truncate,
       verify catches a one-byte edit at the right index, a wrong key gets 403.
+      → `python tasks.py test --postgres`: 198 core, 26 real Postgres and 19 fakes checks pass.
+      Postgres tests use a separate `hisaab_ledger_test` DB. Includes all 13 entry kinds,
+      24 concurrent appends over two merchants, timezone changes, rollback and head tamper.
+      Running core append/verify smoke passed as `hisaab_app` and was rolled back.
 
 ### 2B: Live checks S1–S8 (live window L1, go/no-go on each)
 
@@ -468,8 +481,10 @@ up to a day later and more family money comes by QR.
 - [x] **3.17** Wire `tasks.py generate` to `python -m sim.generate` (lands with 2A.1).
       → Passes `--only`, `--out` and `--force` through. `sim.generate` refuses to overwrite a
       split it did not write, so the current `data/demo` (no manifest) needs `--force`.
-- [ ] **3.18** Grep test proving nothing under `services/` or `n8n/` reads `hidden/` (add with
-      2A.8; `services/` doesn't exist yet).
+- [x] **3.18** Grep test proving nothing under `services/` or `n8n/` reads `hidden/` (add with
+      2A.8).
+      → Scans product source and workflow JSON, including Python path-join literals; skips
+      dependencies, generated artifacts and tests. Runs in core's default suite.
 - [ ] **3.19** Decide the deck figures. The data now gives a ₹53.17L notice claim (deck v2 says
       ₹60.98L) and 68 credits on 8–9 Mar (deck v2 says 39). **Recommended:** update deck v2
       from measured data in 12.6, rather than calibrating the data to old numbers. The Round 1
@@ -491,7 +506,7 @@ up to a day later and more family money comes by QR.
 - ✅ `python -m sim.generate --only demo` passes every scenario assertion (`tasks.py` wrapper
   pending, 3.17).
 - ✅ The baseline has been scored on eval.
-- ⏳ A grep test proves nothing under `services/` reads `hidden/` (3.18).
+- ✅ A grep test proves nothing under `services/` or `n8n/` reads `hidden/` (3.18).
 
 ---
 

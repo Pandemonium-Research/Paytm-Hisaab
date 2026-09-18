@@ -42,7 +42,7 @@ class Settings:
             vapid_public_key=os.getenv("VAPID_PUBLIC_KEY") or None,
             public_url=_public_url(),
             database_url=os.getenv(
-                "DATABASE_URL", "postgresql://hisaab:hisaab@db:5432/hisaab"
+                "DATABASE_URL", "postgresql://hisaab_app:local-app@db:5432/hisaab"
             ),
             role_keys={
                 role: os.getenv(f"KEY_{role.value.upper()}", f"dev-{role.value}")

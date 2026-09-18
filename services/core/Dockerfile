@@ -1,11 +1,19 @@
-FROM ghcr.io/astral-sh/uv:0.9.7-python3.12-bookworm-slim
+FROM ghcr.io/astral-sh/uv:0.9.7-python3.12-bookworm-slim AS dependencies
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 UV_LINK_MODE=copy
 
 COPY pyproject.toml uv.lock ./
-RUN uv sync --no-dev
+RUN uv sync --locked --no-dev
+
+FROM dependencies AS tests
+RUN uv sync --locked
+ENV PYTHONDONTWRITEBYTECODE=1 HISAAB_LIVE=0
+
+FROM dependencies AS runtime
 COPY app ./app
+COPY alembic.ini ./
+COPY migrations ./migrations
 
 EXPOSE 8000
 HEALTHCHECK --interval=5s --timeout=3s --retries=12 CMD [".venv/bin/python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]

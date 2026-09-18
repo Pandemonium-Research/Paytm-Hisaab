@@ -38,15 +38,37 @@ WhatsApp sandbox · a React PWA styled after Paytm for Business.
 
 ```bash
 python tasks.py up
+python tasks.py migrate
 curl http://localhost:8080/api/healthz
 open http://localhost:8080/api/docs       # use start on Windows
 python tasks.py test
+python tasks.py test --postgres          # trigger, grants, tamper and concurrency checks
 ```
 
 The default stack starts PostgreSQL with pgvector, core, the provider fakes and Caddy. Memory
 and web are declared under the `surfaces` profile because Lane B owns their Dockerfiles. Add
 `--surfaces` once those exist, and add `--local-n8n` for the pinned local n8n fallback. Until
 the web service lands, `/` and `/mem/*` correctly return 502 while `/api/*` remains available.
+
+`migrate` provisions `hisaab_owner` and `hisaab_app`, then runs Alembic as the owner. The API
+connects as `hisaab_app`, which can only insert and read ledger entries. It can update chain
+heads and operational state. Both roles are stopped by the ledger's mutation triggers;
+only the owner can deliberately disable one. `test --postgres` prepares a separate
+`hisaab_ledger_test` database, so the tamper and truncate checks cannot affect demo data.
+
+The chain library is implemented; the HTTP mutation and read routes still return fixtures
+until Phase 4 replaces them. A successful reply from those fixtures does not persist evidence.
+
+For B's local workflows:
+
+```bash
+python tasks.py up --local-n8n
+python tasks.py import-n8n --target local --activate
+```
+
+`import-n8n` and `export-n8n` call B's `n8n/cli.py`. A Cloud target requires `--live` and
+`HISAAB_LIVE=1`. The local n8n reads the same fake Twilio token as `fake-wa` (default `fake`),
+and permits environment access inside nodes. Cloud configuration remains an S5/S8 check.
 
 For a phone, run `python tasks.py tunnel` in one terminal. It always uses HTTP/2. Then run
 `python tasks.py publish` in another terminal to write the captured hostname into core's

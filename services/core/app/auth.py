@@ -25,6 +25,15 @@ def role_for_key(key: str | None) -> Role | None:
     return None
 
 
+def check_entry_kind(role: Role, entry_kind: EntryKind) -> None:
+    """Used by the append primitive as well as HTTP dependencies; no bypass for internal jobs."""
+    if entry_kind not in ROLE_ENTRY_KINDS[role]:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Role '{role.value}' cannot append ledger entry {entry_kind.value}.",
+        )
+
+
 def require_role(
     endpoint: str, entry_kind: EntryKind | None = None
 ) -> Callable[[str | None], Role]:
@@ -56,11 +65,8 @@ def require_role(
                 status_code=403,
                 detail=f"Role '{role.value}' is not permitted; this endpoint needs role {needed}.",
             )
-        if entry_kind is not None and entry_kind not in ROLE_ENTRY_KINDS[role]:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Role '{role.value}' cannot append ledger entry {entry_kind.value}.",
-            )
+        if entry_kind is not None:
+            check_entry_kind(role, entry_kind)
         return role
 
     return authorise

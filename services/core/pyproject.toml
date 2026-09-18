@@ -4,8 +4,11 @@ version = "0.1.0"
 description = "Paytm Hisaab core service"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.16,<2",
     "fastapi>=0.115",
     "pydantic>=2",
+    "psycopg[binary]>=3.2,<4",
+    "sqlalchemy>=2.0,<3",
     "uvicorn>=0.34",
 ]
 
@@ -25,3 +28,4 @@ packages = ["app"]
 [tool.pytest.ini_options]
 pythonpath = [".", "../.."]
 testpaths = ["tests"]
+markers = ["postgres: requires a migrated disposable Postgres database"]

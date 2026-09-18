@@ -101,16 +101,30 @@ def cmd_logs(args: argparse.Namespace, environment: dict[str, str]) -> None:
     compose(command, environment)
 
 
-def cmd_migrate(_args: argparse.Namespace, _environment: dict[str, str]) -> None:
-    print("Migrations are a no-op until task 2A.3 lands.")
+def cmd_migrate(_args: argparse.Namespace, environment: dict[str, str]) -> None:
+    compose(["run", "--build", "--rm", "migrate"], environment)
 
 
-def cmd_test(_args: argparse.Namespace, environment: dict[str, str]) -> None:
+def cmd_test(args: argparse.Namespace, environment: dict[str, str]) -> None:
     # Tests are intentionally local even if --live was supplied; no test may spend credits.
     environment = environment.copy()
     environment["HISAAB_LIVE"] = "0"
     run(["uv", "run", "pytest"], cwd=ROOT / "services" / "core", env=environment)
     run(["uv", "run", "pytest"], cwd=ROOT / "services" / "fakes", env=environment)
+    if args.postgres:
+        compose(["run", "--build", "--rm", "migrate", "uv", "run", "--no-sync", "python", "-m", "app.migrate", "--test-database"], environment)
+        compose(["run", "--build", "--rm", "ledger-tests"], environment)
+
+
+def cmd_n8n(args: argparse.Namespace, environment: dict[str, str]) -> None:
+    if args.target == "cloud":
+        if not args.live:
+            raise SystemExit("--target cloud requires --live; use --target local during development")
+        _require_live(environment, "n8n Cloud workflow import/export")
+    command = [sys.executable, "n8n/cli.py", args.action, "--target", args.target]
+    if getattr(args, "activate", False):
+        command.append("--activate")
+    run(command, env=environment)
 
 
 def twilio_signature(
@@ -469,11 +483,19 @@ def parser() -> argparse.ArgumentParser:
     logs.add_argument("--tail", type=int, default=100, help="initial lines per service")
     logs.set_defaults(func=cmd_logs)
 
-    migrate = subcommands.add_parser("migrate", help="run database migrations (2A.3 placeholder)")
+    migrate = subcommands.add_parser("migrate", help="bootstrap database roles and run Alembic")
     migrate.set_defaults(func=cmd_migrate)
 
     test = subcommands.add_parser("test", help="run the core test suite with uv")
+    test.add_argument("--postgres", action="store_true", help="also run ledger tests on a separate local database")
     test.set_defaults(func=cmd_test)
+
+    for command, action in (("import-n8n", "import"), ("export-n8n", "export")):
+        workflow = subcommands.add_parser(command, help=f"{action} n8n workflows using n8n/cli.py")
+        workflow.add_argument("--target", choices=("local", "cloud"), default="local")
+        if action == "import":
+            workflow.add_argument("--activate", action="store_true")
+        workflow.set_defaults(func=cmd_n8n, action=action)
 
     tunnel = subcommands.add_parser("tunnel", help="start the HTTP/2 Cloudflare quick tunnel")
     tunnel.set_defaults(func=cmd_tunnel)

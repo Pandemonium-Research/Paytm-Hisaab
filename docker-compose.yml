@@ -23,7 +23,7 @@ services:
       - path: .env
         required: false
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-hisaab}:${POSTGRES_PASSWORD:-hisaab}@db:5432/hisaab
+      DATABASE_URL: postgresql://hisaab_app:${HISAAB_DB_APP_PASSWORD:-local-app}@db:5432/hisaab
       HISAAB_RUNTIME_CONFIG: /runtime/config.json
     volumes:
       - ./services/core/runtime:/runtime
@@ -36,6 +36,36 @@ services:
       timeout: 3s
       retries: 12
     restart: unless-stopped
+
+  migrate:
+    profiles: ["tools"]
+    build: ./services/core
+    environment:
+      HISAAB_BOOTSTRAP_DATABASE_URL: postgresql://${POSTGRES_USER:-hisaab}:${POSTGRES_PASSWORD:-hisaab}@db:5432/hisaab
+      DATABASE_OWNER_URL: postgresql://hisaab_owner:${HISAAB_DB_OWNER_PASSWORD:-local-owner}@db:5432/hisaab
+      HISAAB_DB_OWNER_PASSWORD: ${HISAAB_DB_OWNER_PASSWORD:-local-owner}
+      HISAAB_DB_APP_PASSWORD: ${HISAAB_DB_APP_PASSWORD:-local-app}
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["uv", "run", "--no-sync", "python", "-m", "app.migrate"]
+
+  ledger-tests:
+    profiles: ["tools"]
+    build:
+      context: ./services/core
+      target: tests
+    environment:
+      HISAAB_LIVE: "0"
+      TEST_DATABASE_URL: postgresql://hisaab_app:${HISAAB_DB_APP_PASSWORD:-local-app}@db:5432/hisaab_ledger_test
+      TEST_DATABASE_OWNER_URL: postgresql://hisaab_owner:${HISAAB_DB_OWNER_PASSWORD:-local-owner}@db:5432/hisaab_ledger_test
+    volumes:
+      - .:/workspace:ro
+    working_dir: /workspace/services/core
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["/app/.venv/bin/python", "-m", "pytest", "-m", "postgres", "-p", "no:cacheprovider"]
 
   fakes:
     build: ./services/fakes
@@ -118,6 +148,9 @@ services:
       GENERIC_TIMEZONE: Asia/Kolkata
       TZ: Asia/Kolkata
       N8N_SECURE_COOKIE: "false"
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-ACfake}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-fake}
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
     volumes:
       - n8n-data:/home/node/.n8n
     depends_on:
