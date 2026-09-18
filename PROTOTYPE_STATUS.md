@@ -19,7 +19,8 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Repeatable demo snapshot/reset | Complete; `snapshot` 4 s, `reset` 36 s, verified round trip |
 | A | Credit window on `GET /credits` so WF10 stops paging the whole history | Complete (`deb9ba1`); 61 calls/108.8 s -> 1 call/2.3 s |
 | A | Freeze detector (6.9) | Complete; the lien opens `CASE-FREEZE-<event>` and WF20 is told after commit |
-| A | Approvals and the outbox gate (6.10), then packs (6.8) | Next |
+| A | Approvals and the outbox gate (6.10) | Complete; the gate reads the ledger, decisions are final, sends are simulated |
+| A | Case read models (6.11), then packs and PDF (6.8) | Next; 6.11 is going to Cursor (Composer) and A reviews the diff |
 | B | Minimal WF10, including the hard-case Sarvam branch | Complete; passes against the real stack |
 | B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Complete; real reads and persisted taps |
 | Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **Passes cold on B's machine** (117 s); A's machine is ~10x slower and timed out. Awaiting a re-run on A's with the credit window. Real-provider path (L1) pending |
@@ -31,7 +32,7 @@ Lien event → case → isolate disputed payment and show decoy → evidence pac
 
 | Owner | Work | Status |
 |---|---|---|
-| A | Case creation, isolation, pack, approve/reject/send and case read models | Freeze detector done (6.9); approvals (6.10) next |
+| A | Case creation, isolation, pack, approve/reject/send and case read models | Freeze detector (6.9) and approvals/outbox gate (6.10) done; read models (6.11) and packs (6.8) next |
 | B | WF20, O1/O2 and M5 | Prepared locally against existing contracts; approval/rejection orchestration checks pass; H8/CP2 pending |
 | Both | Officer approval and simulated send end to end | Pending |
 
@@ -84,6 +85,16 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
   database keeps both append-only triggers, `hisaab_app`'s insert-only grants, `ledger.current_view`
   and the sim clock. `GET /ledger/verify` returns ok afterwards, and an owner `UPDATE` is still
   refused by the trigger. Take the snapshot straight after `replay`, before any workflow run (D33).
+- **A: approvals and the outbox gate, 6.10 (18 Sep, D37, D38).** `POST /packs/{id}/approve|reject`
+  and `POST /outbox/{pack}/send` are real. The gate reads `pack.approved`/`pack.rejected` from the
+  ledger, never the `ops.approvals` status column, which the application role can edit; a pack gets
+  one final decision; sends are simulated, idempotent and never touch the network. The waiting
+  workflow is resumed after commit, only at our own n8n. On the running stack, send before approval
+  was 409, approval with the evidence key 403, officer approval 200, reject afterwards 409, and send
+  simulated; a probe standing in for WF20's Wait found the decision already committed when resumed.
+  61 Postgres tests; eight deliberate breakages of the gate each fail one. `POST /packs` itself is
+  still a fixture: its recording half (`record_pack`) is real and waits on 6.8's PDF.
+
 - **A: freeze detector, 6.9 (18 Sep, D35, D36).** A `lien_marked` event opens
   `case.opened(freeze)` as `CASE-FREEZE-<event_id>`, dated to the lien, and `POST /rails/events`
   returns the real `opened_case_ids`. A burst of 3 or more declines in the 30 minutes up to the lien
@@ -136,8 +147,8 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
 **Current limitation:** assistant SSE, case processing, evidence packs, officer
 approvals, turnover/threshold and reset still return fixtures. The first gate remains open until
 B's WF10/screens and the shared app/WhatsApp path run against the real backend. A lien now opens
-a real freeze case (6.9); building its pack, the officer's decision and the gated send still return
-fixtures.
+a real freeze case (6.9), and the officer's decision and the gated send are real (6.10). Building the
+pack (`POST /packs`) and the case read models still return fixtures.
 
 ### Integration notes for B
 
@@ -159,6 +170,12 @@ fixtures.
   the `/packs` and officer-case fixtures both IDs read `CASE-FREEZE-1`, the status never becomes
   terminal, and the 5 s Wait loop has no bound, so it polls forever. It needs a loop limit before
   CP2; 6.10 and 6.11 replace the fixtures it reads.
+- Approve/reject/send are real (`services/core/CONTRACTS.md` has the semantics). WF20's send is gated
+  in core on the ledger, and `workflow_resumed: true` now means a resume is scheduled after commit.
+  To use resume-on-webhook instead of polling, pass `$execution.resumeUrl` to `POST /packs` once 6.8
+  accepts it; it must be on `N8N_BASE_URL`'s origin. Known limit, not addressed: WF20 holds the
+  officer key for its send, so that key could also approve. The human's approval is enforced as
+  "an officer-role entry", not as "a person".
 - `GET /config` is real; prompts and other unlisted skills remain fixtures.
 - `tasks.py import-n8n --target local --activate` fills missing local environment values from
   `.env.example`. This keeps imported credentials aligned with core's fake defaults, even

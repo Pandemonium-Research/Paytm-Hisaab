@@ -673,9 +673,20 @@ in this phase.
       already committed when told; the replayed lien opened nothing and sent nothing; with n8n
       stopped a lien still returned 200 and opened its case; `GET /ledger/verify` ok. The CP1
       snapshot was restored afterwards. `POST /cases` (evidence) is still a fixture: it is 6.8's.
-- [ ] **6.10** Approvals: the `resume_url` is stored; `/packs/{id}/approve|reject` appends an
+- [x] **6.10** Approvals: the `resume_url` is stored; `/packs/{id}/approve|reject` appends an
       entry and resumes the Wait; `/outbox/{pack}/send` refuses without `pack.approved`, then
       appends `pack.sent`.
+      The gate reads the ledger, not `ops.approvals` (D37); decisions are final and retries return
+      the original; sends are simulated and idempotent. The resume URL lives on the pack's approval
+      record and is called after commit, only at `N8N_BASE_URL`'s origin (D38). `record_pack` is the
+      recording half of `POST /packs`, which stays a fixture until 6.8 renders the PDF. 14 Postgres
+      tests (61 in all); eight deliberate breakages of the gate each fail one, including a gate that
+      trusts the status column, decisions that are not final, a resume URL allowed anywhere, and a
+      rejection beside an approval. Running stack, with a probe as WF20's Wait: send before approval
+      409, approval as evidence 403, officer approval 200 with the probe resumed after commit, retry
+      same entry, reject after approval 409, send simulated, send retry same entry, chain verifies.
+      The CP1 snapshot was restored afterwards. Not tested: two officers deciding at the same instant
+      (it relies on the same chain lock as the question budget).
 - [ ] **6.11** Read models `/app/cases`, `/app/turnover`, `/app/officer/queue` and
       `/app/officer/cases/{id}`.
 - [ ] **6.12** Tests against the demo answer key:

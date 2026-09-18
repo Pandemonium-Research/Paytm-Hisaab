@@ -107,7 +107,8 @@ QUERY_SAMPLES: dict[str, dict[str, Any]] = {
     "PUT /app/profile": {"merchant": "MID_DEMO_SAHANA"},
 }
 
-# Real operations are exercised against Postgres in test_payments_postgres.py.
+# Real operations are exercised against Postgres in test_payments_postgres.py, and the freeze
+# path in test_freeze_postgres.py and test_approvals_postgres.py.
 REAL_ENDPOINTS = {
     "POST /assistant/inbound", "POST /assistant/outbound",
     "POST /sim/clock", "POST /sim/replay", "POST /rails/credits", "POST /rails/debits",
@@ -118,6 +119,7 @@ REAL_ENDPOINTS = {
     "GET /app/payments", "GET /app/payments/{txn}", "POST /skills/classify-rules",
     "POST /skills/select-questions",
     "PUT /app/profile",
+    "POST /packs/{id}/approve", "POST /packs/{id}/reject", "POST /outbox/{pack}/send",
 }
 
 

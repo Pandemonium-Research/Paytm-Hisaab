@@ -156,6 +156,22 @@ the 30 minutes up to the lien. Delivery is best effort: a failed webhook does no
 WF20 should treat the webhook as a prompt, not the only record. `POST /sim/replay` opens the same
 case for a lien in its range but does not call WF20.
 
+`POST /packs/{id}/approve|reject` (officer) record one final decision per pack: `officer_ref` becomes
+the entry's `actor_ref`, an identical retry returns the original entry, and a different second
+decision is 409. `POST /outbox/{pack}/send` (officer) sends only when the ledger holds a
+`pack.approved` for that pack and no `pack.rejected`; otherwise it is 409 and nothing is written. It
+never touches the network: delivery is a row in `ops.outbox`, `simulated` is always `true`,
+`delivery_ref` is `SIM-<pack_id>`, and a retry to the same destination returns the original entry
+(a different destination is 409). Business time must run forwards: a decision before the pack was
+built, or a send before its approval, is 422.
+
+`workflow_resumed: true` means a resume is **scheduled for after the decision commits**, not that it
+arrived. Core POSTs `{pack_id, decision, entry_seq}` to the pack's stored resume URL with
+`X-N8N-Webhook-Secret`, and only when that URL is on `N8N_BASE_URL`'s origin (default
+`http://n8n:5678`). WF20 must re-read the decision from core rather than trust this body. Resume URLs
+are registered with the pack: `POST /packs` accepts one from 6.8. Until then WF20's polling is the
+only path, and it needs the officer case read model (6.11) to be real.
+
 ## Short examples
 
 Rails ingest:
