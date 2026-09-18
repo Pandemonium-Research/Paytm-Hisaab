@@ -306,14 +306,34 @@ and 2C.3) is part of live window L1 and is recorded as cassettes.
 
 Unverified citations block approval, so this must be done before CP2.
 
-- [ ] **2L.1** MHA/I4C SOP (2 Jan 2026), from a primary or legal source: lien-only default,
+- [x] **2L.1** MHA/I4C SOP (2 Jan 2026), from a primary or legal source: lien-only default,
       ₹50,000 limit, mule vs bona fide receiver.
-- [ ] **2L.2** AP High Court (July 2026) and Rajasthan HC, *Balaji Enterprises v RBI* (Aug 2026):
+      → **The SOP text is not public.** Its existence, date and scope are confirmed by PIB
+      (28 Jul 2026, Release ID 2290377) and by the Rajasthan HC, which applies its Clause 10.
+      Lien-limited-to-the-disputed-sum and the ₹50,000 / 90-day rule rest on one legal source
+      (LiveLaw). **Mule vs bona fide receiver is NOT in any source describing the SOP**, so it is
+      `verified: false`; the courts draw that line instead. The deck's "if the trail is verified"
+      qualifier is unsourced — see `deck_v2_corrections` in `legal/citations.yaml`.
+- [x] **2L.2** AP High Court (July 2026) and Rajasthan HC, *Balaji Enterprises v RBI* (Aug 2026):
       exact citations and holdings.
-- [ ] **2L.3** CGST s.2(6), s.22, s.23 and s.25 wording; the 30-day registration window.
-- [ ] **2L.4** Write `legal/citations.yaml` with source URLs and `verified` flags.
-- [ ] **2L.5** A freeze scale figure (NCRP/I4C volumes or petition counts), or record that
+      → *Sri Sai Wines v. Union of India*, WP 969/2026, **decided 22 Jun 2026** (not July)
+      [2026 SCC OnLine AP 2469]. *Shree Balaji Enterprises v. RBI*, S.B. CWP 2679/2026,
+      **pronounced 20 Aug 2026** [2026:RJ-JP:33344] — 77-page judgment read in full; para 28 and
+      direction (C) quoted verbatim; 105 petitions disposed of together. Added
+      *Ritesh Yadav v. RBI* (Allahabad HC, DB, 14 Aug 2026) for the lien-limit principle.
+- [x] **2L.3** CGST s.2(6), s.22, s.23 and s.25 wording; the 30-day registration window.
+      → Verbatim from the CBIC repository. **s.22(1) says ₹20 lakh**; the ₹40 lakh figure is its
+      third proviso plus **Notification 10/2019-CT** (goods-only, ten States excluded — Karnataka
+      and UP are not among them, so ₹40L holds for both demo merchants).
+- [x] **2L.4** Write `legal/citations.yaml` with source URLs and `verified` flags.
+      → 10 citations, 8 with primary text read. The file defines the schema the 6.6 guard reads.
+      → **H9 is complete: A is unblocked for 6.6 and 6.7.**
+- [x] **2L.5** A freeze scale figure (NCRP/I4C volumes or petition counts), or record that
       none was found. Never invent one.
+      → **No official count of frozen or lien-marked accounts exists**; none is claimed. Verified
+      proxies (PIB, as on 30 Jun 2026): ₹11,158 crore saved across 32.80 lakh CFCFRMS complaints;
+      32.08 lakh accounts *flagged* Layer-1 (flagged is not frozen); plus 105 petitions in one
+      Rajasthan batch.
 
 **Phase 2 done when:**
 - S8 passes: n8n Cloud reaches the stubs with a role key, and a wrong key gets 403.

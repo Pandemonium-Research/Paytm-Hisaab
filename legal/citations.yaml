@@ -1,0 +1,351 @@
+# Legal citation allowlist (task 2L.4, owned by B).
+#
+# Nothing in a pack or grievance may cite a source that is not in this file with
+# `verified: true`. Task 6.6's citations guard enforces that, and 6.7's grievance template
+# prints `cite_as` verbatim.
+#
+# Schema
+#   id          stable key the guard and template refer to
+#   kind        statute | notification | judgment | sop | statistic
+#   cite_as     the exact string that may be printed. Never reword it in generated text.
+#   date        date of the instrument itself (pronouncement / notification / release)
+#   sources     where it was checked. `type: primary` means the instrument's own text was read;
+#               `legal_report` means a legal publisher's report of it; news is never enough.
+#   verified    true only if every claim used from it is verified. The guard blocks approval
+#               on false, which is the point: an unverified citation must never reach a bank
+#               or the police.
+#   claims      the specific propositions we may assert from that source. Each carries its own
+#               `verified` flag and a verbatim `quote`. A quote is never edited to fit a sentence.
+#
+# Checked on 2026-09-18 by B. Re-check before the demo (task 12.7).
+
+version: 1
+checked_on: 2026-09-18
+checked_by: B
+
+citations:
+
+  # ---------------------------------------------------------------- SOP ----
+  - id: sop_ncrp_cfcfrms_2026
+    kind: sop
+    cite_as: "MHA / I4C Standard Operating Procedure for NCRP-CFCFRMS, dated 2 January 2026"
+    issuer: "Ministry of Home Affairs, Indian Cyber Crime Coordination Centre (I4C)"
+    date: 2026-01-02
+    verified: false          # see claim mule_vs_bona_fide; every other claim here is verified
+    primary_text_public: false
+    note: >
+      The SOP itself is not published. Its existence, date and subject matter are confirmed by a
+      PIB release and by the Rajasthan High Court, which applies it. Detail beyond that rests on a
+      legal publisher's reading, so quote the courts rather than the SOP wherever possible.
+    sources:
+      - type: primary
+        what: "PIB release, Ministry of Home Affairs, CFCFRMS 2.0 PLATFORM, 28 July 2026 (Release ID 2290377)"
+        url: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2290377&reg=3&lang=1
+      - type: primary
+        what: "Rajasthan HC in Shree Balaji Enterprises (below) refers to the SOP dated 02.01.2026 and its Clause 10"
+      - type: legal_report
+        what: "LiveLaw, Problem With CFCFRMS: Reading MHA's New Account-Freeze SOP"
+        url: https://www.livelaw.in/articles/cfcfrms-reading-mha-new-account-freeze-sop-537503
+    claims:
+      - id: exists_and_scope
+        verified: true
+        source: pib
+        quote: >
+          the Ministry has issued a comprehensive Standard Operating Procedure (SOP) for
+          NCRP-CFCFRMS. The SOP lays down a standardized framework for complaint processing, bank
+          coordination, grievance redressal, removal of lien markings, and restoration of
+          defrauded funds to rightful claimants based on complaints received through the NCRP.
+      - id: grievance_and_restoration_modules_live
+        verified: true
+        source: pib
+        quote: >
+          Money Restoration Module for expeditious restoration of defrauded money to the victims
+          and Grievance Redressal Module for timely attending to the grievances relating to
+          freezing of the bank accounts and lien marking of the amount, have been made functional
+          from April, 2026.
+      - id: lien_limited_to_disputed_sum
+        verified: true
+        source: livelaw
+        confidence: single_legal_source
+        quote: >
+          Account-level freeze is now positioned as the exception, not the default ... requires
+          that, where a lien is to be placed, it be limited to the disputed sum.
+      - id: below_50000_refund_without_court_order_and_90_day_release
+        verified: true
+        source: livelaw
+        confidence: single_legal_source
+        quote: >
+          for frauds below Rs. 50,000 the SOP contemplates refund processing without a court
+          order, and instructs banks to lift any fund freeze within 90 days if no judicial order
+          is in place.
+        note: >
+          This is about refund processing and a 90-day release. It is NOT the deck's "settled
+          without a court order if the trail is verified" - that qualifier is unsourced.
+      - id: grievance_clause_10
+        verified: true
+        source: rajasthan_hc
+        quote: "The grievance redressal mechanism under Clause 10 of the SOP dated 02.01.2026 shall be strictly followed."
+      - id: mule_vs_bona_fide
+        verified: false
+        note: >
+          The deck says the SOP distinguishes a mule from a bona fide receiver. No source found
+          says that. The distinction IS supported by the courts below (Rajasthan para 28, Andhra
+          Pradesh). Cite them for it, never the SOP.
+
+  # ----------------------------------------------------------- judgments ----
+  - id: raj_hc_shree_balaji_2026
+    kind: judgment
+    cite_as: "Shree Balaji Enterprises v. Reserve Bank of India, S.B. Civil Writ Petition No. 2679/2026 and connected matters (Rajasthan HC, Jaipur Bench, 20 August 2026) [2026:RJ-JP:33344]"
+    court: "High Court of Judicature for Rajasthan, Bench at Jaipur"
+    judge: "Anand Sharma, J."
+    date: 2026-08-20
+    verified: true
+    sources:
+      - type: primary
+        what: "Judgment text, 77 pages, read in full"
+        url: https://www.medianama.com/wp-content/uploads/2026/08/Balaji_Enterprises_Vs_RBI.pdf
+      - type: legal_report
+        what: "LiveLaw 2026 LiveLaw (Raj) 348; Verdictum; Bar and Bench"
+    note: >
+      Legal publishers report the date as 21, 22 and 23 August. The judgment itself records
+      "Date of pronouncement :: 20.08.2026" (reserved 17.08.2026). Cite the neutral citation.
+      105 writ petitions were disposed of together.
+    claims:
+      - id: labels_are_not_reasons
+        verified: true
+        pinpoint: "para 28"
+        quote: >
+          A mere expression such as "suspicious transaction", "mule account", "Layer-1 account" or
+          "cyber fraud transaction" cannot, by itself, constitute adequate reasons for indefinitely
+          immobilising the entire bank account. Such expressions may justify investigation, but
+          they cannot substitute the material upon which the conclusion of suspicion is founded.
+      - id: lien_not_blanket_freeze
+        verified: true
+        pinpoint: "direction (C)"
+        quote: >
+          Wherever the disputed amount is identifiable, the ordinary course shall be to preserve
+          that amount by lien/hold rather than freeze the entire account, unless reasons exist
+          demonstrating why wider restraint is necessary.
+      - id: proportionality_of_restraint
+        verified: true
+        pinpoint: "para 27"
+        quote: >
+          the Investigating Officer must identify, as far as reasonably practicable, the
+          transaction and amount requiring protection; and fourth, the restraint must be
+          proportionate to the investigative necessity and cannot continue mechanically after the
+          necessity ceases to exist.
+
+  - id: ap_hc_sri_sai_wines_2026
+    kind: judgment
+    cite_as: "Sri Sai Wines v. Union of India, Writ Petition No. 969 of 2026 (Andhra Pradesh HC, 22 June 2026) [2026 SCC OnLine AP 2469; 2026 LiveLaw (AP) 115]"
+    court: "High Court of Andhra Pradesh"
+    judge: "Ravi Cheemalapati, J."
+    date: 2026-06-22
+    verified: true
+    sources:
+      - type: legal_report
+        what: "LiveLaw 2026 LiveLaw (AP) 115"
+        url: https://www.livelaw.in/high-court/andhra-pradesh-high-court/andhra-pradesh-high-court-vendors-verify-upi-customer-antecedents-540137
+      - type: legal_report
+        what: "SCC OnLine Blog, 1 August 2026, reporting 2026 SCC OnLine AP 2469"
+        url: https://www.scconline.com/blog/post/2026/08/01/ap-hc-directs-unfreezing-bank-account-upi-transaction/
+    note: >
+      Decided 22 June 2026; the deck's "July 2026" is the reporting date. Facts: a licensed wine
+      trader's account was frozen over a Rs. 1,000 UPI credit from a person named in a cheating
+      case at Patna. Judgment text not read; two legal publishers agree.
+    claims:
+      - id: vendor_cannot_verify_upi_payer
+        verified: true
+        quote: >
+          if any individual purchases goods and pays through UPI using the above said
+          applications, the vendor cannot verify the credentials of such individual.
+      - id: freeze_without_verifying_is_unsustainable
+        verified: true
+        quote: >
+          Without verifying the credentials of the petitioner and without noticing his involvement
+          in any criminal case registered against the said individual, the authorities cannot
+          freeze the petitioner's account.
+
+  - id: all_hc_ritesh_yadav_2026
+    kind: judgment
+    cite_as: "Ritesh Yadav v. Reserve Bank of India (Allahabad HC, 14 August 2026) [2026 LiveLaw (AB) 578]"
+    court: "High Court of Judicature at Allahabad"
+    judge: "Shekhar B. Saraf and Abdhesh Kumar Chaudhary, JJ."
+    date: 2026-08-14
+    verified: true
+    sources:
+      - type: legal_report
+        what: "LiveLaw 2026 LiveLaw (AB) 578"
+        url: https://www.livelaw.in/high-court/allahabad-high-court/cyber-fraud-allahabad-hc-bank-lien-disputed-amount-mha-sop-545790
+    note: >
+      Not in the deck; added because it states the lien-limit principle most directly, from a
+      Division Bench, and describes the SOP's bank-side grievance route.
+    claims:
+      - id: lien_cannot_exceed_disputed_amount
+        verified: true
+        quote: >
+          where an investigating agency has identified a specific disputed amount, a lien cannot
+          extend beyond that amount in the absence of material showing that the remaining funds
+          are also connected with the alleged offence.
+
+  # ------------------------------------------------------------- statute ----
+  - id: cgst_s2_6_aggregate_turnover
+    kind: statute
+    cite_as: "Section 2(6), Central Goods and Services Tax Act, 2017"
+    verified: true
+    sources:
+      - type: primary
+        what: "CBIC tax repository, CGST Act 2017, section 2"
+        url: https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter1/section2_v1.00.html
+    claims:
+      - id: aggregate_turnover_includes_exempt
+        verified: true
+        quote: >
+          "aggregate turnover" means the aggregate value of all taxable supplies (excluding the
+          value of inward supplies on which tax is payable by a person on reverse charge basis),
+          exempt supplies, exports of goods or services or both and inter-State supplies of persons
+          having the same Permanent Account Number, to be computed on all India basis but excludes
+          central tax, State tax, Union territory tax, integrated tax and cess;
+
+  - id: cgst_s22_1_registration_threshold
+    kind: statute
+    cite_as: "Section 22(1), Central Goods and Services Tax Act, 2017"
+    verified: true
+    sources:
+      - type: primary
+        url: https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter6/section22_v1.00.html
+    claims:
+      - id: base_threshold_twenty_lakh
+        verified: true
+        quote: >
+          Every supplier shall be liable to be registered under this Act in the State or Union
+          territory, other than special category States, from where he makes a taxable supply of
+          goods or services or both, if his aggregate turnover in a financial year exceeds twenty
+          lakh rupees
+      - id: forty_lakh_is_a_proviso_for_goods_only
+        verified: true
+        quote: >
+          Provided also that the Government may, at the request of a State and on the
+          recommendations of the Council, enhance the aggregate turnover from twenty lakh rupees
+          to such amount not exceeding forty lakh rupees in case of supplier who is engaged
+          exclusively in the supply of goods, subject to such conditions and limitations, as may
+          be notified
+        note: >
+          The Act itself says twenty lakh. Forty lakh for a goods-only supplier comes from this
+          proviso plus notification 10/2019-CT. Never cite "Rs. 40 lakh under s.22" on its own.
+
+  - id: cgst_s23_1_a_not_liable
+    kind: statute
+    cite_as: "Section 23(1)(a), Central Goods and Services Tax Act, 2017"
+    verified: true
+    sources:
+      - type: primary
+        url: https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter6/section23_v1.00.html
+    claims:
+      - id: exclusively_exempt_not_liable
+        verified: true
+        quote: >
+          The following persons shall not be liable to registration, namely:- (a) any person
+          engaged exclusively in the business of supplying goods or services or both that are not
+          liable to tax or wholly exempt from tax under this Act or under the Integrated Goods and
+          Services Tax Act;
+
+  - id: cgst_s25_1_thirty_days
+    kind: statute
+    cite_as: "Section 25(1), Central Goods and Services Tax Act, 2017"
+    verified: true
+    sources:
+      - type: primary
+        url: https://taxinformation.cbic.gov.in/content/html/tax_repository/gst/acts/2017_CGST_act/active/chapter6/section25_v1.00.html
+    claims:
+      - id: apply_within_thirty_days
+        verified: true
+        quote: >
+          Every person who is liable to be registered under section 22 or section 24 shall apply
+          for registration in every such State or Union territory in which he is so liable within
+          thirty days from the date on which he becomes liable to registration
+
+  - id: notif_10_2019_central_tax
+    kind: notification
+    cite_as: "Notification No. 10/2019-Central Tax, dated 7 March 2019 (Ministry of Finance, Department of Revenue)"
+    date: 2019-03-07
+    effective_from: 2019-04-01
+    verified: true
+    sources:
+      - type: primary
+        what: "Gazette text of the notification, read in full"
+        url: https://keralataxes.gov.in/wp-content/uploads/2018/07/notfctn-10-central-tax-english-2019.pdf
+      - type: primary
+        what: "GST Council listing"
+        url: https://gstcouncil.gov.in/node/4096
+    claims:
+      - id: forty_lakh_exemption_goods_only
+        verified: true
+        quote: >
+          In exercise of the powers conferred by sub-section (2) of section 23 of the Central
+          Goods and Services Tax Act, 2017 ... hereby specifies the following category of persons,
+          as the category of persons exempt from obtaining registration under the said Act,
+          namely,- Any person, who is engaged in exclusive supply of goods and whose aggregate
+          turnover in the financial year does not exceed forty lakh rupees
+      - id: excluded_goods
+        verified: true
+        quote: "Ice cream and other edible ice, whether or not containing cocoa. / Pan masala / All goods, i.e. Tobacco and manufactured tobacco substitutes"
+      - id: excluded_states
+        verified: true
+        quote: >
+          persons engaged in making intra-State supplies in the States of Arunachal Pradesh,
+          Manipur, Meghalaya, Mizoram, Nagaland, Puducherry, Sikkim, Telangana, Tripura,
+          Uttarakhand
+        note: >
+          Karnataka and Uttar Pradesh are NOT excluded, so the forty lakh limit applies to both
+          demo merchants (Bengaluru and Lucknow). A services supplier stays at twenty lakh.
+
+  # ----------------------------------------------------------- statistic ----
+  - id: stat_cfcfrms_scale_2026
+    kind: statistic
+    cite_as: "PIB, Ministry of Home Affairs, CFCFRMS 2.0 PLATFORM, 28 July 2026 (Release ID 2290377)"
+    date: 2026-07-28
+    as_on: 2026-06-30
+    verified: true
+    sources:
+      - type: primary
+        url: https://www.pib.gov.in/PressReleasePage.aspx?PRID=2290377&reg=3&lang=1
+        what: "Written reply by the Minister of State for Home Affairs, Shri Bandi Sanjay Kumar, in the Lok Sabha"
+    claims:
+      - id: complaints_and_amount_saved
+        verified: true
+        quote: >
+          As per CFCFRMS operated by I4C, till 30.06.2026, financial amount of more than Rs. 11,158
+          Crore has been saved in more than 32.80 lakh complaints.
+      - id: suspect_registry_and_layer1
+        verified: true
+        quote: >
+          Till 30.06.2026, more than 30.48 lakh suspect identifier data received from Banks and
+          32.08 lakh Layer 1 mule accounts have been shared with the participating entities of
+          Suspect Registry and declined transactions worth Rs. 25,698 crores.
+      - id: no_official_freeze_count
+        verified: true
+        note: >
+          Task 2L.5 asked for a freeze-scale figure. No official count of frozen or lien-marked
+          accounts was found, so none is claimed. The honest proxies are above, plus the 105 writ
+          petitions disposed of together in Shree Balaji Enterprises. Say "32.08 lakh accounts
+          flagged as Layer-1", never "32.08 lakh accounts frozen": being flagged is not being
+          frozen.
+
+# Where deck v2 and the pitch differ from what was verified (feeds tasks 12.6 and 12.7).
+deck_v2_corrections:
+  - claim: "Andhra Pradesh HC, July 2026"
+    correction: "Decided 22 June 2026; July is the reporting date. Name it: Sri Sai Wines v. Union of India."
+  - claim: "Balaji Enterprises v RBI"
+    correction: "Shree Balaji Enterprises v. Reserve Bank of India, pronounced 20 August 2026, [2026:RJ-JP:33344]."
+  - claim: "Disputed sums under Rs. 50,000 can be settled without a court order if the trail is verified"
+    correction: >
+      The sourced statement is narrower: for frauds below Rs. 50,000 the SOP contemplates refund
+      processing without a court order, and banks are to lift a freeze within 90 days absent a
+      judicial order. Drop "if the trail is verified", which no source supports.
+  - claim: "The SOP distinguishes a mule from a bona fide receiver"
+    correction: "Not found in any source describing the SOP. The courts draw that line; cite them instead."
+  - claim: "Rs. 40 lakh GST threshold"
+    correction: >
+      Always pair it with notification 10/2019-CT. The Act's own figure is Rs. 20 lakh, and the
+      Rs. 40 lakh limit is for goods-only suppliers and does not apply in ten named States.
