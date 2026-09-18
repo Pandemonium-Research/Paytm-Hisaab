@@ -37,14 +37,22 @@ Lien event → case → isolate disputed payment and show decoy → evidence pac
 | A | Case creation, isolation, pack, approve/reject/send and case read models | Complete in prototype freeze scope; minimal H8 core handoff ready |
 | A | Evidence tiers (6.1) | Complete; `current_view` takes an optional case boundary and decides the tier beside `effective_label`, so the two cannot drift. `POST /skills/tiers` always returns all four tiers plus the shape figure (`cc79297`) |
 | A | Output guards (6.6) | Complete; `numbers`, `citations`, `no-innocence` and `extraction` are deterministic and fail closed. `language` stays a stub. This is the guards half of CP2's grievance line that B is waiting on (`423c2b6`) |
+| A | Turnover (6.2) and threshold (6.3) | Complete; billed sales split by bill line, only unbilled sales apportioned, and a linked bill classifies a credit when nothing else has (D43). Threshold is ₹40L/₹20L strictly above, with an evidence-backed crossing date and a projection only while one can still mean something (D44) (`1abae30`, `5b11ca2`) |
 | B | WF20, O1/O2 and M5 | Complete; real pack handoff, bounded polling and the cold CP2 run all pass |
 | Both | Officer approval and simulated send end to end | **Passes cold on B's machine**; pending a re-run on A's |
 
 Then add turnover/threshold and the notice report. A selected specimen notice can precede OCR.
 
-**Next for A:** turnover (6.2) and threshold (6.3), then the grievance template (6.7), which
-needs 6.6's citations guard and is what completes CP2's grievance line. Specs for 6.2 and 6.3 are
-written and ready to delegate.
+**Next for A:** the grievance template (6.7), which reads `legal/citations.yaml` through 6.6's
+citations guard and is what completes CP2's grievance line; then escalation-check (6.5) and the
+notice report over 6.2/6.3. Two things worth knowing before that work starts:
+
+- **Turnover is only as good as the labels.** On the current demo database WF10 has not run, so
+  4,125 bills carry the whole figure and coverage sits at 0.28. Seeding the year (8.5) is what
+  moves it.
+- **B's note on approvals:** WF20 holds the officer key for its send, so that key can also
+  approve. The gate enforces "an officer-role entry", not "a person" (D37). Worth a separate key
+  or a second factor before this is more than a prototype.
 
 ## Delivered
 

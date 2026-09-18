@@ -15,8 +15,9 @@ approval/send gate, and four prototype case/officer reads (6.11). Minimal H8 cor
 Both gates now pass cold on B's machine (`7b67bb0`): CP2 ran from a real lien through the pack,
 the O2 approval and the gated outbox. A has since added evidence tiers (6.1) and the four output
 guards (6.6), the half of CP2's grievance line that was blocking B.
-Turnover (6.2), threshold (6.3) and the grievance template (6.7) follow next; notice PDFs remain
-deferred. A's cold re-run of both gates is still outstanding.
+Turnover (6.2) and threshold (6.3) are in. The grievance template (6.7) follows next, then
+escalation-check (6.5); notice PDFs remain deferred. A's cold re-run of both gates is still
+outstanding.
 Cursor build jobs should cover one helper or endpoint each, with exact contracts and acceptance
 checks; A validates each result before dependent delegation.
 The remaining credit-guard block does not block this queue. Keep lane ownership and
