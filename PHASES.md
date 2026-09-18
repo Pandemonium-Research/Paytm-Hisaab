@@ -725,8 +725,14 @@ time is short, skip 8.4 and come back to it after 8.7.
 - [ ] **8.5** **Seed:** replay the year through WF10 seed mode on the **local n8n** against the
       local core and the fakes, then `pg_dump` the snapshot. The final demo seed runs live
       once, in L2 (10.1b).
-- [ ] **8.6** `tasks.py reset`: restore the snapshot, set the clock, clear the bus, in under
+- [x] **8.6** `tasks.py reset`: restore the snapshot, set the clock, clear the bus, in under
       60 s.
+      → `tasks.py snapshot` dumps the demo database (about 4 s, 4.8 MB); `tasks.py reset` restores
+      it in about 36 s. The clock and the assistant conversations come back with the dump, so both
+      are reset by the restore. Verified: a proposal written after the snapshot is gone afterwards,
+      both append-only triggers and `hisaab_app`'s insert-only grants survive, `ledger/verify`
+      returns ok and an owner `UPDATE` is still refused. It restores a snapshot rather than the
+      8.5 seeded year, which is what the prototype queue needs; 8.5 still owes the seeded snapshot.
 - [ ] **8.7** `eval/beats.py`, covering B1–B7.
 - [ ] **8.8** **(live, window L3, optional)** `eval/agent_eval.py` (about 500 stratified hard
       cases; wired and tested on the fakes first), then `eval/report.py` →

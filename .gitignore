@@ -63,3 +63,6 @@ env.*.live
 
 # Per-machine runtime state written by `tasks.py publish` (the current tunnel hostname)
 /services/core/runtime/
+
+# Database snapshots for repeatable demo runs (`tasks.py snapshot`), regenerable from sim data
+/services/core/snapshots/

@@ -89,6 +89,19 @@ curl -H "X-Hisaab-Key: dev-app" \
   "http://localhost:8080/api/app/home?merchant=MID_DEMO_SAHANA"
 ```
 
+Once the data is loaded, save that starting point so a rehearsal can be run more than once:
+
+```bash
+python tasks.py snapshot                 # about 4 s
+python tasks.py reset                    # about 36 s; discards everything since the snapshot
+```
+
+Take the snapshot **straight after `replay`, before any workflow run.** The ledger refuses
+UPDATE, DELETE and TRUNCATE, so a run that labels the demo credits cannot be undone in place, and
+WF10 skips credits that already carry a machine label: one interrupted run can leave a database
+that will never select three questions again. `reset` stops n8n, restores the dump and restarts
+core; add `--local-n8n` to bring n8n back up with it.
+
 Replay uses only `visible/`, saves complete bills and observed credits, and sets the persistent
 business clock. Repeating it is safe. It loads payments without running WF10 or answering questions.
 For the first demo load it can take a few minutes. Workflow writes must use `home.as_of` rather

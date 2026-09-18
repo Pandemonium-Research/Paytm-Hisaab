@@ -116,6 +116,83 @@ def cmd_test(args: argparse.Namespace, environment: dict[str, str]) -> None:
         compose(["run", "--build", "--rm", "ledger-tests"], environment)
 
 
+SNAPSHOT_DIR = ROOT / "services" / "core" / "snapshots"
+
+
+def _db_user(environment: dict[str, str]) -> str:
+    return environment.get("POSTGRES_USER", "hisaab")
+
+
+def _snapshot_path(name: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", name):
+        raise SystemExit("Snapshot names may use letters, digits, dashes and underscores only.")
+    return SNAPSHOT_DIR / f"{name}.dump"
+
+
+def cmd_snapshot(args: argparse.Namespace, environment: dict[str, str]) -> None:
+    """Capture the demo database so a rehearsal can be replayed more than once.
+
+    Take this straight after `replay`, before any workflow run: the ledger is append-only, so a
+    run that labels the demo credits cannot be undone in place, and WF10 then skips them.
+    """
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    target = _snapshot_path(args.name)
+    temporary = target.with_suffix(".tmp")
+    with temporary.open("wb") as handle:
+        print("+ pg_dump hisaab ->", target, flush=True)
+        subprocess.run(
+            ["docker", "compose", "exec", "-T", "db", "pg_dump", "-U", _db_user(environment),
+             "-d", "hisaab", "--format=custom"],
+            cwd=ROOT, env=environment, stdout=handle, check=True,
+        )
+    temporary.replace(target)
+    print(f"Snapshot written: {target} ({target.stat().st_size / 1e6:.1f} MB)")
+
+
+def cmd_reset(args: argparse.Namespace, environment: dict[str, str]) -> None:
+    """Restore the snapshot so the demo can be run again from the same starting point.
+
+    This discards everything recorded since the snapshot, which is the point: the ledger refuses
+    UPDATE, DELETE and TRUNCATE, so restoring a dump is the only way back to an earlier state.
+    """
+    source = _snapshot_path(args.name)
+    if not source.is_file():
+        raise SystemExit(
+            f"No snapshot at {source}. Load the data you want as the starting point "
+            f"(`python tasks.py replay ...`), then `python tasks.py snapshot`."
+        )
+    user = _db_user(environment)
+
+    def psql(database: str, statement: str) -> None:
+        subprocess.run(
+            ["docker", "compose", "exec", "-T", "db", "psql", "-U", user, "-d", database,
+             "-v", "ON_ERROR_STOP=1", "-c", statement],
+            cwd=ROOT, env=environment, check=True, capture_output=True, text=True,
+        )
+
+    # Stop the workflow engine first: an execution mid-flight would otherwise write into the
+    # database while it is being replaced, and reconnect to a schema that no longer matches.
+    compose(["stop", "n8n"], environment)
+    print("+ restoring", source, flush=True)
+    psql("postgres", "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                     "WHERE datname = 'hisaab' AND pid <> pg_backend_pid()")
+    psql("postgres", 'DROP DATABASE IF EXISTS hisaab WITH (FORCE)')
+    # Owned by hisaab_owner so the restore can recreate the schemas it owns; the migration
+    # bootstrap creates them the same way, so ownership matches a migrated database.
+    psql("postgres", 'CREATE DATABASE hisaab OWNER hisaab_owner')
+    with source.open("rb") as handle:
+        subprocess.run(
+            ["docker", "compose", "exec", "-T", "db", "pg_restore", "-U", user, "-d", "hisaab",
+             "--no-owner", "--role", "hisaab_owner", "--exit-on-error"],
+            cwd=ROOT, env=environment, stdin=handle, check=True,
+        )
+    # Core holds pooled connections to the database that was just dropped.
+    compose(["restart", "core"], environment)
+    if args.local_n8n:
+        compose(["start", "n8n"], environment)
+    print(f"Restored {source.name}. The demo can be run again from this point.")
+
+
 def cmd_n8n(args: argparse.Namespace, environment: dict[str, str]) -> None:
     if args.target == "cloud":
         if not args.live:
@@ -505,6 +582,15 @@ def parser() -> argparse.ArgumentParser:
 
     migrate = subcommands.add_parser("migrate", help="bootstrap database roles and run Alembic")
     migrate.set_defaults(func=cmd_migrate)
+
+    snapshot = subcommands.add_parser("snapshot", help="save the demo database so a rehearsal can repeat")
+    snapshot.add_argument("--name", default="demo", help="snapshot name (default: demo)")
+    snapshot.set_defaults(func=cmd_snapshot)
+
+    reset = subcommands.add_parser("reset", help="restore a snapshot; discards everything recorded since")
+    reset.add_argument("--name", default="demo", help="snapshot name (default: demo)")
+    reset.add_argument("--local-n8n", action="store_true", help="start n8n again afterwards")
+    reset.set_defaults(func=cmd_reset)
 
     test = subcommands.add_parser("test", help="run the core test suite with uv")
     test.add_argument("--postgres", action="store_true", help="also run ledger tests on a separate local database")

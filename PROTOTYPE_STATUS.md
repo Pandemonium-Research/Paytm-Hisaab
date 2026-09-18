@@ -16,10 +16,11 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Real proposals, questions, claims and derived current view | Complete |
 | A | Rules, question selection, M1/M2 reads and language preference | Complete |
 | A | App-message forwarding and persisted assistant delivery | Complete; real local WF31/WF30 smoke passed |
-| A | Repeatable demo seed/reset and first-gate integration check | Next |
+| A | Repeatable demo snapshot/reset | Complete; `snapshot` 4 s, `reset` 36 s, verified round trip |
+| A | Freeze detector, cases and approvals (second gate) | Next |
 | B | Minimal WF10, including the hard-case Sarvam branch | Complete; passes against the real stack |
 | B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Complete; real reads and persisted taps |
-| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **First gate passes** on local n8n/core/fakes; real-provider path (L1) pending |
+| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **Passes on B's machine**; did not reproduce on A's (see below). Real-provider path (L1) pending |
 
 ## Second gate: freeze and approval
 
@@ -64,6 +65,23 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
   and memory recall is deferred, so that one CP1 line stays open.
 - B: `python n8n/tests/run_local.py` covers the window boundaries offline: a credit just before
   the window and one exactly at its end are both excluded.
+
+- **A: `tasks.py snapshot` / `tasks.py reset` (18 Sep).** `snapshot` dumps the demo database in
+  about 4 s (4.8 MB); `reset` restores it in about 36 s, inside the plan's 60 s budget. Verified by
+  round trip: a proposal written after the snapshot is gone after the reset, and the restored
+  database keeps both append-only triggers, `hisaab_app`'s insert-only grants, `ledger.current_view`
+  and the sim clock. `GET /ledger/verify` returns ok afterwards, and an owner `UPDATE` is still
+  refused by the trigger. Take the snapshot straight after `replay`, before any workflow run (D33).
+- **A could not reproduce CP1 (18 Sep).** On a cold database (zero proposals, zero questions) the
+  WF10 run did not finish inside `check_first_gate.py`'s 180 s wait. Two n8n executions ended at
+  1220 s (error) and 1632 s (cancelled), with `pg-pool` `timeout exceeded when trying to connect`
+  and `Your Code node task was not matched to a runner within the timeout period (waited 128
+  seconds)`. n8n and core share one Postgres, and WF10 makes roughly 300 serial HTTP calls per run.
+  One of those runs was A's own accidental second trigger, which doubled the load; the capacity
+  limit is real either way. **The trap this exposed:** the interrupted run left 67 of the window's
+  68 credits labelled, and WF10 skips labelled credits, so that database could never again select
+  three questions. That is what made reset the blocker. Open question for B: did the passing run
+  print `(resumed run: the questions already existed...)`, and how long did its WF10 execution take?
 
 **Current limitation:** assistant SSE, case processing, evidence packs, officer
 approvals, turnover/threshold and reset still return fixtures. The first gate remains open until
