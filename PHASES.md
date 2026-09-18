@@ -92,8 +92,8 @@ beats) → CP3 → 12. A delay on this path delays the demo. Anything off it can
 - [x] **0.1** Redeem the n8n Cloud voucher. Record the plan tier, monthly execution cap,
       concurrency limit, instance version and public API access in `n8n/README.md`.
       → **Pro for a month: 10,000 executions, 20 concurrent, 7-day logs, public API
-      included.** The API key expires 16 Dec. The instance version is still to be read once
-      `N8N_BASE_URL` is set.
+      included.** `pandemonium-research.app.n8n.cloud`; the API key works (checked 18 Sep)
+      and expires 16 Dec. The instance version is still to be read from Help → About n8n.
 - [x] **0.1b** Redeem the **Cognee hackathon credits** at platform.cognee.ai/billing, and note
       the API key, the credit balance and where it runs out.
       → **$45 at $1 per million tokens (about 45M tokens)**. Hosted API docs:

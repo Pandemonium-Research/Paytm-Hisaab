@@ -13,10 +13,10 @@ Workflow JSON lives in `workflows/`, one file per workflow, exported with
 | Concurrency | **20 production executions** (started by a webhook or trigger). Extra ones queue and run first in, first out. Manual, sub-workflow and error executions don't count. | [Understand concurrency](https://docs.n8n.io/deploy/use-n8n-cloud/understand-concurrency.md) |
 | Execution log retention | 7 days | pricing |
 | Test evaluations | One test case at a time on Pro | Understand concurrency |
-| Public API | Included on Pro (not on the trial). Header `X-N8N-API-KEY`, base `https://<name>.app.n8n.cloud/api/v1`. Below Enterprise there are no scopes, so the key has full access to the instance. | [Authentication](https://docs.n8n.io/connect/n8n-api/authentication.md) |
+| Public API | Included on Pro (not on the trial). Header `X-N8N-API-KEY`, base `https://<name>.app.n8n.cloud/api/v1`. Below Enterprise there are no scopes, so the key has full access to the instance. **Checked:** `GET /api/v1/workflows` returned 200 on 18 Sep. | [Authentication](https://docs.n8n.io/connect/n8n-api/authentication.md) |
 | API key | Created 18 Sep 2026, **expires 16 Dec 2026**; stored in `.env.live` only | read from the key |
-| Instance URL | *pending: add `N8N_BASE_URL` to `.env.live`* | |
-| Instance version | *pending: needs the URL* | |
+| Instance URL | `https://pandemonium-research.app.n8n.cloud` (`N8N_BASE_URL`) | |
+| Instance version | *To read in the editor under Help → About n8n. The API doesn't expose it. Human review of AI tool calls needs 2.6 or later (§10).* | |
 
 ## What this means for the build
 
