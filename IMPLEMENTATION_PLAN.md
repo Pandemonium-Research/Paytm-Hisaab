@@ -1,5 +1,11 @@
 # Paytm Hisaab: implementation plan
 
+**Execution update, 18 Sep 2026:** the user has prioritized a functioning prototype.
+[PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) records the active scope and completion status.
+Build the real payments/questions/answers loop first, then freeze/evidence/approval/simulated
+send. The larger design below remains the backlog; extra hardening, legal research, evaluations
+and polish are deferred. Existing API contracts and lane ownership remain in force.
+
 **Paytm Build for India AI Hackathon · Bengaluru · Track 3: Autonomous AI Teammates · Sat 19 Sep 2026**
 Stack: n8n Cloud (voucher) · Sarvam AI · Cognee (hackathon credits) · Python/FastAPI · PostgreSQL · WhatsApp via Twilio · Paytm-style mobile PWA
 Hosting: the build laptop behind a free Cloudflare tunnel. No paid infrastructure.

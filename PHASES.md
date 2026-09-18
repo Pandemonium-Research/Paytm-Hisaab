@@ -1,5 +1,12 @@
 # Paytm Hisaab: build phases
 
+**Active priority, 18 Sep:** deliver a functioning prototype. Follow
+[PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) for the current queue and completion evidence.
+Phase 4's real endpoints come next for A; minimal WF10 and M1/M2 come next for B. First make
+payments/questions/answers persist, then freeze/pack/approval/send. Historical P0 labels and
+"never cut" rules below do not make additional hardening, legal research, evaluations or polish
+prerequisites for these gates; the user's current prototype scope takes precedence.
+
 Everything in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md), in the order it gets built.
 Section references like **§6** point back to the plan, which holds the detail. This file only
 covers sequence, ownership and when each phase counts as done.

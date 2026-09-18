@@ -7,6 +7,12 @@ waiting for each other or editing the same files.
 **A = Ledger and skills:** core API, database, skills, fakes, data, eval, infra.
 **B = Agent and surfaces:** n8n workflows, Sarvam, Cognee, WhatsApp, the PWA, prompts, legal.
 
+**Current queue, 18 Sep:** [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) overrides the historical
+ordering below. A starts Phase 4 real data/persistence now; the remaining credit-guard block
+does not block it. B builds minimal WF10 and M1/M2 in parallel. After the first gate works,
+A builds freeze/pack/approval endpoints and B builds WF20/O1/O2/M5. Keep lane ownership and
+contracts; defer extra security, legal research, measurement, memory/voice and polish.
+
 **Who takes which lane.** B runs the live checks (L1) and needs `.env.live`, the n8n Cloud
 login and the two phones joined to the Twilio sandbox. A never needs a real key: everything A
 builds runs on the fakes. So the person with the demo laptop takes **B**.
