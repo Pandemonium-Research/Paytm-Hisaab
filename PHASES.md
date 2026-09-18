@@ -242,10 +242,13 @@ and 2C.3) is part of live window L1 and is recorded as cassettes.
       the Twilio node from `whatsapp:+14155238886`.
 - [ ] **2C.3** **(live, L1)** Fetch inbound media (voice note, notice photo) from the Twilio media URL with the
       account SID and auth token; confirm the formats and store with a sha256.
-- [ ] **2C.4** Agree the **numbered-reply format** for this channel (the sandbox has no tap
+- [x] **2C.4** Agree the **numbered-reply format** for this channel (the sandbox has no tap
       buttons): "1 sale · 2 family · 3 my own money · 4 not sure", parsed from a digit, a word
       in any supported language, or a voice note. Add a Wait between messages for the
       one-per-three-seconds limit.
+      → **Agreed 18 Sep (D24).** The app's M2 chips add "loan / other"; voice and free text
+      reach all 7 `AnswerChoice` values. Coverage measured on eval and dev: the 4 numbered
+      options fit 90.5% of truthful answers (see Decisions in `n8n/README.md`).
 
 ### 2D: Design foundation and PWA shell
 
