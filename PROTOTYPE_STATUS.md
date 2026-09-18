@@ -17,7 +17,7 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Rules, question selection, M1/M2 reads and language preference | Complete |
 | A | App-message forwarding and persisted assistant delivery | Complete; real local WF31/WF30 smoke passed |
 | A | Repeatable demo snapshot/reset | Complete; `snapshot` 4 s, `reset` 36 s, verified round trip |
-| A | Credit window on `GET /credits` so WF10 stops paging the whole history | Complete; `from`/`to`, 36 Postgres tests |
+| A | Credit window on `GET /credits` so WF10 stops paging the whole history | Complete (`deb9ba1`); 61 calls/108.8 s -> 1 call/2.3 s |
 | A | Freeze detector, cases and approvals (second gate) | Next |
 | B | Minimal WF10, including the hard-case Sarvam branch | Complete; passes against the real stack |
 | B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Complete; real reads and persisted taps |
@@ -92,6 +92,10 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
   time, and 422 for a backwards or unzoned bound. This is B's requested fix for A's WF10 failure:
   the run was paging all 12,097 credits through a Code node to keep 68, so every page was a
   task-runner job over a large payload. WF10 can now ask for the window in one call.
+  Measured against the running stack: paging the whole history is **61 calls, 12,097 credits,
+  108.8 s** to keep 68; the same window is **1 call, 68 credits, 2.3 s** — 46x. That 108.8 s is
+  on its own very nearly B's whole successful run (117.4 s), before a single credit is
+  classified, which is most of the gap between the two machines.
 
 - **B answered A's CP1 question (18 Sep, `26d6e9b`): CP1 does reproduce, and A's reading of the
   resumed run was right.** B's passing run did print `(resumed run: ...)`, and its WF10 execution
