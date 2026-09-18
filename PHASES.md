@@ -173,12 +173,18 @@ These are frozen before anyone builds, so neither lane waits on the other.
       memory and web sit behind the `surfaces` profile until B's Dockerfiles land (D19). The db
       init is `.sql`, not `.sh`: the shell script failed from the bind mount and the extra
       databases were silently never created (D25). `migrate` is a placeholder until 2A.3.
-- [ ] **2A.2** Caddy in compose on :8080 routing one origin by path (`/api/*` → core, `/mem/*`
+- [x] **2A.2** Caddy in compose on :8080 routing one origin by path (`/api/*` → core, `/mem/*`
       → memory, everything else → web), and the free `cloudflared` quick tunnel (`--protocol http2`), which the
       phones need (HTTPS for the PWA and the microphone). The local n8n reaches core on the
       Docker network, so day-to-day development doesn't use the tunnel at all.
       `tasks.py publish` pushes a new hostname into core's config and, **in live windows
       only**, into the n8n Cloud workflows (public API) and the Twilio webhook.
+      → Verified through a quick tunnel over http2: healthz, docs, and the 403s with their
+      reasons all come back through Cloudflare with a valid certificate. `publish` writes the
+      hostname to core's runtime config and contacts nothing else. **Gotcha:** a fresh
+      `trycloudflare.com` name can fail to resolve on the laptop for a minute or more, because
+      the first lookup caches NXDOMAIN; `dig @1.1.1.1 <host>` shows it is live. Phones on mobile
+      data are unaffected.
 - [ ] **2A.3** Alembic with separate owner and app DB roles. Tables for the `rails`, `ledger`
       and `ops` schemas (§6).
 - [ ] **2A.4** `ledger.entries` and `ledger.chain_heads`. A `BEFORE UPDATE OR DELETE OR TRUNCATE`
@@ -187,8 +193,10 @@ These are frozen before anyone builds, so neither lane waits on the other.
       from `clock_timestamp()`, and `verify`.
 - [ ] **2A.6** `auth.py`: role keys, the per-role check on entry kinds, 403s with a readable
       reason.
-- [ ] **2A.7** Stub endpoints for every route in 1.3, returning fixture JSON, reachable
+- [x] **2A.7** Stub endpoints for every route in 1.3, returning fixture JSON, reachable
       through the tunnel.
+      → 49 contracted operations, each validating against its response model, behind role-key
+      auth. Checked through the tunnel. The contract amendments D9–D15 are packet 2b.
 - [ ] **2A.8** Tests: hashing is deterministic, the trigger blocks update/delete/truncate,
       verify catches a one-byte edit at the right index, a wrong key gets 403.
 
