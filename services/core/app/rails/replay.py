@@ -80,7 +80,9 @@ def replay(connection, split, until):
         events = [TypeAdapter(RailEvent).validate_python(event)
                   for event in json.loads((directory / "rails_events.json").read_text())
                   if datetime.fromisoformat(event["ts"]) <= until]
-        event_count = ingest_events(connection, events, until)
+        # Replay opens the freeze case a lien implies but does not start WF20: it is loading
+        # history, and no other replayed record runs a workflow either.
+        event_count, _ = ingest_events(connection, events, until)
         balances = directory / "daily_balances.csv"
         if balances.exists():
             initialized = set()

@@ -9,6 +9,7 @@ from sqlalchemy import text
 from ..ledger.chain import append
 from ..schemas.ledger import EntryKind
 from ..schemas.roles import Role
+from . import freeze
 
 
 def ingest_transactions(connection, transactions, sim_at, *, debit=False):
@@ -85,8 +86,15 @@ def ingest_bills(connection, lines, sim_at):
 
 
 def ingest_events(connection, events, sim_at):
-    accepted = 0
-    for event in events:
+    """Ingest events and open a freeze case for any lien among them.
+
+    Returns the accepted count and one WF20 body per case opened. The caller fires those after
+    the transaction commits, so the workflow cannot ask core about a case that is not there yet.
+    """
+    accepted, notifications = 0, []
+    # Business-time order: a decline burst is read back from the table, so it has to be stored
+    # before the lien it precedes, however the batch happened to be ordered.
+    for event in sorted(events, key=lambda item: item.ts):
         if event.ts > sim_at:
             raise HTTPException(422, "An event cannot be observed before its timestamp.")
         data = event.model_dump(mode="json")
@@ -95,5 +103,12 @@ def ingest_events(connection, events, sim_at):
             ON CONFLICT (event_id) DO NOTHING RETURNING event_id"""),
             {"event_id": event.event_id, "merchant_id": event.merchant_id, "ts": event.ts,
              "type": data["type"], "data": json.dumps(data)}).scalar_one_or_none()
-        accepted += inserted is not None
-    return accepted
+        if inserted is None:
+            continue
+        accepted += 1
+        # After the insert: the burst is counted from the events table, and this lien's own row
+        # must be there for a replay of the same batch to behave like the first run.
+        opened = freeze.detect(connection, event)
+        if opened is not None:
+            notifications.append(opened)
+    return accepted, notifications

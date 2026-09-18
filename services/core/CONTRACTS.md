@@ -139,6 +139,23 @@ time returns nothing extra, and `from` at or after `to` is a 422 rather than an 
 Paging works inside the window and the cursor stays in it. A caller that wants one day's credits
 should ask for that day instead of paging the whole history and discarding it.
 
+`POST /rails/events` opens a freeze case for each `lien_marked` it accepts and returns the real
+`opened_case_ids`. The case id is `CASE-FREEZE-<lien event_id>`, the `case.opened` entry is dated to
+the lien's `ts` and appended by `rails` as `freeze-detector`, and a lien already ingested opens nothing.
+Once the transaction commits, core POSTs WF20's body to `N8N_FREEZE_WEBHOOK_URL` (default
+`http://n8n:5678/webhook/hisaab/wf20-freeze`) with `X-N8N-Webhook-Secret`:
+
+```json
+{"case_id":"CASE-FREEZE-DME00002","merchant_id":"MID_DEMO_SAHANA","opened_at":"2026-03-24T09:30:00+05:30",
+ "trigger":{"event_id":"DME00002","type":"lien_marked","case_ref":"SYN Cr. No. 412/2026",
+            "disputed_amount":4200,"disputed_utr":"608019038619","decline_burst":null}}
+```
+
+`decline_burst` is `null`, or `{count, first_at, last_at, event_ids}` when 3 or more declines fell in
+the 30 minutes up to the lien. Delivery is best effort: a failed webhook does not undo the case, so
+WF20 should treat the webhook as a prompt, not the only record. `POST /sim/replay` opens the same
+case for a lien in its range but does not call WF20.
+
 ## Short examples
 
 Rails ingest:

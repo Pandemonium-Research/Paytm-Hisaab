@@ -659,8 +659,20 @@ in this phase.
 - [ ] **6.7** Grievance template filled from `legal/citations.yaml`.
 - [ ] **6.8** `POST /cases` and `POST /packs`: pack JSON and PDF (WeasyPrint, Noto Indic
       fonts, SIMULATED and prototype stamps), then `pack.built`.
-- [ ] **6.9** Freeze detector: a lien, or declines followed by a lien, opens `case.opened` and
+- [x] **6.9** Freeze detector: a lien, or declines followed by a lien, opens `case.opened` and
       fires the n8n webhook.
+      A `lien_marked` event opens `case.opened(freeze)`, keyed `CASE-FREEZE-<event_id>`, so a replayed
+      lien opens nothing new; a burst of 3 or more declines in the 30 minutes up to the lien is
+      recorded on the case (D35). The case is dated to the lien, not to ingest; replay opens it
+      without starting WF20; WF20 is told only after COMMIT, best effort (D36).
+      `POST /rails/events` returns the real `opened_case_ids`. 11 Postgres tests pass (47 in all),
+      and each of five deliberate breakages (ingest-time dating, no business-time sort, no
+      idempotency guard, declines alone opening a case, post-lien declines counted as a burst)
+      makes one fail. Running stack: the demo lien (`DME00002`) opened `CASE-FREEZE-DME00002` dated
+      09:30 in 0.03 s; a probe standing in for WF20 got the right path and secret and found the case
+      already committed when told; the replayed lien opened nothing and sent nothing; with n8n
+      stopped a lien still returned 200 and opened its case; `GET /ledger/verify` ok. The CP1
+      snapshot was restored afterwards. `POST /cases` (evidence) is still a fixture: it is 6.8's.
 - [ ] **6.10** Approvals: the `resume_url` is stored; `/packs/{id}/approve|reject` appends an
       entry and resumes the Wait; `/outbox/{pack}/send` refuses without `pack.approved`, then
       appends `pack.sent`.
