@@ -1,0 +1,439 @@
+{
+  "id": "hisaabWF20mvp001",
+  "name": "hisaab/WF20 freeze-response",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "895da07b-6990-5583-b792-46f7c69eb154",
+      "name": "Freeze opened",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hisaab/wf20-freeze",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "62a4b72e-727d-51a4-aa33-0c9613fe826b",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabWebhook001",
+          "name": "hisaab core webhook (local)"
+        }
+      }
+    },
+    {
+      "id": "edc8af83-fd86-54b3-b1f3-40b196cc33be",
+      "name": "Freeze context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst b = $input.first().json.body;\nif (!b?.case_id || !b.merchant_id || !b.opened_at) throw new Error('case.opened needs case_id, merchant_id, opened_at');\nreturn [{json:b}];\n"
+      }
+    },
+    {
+      "id": "9537d255-9109-536f-b405-363b25545f27",
+      "name": "Build evidence pack",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "url": "http://core:8000/packs",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({merchant_id:$json.merchant_id, case_id:$json.case_id, pack_type:'freeze', sim_at:$json.opened_at}) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalEvid01",
+          "name": "hisaab core evidence (local)"
+        }
+      }
+    },
+    {
+      "id": "63ed9af2-c589-5094-a6fd-6cba7038490f",
+      "name": "Wait for officer",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "amount": 5,
+        "unit": "seconds"
+      },
+      "webhookId": "df0ad0ac-663c-5c7a-94d0-b6e29fe5a628"
+    },
+    {
+      "id": "180f4aa9-e8df-5642-98bc-b7b501c70886",
+      "name": "Officer decision",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "url": "={{ 'http://core:8000/app/officer/cases/' + encodeURIComponent($('Freeze context').first().json.case_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalOffi01",
+          "name": "hisaab core officer (local)"
+        }
+      }
+    },
+    {
+      "id": "c94773a6-e7b5-5821-8c4d-87a8108acbab",
+      "name": "Check decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst view = $input.first().json;\nconst built = $('Build evidence pack').first().json;\nif (view.case.case_id !== built.case_id || view.pack_id !== built.pack_id) throw new Error('Officer decision is for a different case or pack');\nreturn [{json: {...view, approved:view.status === 'approved',\n  terminal:['sent','rejected','escalated'].includes(view.status)}}];\n"
+      }
+    },
+    {
+      "id": "531ab5af-a8dc-50e6-8f5d-9efc5d1229e2",
+      "name": "Approved?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Approved?",
+              "leftValue": "={{ String($json.approved) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "630e160e-81ea-51d0-8fc7-944464a76b4d",
+      "name": "Terminal decision?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Terminal decision?",
+              "leftValue": "={{ String($json.terminal) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "69bc2f1a-3087-5407-8b36-efef99513266",
+      "name": "Merchant simulation clock",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "url": "http://core:8000/app/home",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "merchant",
+              "value": "={{ $('Freeze context').first().json.merchant_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalApp001",
+          "name": "hisaab core app (local)"
+        }
+      }
+    },
+    {
+      "id": "ef2c1660-991b-5f41-93cb-bc2c9f6ed8a9",
+      "name": "Simulated send (core gate)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "url": "={{ 'http://core:8000/outbox/' + encodeURIComponent($('Build evidence pack').first().json.pack_id) + '/send' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({destination:'bank-nodal-and-ncrp', sim_at:$json.as_of}) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalOffi01",
+          "name": "hisaab core officer (local)"
+        }
+      }
+    },
+    {
+      "id": "901efaa9-8c81-52b4-bf7d-1d758580da6c",
+      "name": "Send status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst sent = $input.first().json;\nif (!sent.sent || sent.simulated !== true) throw new Error('Expected a simulated outbox delivery');\nreturn [{json:{merchant_id:$('Freeze context').first().json.merchant_id,\n  channel:'app', language:'en-IN', text:'Your evidence pack was approved and sent in the simulation.',\n  sim_at:sent.ledger_entry.sim_at}}];\n"
+      }
+    },
+    {
+      "id": "7b7fee3a-e667-5788-8860-5879e06f7aa1",
+      "name": "Notify via WF30",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2420,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "hisaabWF30out001",
+        "options": {}
+      }
+    },
+    {
+      "id": "db5bf876-1f4d-533c-aa03-ca3c094a825d",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Freeze opened": {
+      "main": [
+        [
+          {
+            "node": "Freeze context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Freeze context": {
+      "main": [
+        [
+          {
+            "node": "Build evidence pack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build evidence pack": {
+      "main": [
+        [
+          {
+            "node": "Wait for officer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for officer": {
+      "main": [
+        [
+          {
+            "node": "Officer decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Officer decision": {
+      "main": [
+        [
+          {
+            "node": "Check decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check decision": {
+      "main": [
+        [
+          {
+            "node": "Approved?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Approved?": {
+      "main": [
+        [
+          {
+            "node": "Merchant simulation clock",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Terminal decision?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merchant simulation clock": {
+      "main": [
+        [
+          {
+            "node": "Simulated send (core gate)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simulated send (core gate)": {
+      "main": [
+        [
+          {
+            "node": "Send status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send status": {
+      "main": [
+        [
+          {
+            "node": "Notify via WF30",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify via WF30": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Terminal decision?": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait for officer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

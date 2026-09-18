@@ -581,13 +581,21 @@ in this phase.
       routing, `/app/questions` lookup, `/ledger/claims` write and the WF30 reply all run green
       end to end. Still open: the Saaras voice branch (needs the STT fake, handoff H5), the AI
       Agent intent node (a plain HTTP call to the Sarvam fake stands in), guards and memory.
+      → **MVP app path built and tested locally (18 Sep):** authenticated assistant webhook,
+      explicit question-ID taps, stale-tap rejection and simulation-clock claims. Real core
+      forwarding/persistence and CP1 remain pending; voice/memory are deferred by the prototype queue.
 - [ ] **5.7** **WF10 nightly-provenance**, in live and seed modes:
       - Loop Over Items batching
       - hard-case agent with memory recall, then proposals
       - `select-questions`, then WF30
       - memory `improve`
+      → **MVP live path built and tested locally:** paginated snapshot reads, strictly prior
+      history, rules/Sarvam-fake split, persisted proposals, budget selection and serial WF30.
+      Seed/memory are deferred. This stays unticked until the real shared-stack checkpoint passes.
 - [ ] **5.8** Screens **M0** Language and consent, **M1** Home, **M2** Confirm payments, **M6**
       Assistant.
+      → **M1/M2 built locally:** API reads, English/Kannada UI choice and WF31 app taps; production
+      build and 360/412 px browser checks pass. M0/M6 remain deferred; real persistence is pending.
 
 ### ✅ CP1: Ordinary Tuesday (driver B; Fri 13:00 in the original schedule)
 

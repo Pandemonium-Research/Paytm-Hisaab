@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Base URLs live here so one node is the only thing L2 (task 10.1b) has to change.\n// n8n Cloud blocks $env in nodes (plan §10.2), so these are literals, not environment reads.\nconst CONFIG = {\n  core: 'http://core:8000',\n  twilio: 'http://fakes:8200/twilio',\n  accountSid: 'ACfake',\n  whatsappFrom: 'whatsapp:+14155238886',\n};\n\nreturn items.map(item => {\n  const input = item.json || {};\n  if (!input.merchant_id) throw new Error('WF30 needs merchant_id');\n  if (!input.text) throw new Error('WF30 needs text');\n  const channel = input.channel === 'app' ? 'app' : 'whatsapp';\n  const now = new Date().toISOString();\n  return {\n    json: {\n      ...CONFIG,\n      channel,\n      merchant_id: input.merchant_id,\n      text: input.text,\n      language: input.language || 'en-IN',\n      to: input.to || null,\n      txn_id: input.txn_id || null,\n      question_id: input.question_id || null,\n      expires_at: input.expires_at || null,\n      conversation_id: input.conversation_id || ('wf30-' + input.merchant_id),\n      in_reply_to: input.in_reply_to || null,\n      sim_at: input.sim_at || now,\n    },\n  };\n});"
+        "jsCode": "// Base URLs live here so one node is the only thing L2 (task 10.1b) has to change.\n// n8n Cloud blocks $env in nodes (plan §10.2), so these are literals, not environment reads.\nconst CONFIG = {\n  core: 'http://core:8000',\n  twilio: 'http://fakes:8200/twilio',\n  accountSid: 'ACfake',\n  whatsappFrom: 'whatsapp:+14155238886',\n};\n\nreturn items.map(item => {\n  const input = item.json || {};\n  if (!input.merchant_id) throw new Error('WF30 needs merchant_id');\n  if (input.channel === 'whatsapp' && !input.to) throw new Error('WhatsApp needs a joined recipient');\n  if (!input.text) throw new Error('WF30 needs text');\n  const channel = input.channel === 'app' ? 'app' : 'whatsapp';\n  const now = new Date().toISOString();\n  return {\n    json: {\n      ...CONFIG,\n      channel,\n      merchant_id: input.merchant_id,\n      text: input.text,\n      language: input.language || 'en-IN',\n      to: input.to || null,\n      txn_id: input.txn_id || null,\n      question_id: input.question_id || null,\n      expires_at: input.expires_at || null,\n      conversation_id: input.conversation_id || ('wf30-' + input.merchant_id),\n      in_reply_to: input.in_reply_to || null,\n      sim_at: input.sim_at || now,\n    },\n  };\n});"
       },
       "id": "3f000000-0000-4000-8000-000000000002",
       "name": "Prepare message",
@@ -233,7 +233,7 @@
       "main": [
         [
           {
-            "node": "Wait 3s (sandbox rate limit)",
+            "node": "WhatsApp or app?",
             "type": "main",
             "index": 0
           }
@@ -244,7 +244,7 @@
       "main": [
         [
           {
-            "node": "WhatsApp or app?",
+            "node": "Send on WhatsApp",
             "type": "main",
             "index": 0
           }
@@ -255,7 +255,7 @@
       "main": [
         [
           {
-            "node": "Send on WhatsApp",
+            "node": "Wait 3s (sandbox rate limit)",
             "type": "main",
             "index": 0
           }

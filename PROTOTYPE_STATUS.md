@@ -16,8 +16,8 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Real proposals, questions, claims and derived current view | Next |
 | A | Rules, question selection, M1/M2 read models and app-message forwarding | Next |
 | A | Repeatable demo seed/reset and first-gate integration check | Next |
-| B | Pull `e499483`; build minimal WF10, including the hard-case Sarvam branch | Ready |
-| B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Ready |
+| B | Pull `e499483`; build minimal WF10, including the hard-case Sarvam branch | Built/imported locally; orchestration checks pass; H6 pending |
+| B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Built/running locally; 360/412 px browser checks pass; H6 pending |
 | Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | Pending |
 
 ## Second gate: freeze and approval
@@ -28,7 +28,7 @@ Lien event → case → isolate disputed payment and show decoy → evidence pac
 | Owner | Work | Status |
 |---|---|---|
 | A | Case creation, isolation, pack, approve/reject/send and case read models | After first gate |
-| B | WF20, O1/O2 and M5 | After first gate |
+| B | WF20, O1/O2 and M5 | Prepared locally against existing contracts; approval/rejection orchestration checks pass; H8/CP2 pending |
 | Both | Officer approval and simulated send end to end | Pending |
 
 Then add turnover/threshold and the notice report. A selected specimen notice can precede OCR.
@@ -44,6 +44,11 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
 
 **Current limitation:** the product HTTP routes still return fixtures. A successful fixture
 acknowledgement does not persist evidence. Replace these routes before calling the first gate done.
+
+B's first-gate runner is ready: `python n8n/tests/check_first_gate.py --restart-core`.
+Its preflight currently reports **PENDING H6** because `/app/home` still returns the
+`MID_DEMO_SAHANA` fixture for `MID_DEMO_BLR`. No joint gate is marked passed.
+The exact WF31 app envelope and WF20 status/approval handoffs are in `n8n/README.md`.
 
 ## Deferred until the two gates work
 

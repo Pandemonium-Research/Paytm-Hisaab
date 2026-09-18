@@ -1,0 +1,909 @@
+{
+  "id": "hisaabWF10mvp001",
+  "name": "hisaab/WF10 nightly-provenance",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "507a55e6-bf6f-570e-84d2-25167a0af0a5",
+      "name": "Nightly webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hisaab/wf10-nightly",
+        "authentication": "headerAuth",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "webhookId": "7c1e888a-eeb3-5b4c-a829-448b8f9f0369",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabWebhook001",
+          "name": "hisaab core webhook (local)"
+        }
+      }
+    },
+    {
+      "id": "aad601c7-c6f0-5f81-b5a0-0f647af58c11",
+      "name": "02:00 IST",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 2 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "a93fb4e6-4a65-56cb-8f65-1b3235556580",
+      "name": "Run context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst input = $input.first().json.body || $input.first().json;\nif (input.mode === 'seed') throw new Error('Full-year seed is deferred; use a single live-mode run');\nreturn [{json: {merchant_id: input.merchant_id || input.merchant || 'MID_DEMO_BLR',\n  as_of: input.as_of || null, channel: input.channel || 'app', to: input.to || null,\n  cursor: null, credits: [], cursors: []}}];\n"
+      }
+    },
+    {
+      "id": "ae55d331-f5a7-5e82-b9f1-a4a1b2155951",
+      "name": "Merchant",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        660,
+        0
+      ],
+      "parameters": {
+        "url": "={{ 'http://core:8000/merchants/' + encodeURIComponent($json.merchant_id) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalProv01",
+          "name": "hisaab core provenance (local)"
+        }
+      }
+    },
+    {
+      "id": "7fbda1b9-e806-5c13-bd9b-845e4cd0f9e4",
+      "name": "Page request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nlet state;\ntry { state = $('Collect page').item.json; } catch { state = $('Run context').first().json; }\nreturn [{json: state}];\n"
+      }
+    },
+    {
+      "id": "cfae7075-1aed-5251-9b3d-1a248356c7e6",
+      "name": "Read credits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "url": "http://core:8000/credits",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "merchant",
+              "value": "={{ $json.merchant_id }}"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            },
+            {
+              "name": "as_of",
+              "value": "={{ $json.as_of || undefined }}"
+            },
+            {
+              "name": "cursor",
+              "value": "={{ $json.cursor || undefined }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalProv01",
+          "name": "hisaab core provenance (local)"
+        }
+      }
+    },
+    {
+      "id": "6bc8acf7-1798-5041-8681-f4cb15a372b8",
+      "name": "Collect page",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst state = $('Page request').item.json;\nconst page = $input.first().json;\nif (page.next_cursor && state.cursors.includes(page.next_cursor)) throw new Error('Repeated credit cursor');\nreturn [{json: {...state, as_of: state.as_of || page.as_of,\n  credits: [...state.credits, ...page.items], cursor: page.next_cursor,\n  cursors: [...state.cursors, page.next_cursor].filter(Boolean)}}];\n"
+      }
+    },
+    {
+      "id": "48b9fd51-b31f-5e9e-bfdd-853ec820eeb3",
+      "name": "More credits?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "More credits?",
+              "leftValue": "={{ String(Boolean($json.cursor)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "d8769fa1-4823-52ec-8fb7-9fb4a56b2234",
+      "name": "Unlabelled credits",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst state = $input.first().json;\nconst seen = new Set();\nconst credits = state.credits.filter(c => !c.machine_label &&\n  new Date(c.transaction.ts) <= new Date(state.as_of) &&\n  !seen.has(c.transaction.txn_id) && seen.add(c.transaction.txn_id));\nreturn credits.map(credit => ({json: {credit, state}}));\n"
+      }
+    },
+    {
+      "id": "ee328604-4959-503e-8cb4-32e8f97b43b4",
+      "name": "Each credit",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "2b4ac73d-1745-5f61-b15c-02813290666d",
+      "name": "Strictly prior history",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "url": "={{ 'http://core:8000/payers/' + encodeURIComponent($json.credit.transaction.counterparty_id) + '/history' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "merchant",
+              "value": "={{ $json.state.merchant_id }}"
+            },
+            {
+              "name": "as_of",
+              "value": "={{ $json.credit.transaction.ts }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalProv01",
+          "name": "hisaab core provenance (local)"
+        }
+      }
+    },
+    {
+      "id": "bbd3d899-fd4b-5bd2-b46a-613bee035cc2",
+      "name": "Classification input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2420,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst item = $('Each credit').item.json;\nconst t = item.credit.transaction, h = $input.first().json;\nconst labels = ['taxable_supply','exempt_supply','personal_transfer','inter_account','non_business','refund_reversal','duplicate','unclassified'];\nconst fact = (h.payer_facts || []).find(f => labels.includes(f.value));\nreturn [{json: {...item, history: h, classify: {merchant_id: item.state.merchant_id,\n  as_of: item.state.as_of, credits: [{txn_id: t.txn_id, amount: t.amount,\n    channel: t.channel, counterparty_id: t.counterparty_id, counterparty_name: t.counterparty_name,\n    note: t.note || '', has_bill: Boolean(t.pos_bill_id), prior_credit_count: h.strictly_prior_credit_count,\n    merchant_has_paid_them: h.merchant_has_paid_them, own_account_cue: h.own_account_cue,\n    surname_cue: h.surname_cue, payer_fact: fact?.value || null}]}}}];\n"
+      }
+    },
+    {
+      "id": "0d17ec38-f6bb-5a87-941a-0bc4d7f29f6b",
+      "name": "Classify rules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "url": "http://core:8000/skills/classify-rules",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.classify) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalProv01",
+          "name": "hisaab core provenance (local)"
+        }
+      }
+    },
+    {
+      "id": "049e82f3-4a2c-5d64-81a3-b1797c4da727",
+      "name": "Rule result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2860,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst item = $('Classification input').item.json;\nconst result = $input.first().json.results.find(r => r.txn_id === item.credit.transaction.txn_id);\nif (!result) throw new Error('Classification response omitted the requested transaction');\nreturn [{json: {...item, rule: result.result}}];\n"
+      }
+    },
+    {
+      "id": "7b196081-0840-5f10-8c78-ad8ca5da377a",
+      "name": "Rule settled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3080,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "Rule settled?",
+              "leftValue": "={{ String(Boolean($json.rule)) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "f1e8914c-cc07-52ed-8f5a-7ab319158689",
+      "name": "Rule proposal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3300,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst item = $input.first().json;\nreturn [{json: {...item, proposal: {label: item.rule.label, source: 'rule',\n  rule_id: item.rule.rule_id, confidence: item.rule.confidence, reason: item.rule.reason,\n  evidence_refs: item.credit.transaction.pos_bill_id ? [item.credit.transaction.pos_bill_id] : [], memory_refs: []}}}];\n"
+      }
+    },
+    {
+      "id": "a692c15c-6d74-559d-bfba-f251efcd8dc6",
+      "name": "Hard-case request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3520,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst item = $input.first().json;\nreturn [{json: {...item, request: {model: 'sarvam-105b', temperature: 0,\n  messages: [{role: 'system', content: \"Classify one incoming merchant payment using only the supplied visible credit and strictly prior payer history. Return JSON matching HardCaseLabel. Use unclassified and low confidence when evidence is insufficient. A repeat payer is not proof of a sale; a shared surname is not proof of a family transfer. Do not invent bills, relationships, refunds or account ownership. Explain the label in English, and name only supplied evidence in evidence_used. Memory is unavailable in this MVP. Merchant answers are recorded separately and must never be invented.\\n\"},\n    {role: 'user', content: JSON.stringify({credit: item.credit.transaction, history: item.history})}],\n  response_format: {type: 'json_schema', json_schema: {name: 'HardCaseLabel', strict: true, schema: {\"type\": \"object\", \"additionalProperties\": false, \"properties\": {\"label\": {\"type\": \"string\", \"enum\": [\"taxable_supply\", \"exempt_supply\", \"personal_transfer\", \"inter_account\", \"non_business\", \"refund_reversal\", \"duplicate\", \"unclassified\"]}, \"confidence\": {\"type\": \"number\", \"minimum\": 0, \"maximum\": 1}, \"reason_en\": {\"type\": \"string\", \"minLength\": 1, \"maxLength\": 400}, \"evidence_used\": {\"type\": \"array\", \"items\": {\"type\": \"string\", \"enum\": [\"rules_output\", \"payer_history\", \"bill\", \"device_geo\", \"credit_fields\"]}}}, \"required\": [\"label\", \"confidence\", \"reason_en\", \"evidence_used\"]}}}}}}];\n"
+      }
+    },
+    {
+      "id": "df2d683c-3b57-5038-b2d8-7cc66368b1bc",
+      "name": "Sarvam hard case (local fake)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3740,
+        0
+      ],
+      "parameters": {
+        "url": "=http://fakes:8200/sarvam/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.request) }}"
+      },
+      "onError": "continueRegularOutput",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalSarv01",
+          "name": "hisaab sarvam (local fakes)"
+        }
+      }
+    },
+    {
+      "id": "93ab343d-c747-5a19-95df-d837868ef652",
+      "name": "Validate agent proposal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3960,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst item = $('Hard-case request').item.json;\nconst labels = ['taxable_supply','exempt_supply','personal_transfer','inter_account','non_business','refund_reversal','duplicate','unclassified'];\nconst evidence = ['rules_output','payer_history','bill','device_geo','credit_fields'];\nlet answer;\ntry {\n  answer = JSON.parse($input.first().json.choices[0].message.content);\n  if (Object.keys(answer).some(k => !['label','confidence','reason_en','evidence_used'].includes(k)) ||\n      !labels.includes(answer.label) || typeof answer.confidence !== 'number' ||\n      !Number.isFinite(answer.confidence) || answer.confidence < 0 || answer.confidence > 1 ||\n      typeof answer.reason_en !== 'string' || !answer.reason_en.trim() || answer.reason_en.length > 400 ||\n      !Array.isArray(answer.evidence_used) || answer.evidence_used.some(e => !evidence.includes(e))) throw new Error('Invalid HardCaseLabel');\n} catch {\n  answer = {label: 'unclassified', confidence: 0, reason_en: 'Model response unavailable or invalid; ask the merchant.', evidence_used: []};\n}\nreturn [{json: {...item, proposal: {label: answer.label, source: 'agent', model: 'sarvam-105b',\n  prompt_version: 'hard-case-label.v1', confidence: Math.min(answer.confidence, 0.85),\n  reason: answer.reason_en, evidence_refs: answer.evidence_used.includes('bill') && item.credit.transaction.pos_bill_id ? [item.credit.transaction.pos_bill_id] : [], memory_refs: []}}}];\n"
+      }
+    },
+    {
+      "id": "c6725a60-cf51-58c9-9ebb-361fd2aa2400",
+      "name": "Persist proposal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4180,
+        0
+      ],
+      "parameters": {
+        "url": "http://core:8000/ledger/proposals",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({merchant_id: $json.state.merchant_id, txn_id: $json.credit.transaction.txn_id, proposal: $json.proposal, sim_at: $json.state.as_of}) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalProv01",
+          "name": "hisaab core provenance (local)"
+        }
+      }
+    },
+    {
+      "id": "7fb43516-33f5-5152-a0c0-bb1b4ef5e665",
+      "name": "Question candidate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4400,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Use the persisted proposal, not a second model inference.\nconst entry = $input.first().json.entry;\nconst item = $('Rule result').item.json, t = item.credit.transaction;\nreturn [{json: {txn_id: t.txn_id, payer_id: t.counterparty_id, amount: t.amount,\n  label: entry.payload.label, confidence: entry.payload.confidence,\n  strictly_prior_credit_count: item.history.strictly_prior_credit_count,\n  has_bill: Boolean(t.pos_bill_id), payer_fact_known: item.history.payer_facts.length > 0,\n  proposed_at: entry.sim_at}}];\n"
+      }
+    },
+    {
+      "id": "98751083-88c6-56d4-a292-bafd52dbf59c",
+      "name": "Open questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4620,
+        0
+      ],
+      "parameters": {
+        "url": "http://core:8000/app/questions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "merchant",
+              "value": "={{ $('Run context').first().json.merchant_id }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalApp001",
+          "name": "hisaab core app (local)"
+        }
+      }
+    },
+    {
+      "id": "67e37274-c7c0-5e11-8498-9a767b64b177",
+      "name": "Selection request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4840,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst state = $('Collect page').last().json;\nconst open = $('Open questions').first().json.items;\nconst dateKey = new Date(state.as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'});\nconst merchant = $('Merchant').first().json;\nconst candidates = $('Each credit').all(0).map(i => i.json);\n// Budget proximity only; registration and forecasts remain core's threshold skill.\nconst aggregate = state.credits.reduce((sum, c) => {\n  const label = c.effective_label || candidates.find(p => p.txn_id === c.transaction.txn_id)?.label;\n  return sum + (['taxable_supply','exempt_supply'].includes(label) ? c.transaction.amount : 0);\n}, 0);\nreturn [{json: {merchant_id: state.merchant_id, as_of: state.as_of,\n  candidates: candidates.filter(c =>\n    !open.some(q => q.txn_id === c.txn_id)),\n  projected_turnover: aggregate, threshold: merchant.supply_kind === 'services' ? 2000000 : 4000000,\n  already_asked_today: open.filter(q => q.question_id.startsWith('Q-' + dateKey + '-')).length}}];\n"
+      }
+    },
+    {
+      "id": "c621410a-e30d-530b-a599-80785a35e5a9",
+      "name": "Select questions",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5060,
+        0
+      ],
+      "parameters": {
+        "url": "http://core:8000/skills/select-questions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        },
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}"
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "hisaabLocalProv01",
+          "name": "hisaab core provenance (local)"
+        }
+      }
+    },
+    {
+      "id": "1b82d1a8-b2e4-5905-8dbf-e66abb7479e2",
+      "name": "Question messages",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5280,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst state = $('Collect page').last().json;\nconst merchant = $('Merchant').first().json;\nreturn $input.first().json.selected.map(q => {\n  const t = state.credits.find(c => c.transaction.txn_id === q.txn_id)?.transaction;\n  if (!t) throw new Error('Selected question is not in the credit snapshot');\n  const amount = '₹' + t.amount.toLocaleString('en-IN');\n  const kn = merchant.preferred_language.startsWith('kn');\n  const question = kn ? `${amount} · ${t.counterparty_name}: ಈ ಪಾವತಿ ಯಾವುದಕ್ಕಾಗಿ?` : `${amount} from ${t.counterparty_name}: what was this payment for?`;\n  const options = kn ? '1 ಮಾರಾಟ · 2 ಕುಟುಂಬ · 3 ನನ್ನದೇ ಹಣ · 4 ಖಚಿತವಿಲ್ಲ' : '1 sale · 2 family · 3 my own money · 4 not sure';\n  return {json: {merchant_id: state.merchant_id, txn_id: q.txn_id,\n    question_id: 'Q-' + new Date(state.as_of).toLocaleDateString('en-CA', {timeZone:'Asia/Kolkata'}) + '-' + q.txn_id,\n    expires_at: q.expires_at, language: merchant.preferred_language,\n    text: question + (state.channel === 'whatsapp' ? '\\n' + options : ''),\n    channel: state.channel, to: state.to, sim_at: state.as_of}};\n});\n"
+      }
+    },
+    {
+      "id": "90199096-d670-5a36-94c1-504e80691464",
+      "name": "Each question",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        5500,
+        0
+      ],
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      }
+    },
+    {
+      "id": "a292723e-7deb-5f2f-983c-05c7ed1f2da6",
+      "name": "Ask via WF30",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        5720,
+        0
+      ],
+      "parameters": {
+        "source": "database",
+        "workflowId": "hisaabWF30out001",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      }
+    },
+    {
+      "id": "6f3e9706-336a-5e3b-84aa-14664b542630",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        5940,
+        0
+      ],
+      "parameters": {}
+    }
+  ],
+  "connections": {
+    "Nightly webhook": {
+      "main": [
+        [
+          {
+            "node": "Run context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run context": {
+      "main": [
+        [
+          {
+            "node": "Merchant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merchant": {
+      "main": [
+        [
+          {
+            "node": "Page request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page request": {
+      "main": [
+        [
+          {
+            "node": "Read credits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read credits": {
+      "main": [
+        [
+          {
+            "node": "Collect page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect page": {
+      "main": [
+        [
+          {
+            "node": "More credits?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "02:00 IST": {
+      "main": [
+        [
+          {
+            "node": "Run context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "More credits?": {
+      "main": [
+        [
+          {
+            "node": "Page request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Unlabelled credits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Unlabelled credits": {
+      "main": [
+        [
+          {
+            "node": "Each credit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Each credit": {
+      "main": [
+        [
+          {
+            "node": "Open questions",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Strictly prior history",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Strictly prior history": {
+      "main": [
+        [
+          {
+            "node": "Classification input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classification input": {
+      "main": [
+        [
+          {
+            "node": "Classify rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify rules": {
+      "main": [
+        [
+          {
+            "node": "Rule result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule result": {
+      "main": [
+        [
+          {
+            "node": "Rule settled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule settled?": {
+      "main": [
+        [
+          {
+            "node": "Rule proposal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Hard-case request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hard-case request": {
+      "main": [
+        [
+          {
+            "node": "Sarvam hard case (local fake)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sarvam hard case (local fake)": {
+      "main": [
+        [
+          {
+            "node": "Validate agent proposal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate agent proposal": {
+      "main": [
+        [
+          {
+            "node": "Persist proposal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule proposal": {
+      "main": [
+        [
+          {
+            "node": "Persist proposal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persist proposal": {
+      "main": [
+        [
+          {
+            "node": "Question candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Question candidate": {
+      "main": [
+        [
+          {
+            "node": "Each credit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Open questions": {
+      "main": [
+        [
+          {
+            "node": "Selection request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Selection request": {
+      "main": [
+        [
+          {
+            "node": "Select questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Select questions": {
+      "main": [
+        [
+          {
+            "node": "Question messages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Question messages": {
+      "main": [
+        [
+          {
+            "node": "Each question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Each question": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask via WF30",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ask via WF30": {
+      "main": [
+        [
+          {
+            "node": "Each question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

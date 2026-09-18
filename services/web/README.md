@@ -1,6 +1,22 @@
-# Paytm Hisaab web foundation
+# Paytm Hisaab web
 
-Phone-first React/Vite PWA design system and offline shell. The component gallery is available at `/__gallery`; product screens are intentionally outside this package milestone.
+Phone-first React/Vite PWA with M1 Home (`/`), M2 Confirm (`/confirm`), M5 Case tracker
+(`/cases`), O1 Queue (`/officer`) and O2 Review (`/officer/cases/<case_id>`).
+The existing component gallery remains at `/__gallery`.
+
+Merchant screens use `?merchant=MID_DEMO_BLR` by default; another merchant can be selected in
+the query string. UI language selection is local English/Kannada; question text and chips use
+core's question language. Amounts come preformatted from core.
+
+M2 sends explicit question/transaction identity in the frozen assistant envelope through
+WF31. It waits for the question read model to confirm persistence before advancing. Officer
+screens approve/reject through core; WF20 handles simulated delivery after approval. PDFs
+are downloaded with the officer role header.
+
+The local defaults are `dev-app` and `dev-officer`. Build overrides are `VITE_API_BASE`,
+`VITE_APP_KEY`, `VITE_OFFICER_KEY`; a session officer credential can also be set as
+`hisaab-officer-key`. Core's product routes still return fixtures until A's handoff, so fixture
+screens do not demonstrate persistence.
 
 ## Run locally
 
@@ -26,6 +42,21 @@ The production build generates the 192 px and 512 px placeholder app icons, mani
 ## Container
 
 ```powershell
-docker build -t hisaab-web services/web
-docker run --rm -p 8080:80 hisaab-web
+docker compose build web
+docker compose --profile surfaces up -d --no-deps web
 ```
+
+Open `http://localhost:8080/`. This starts web independently of the deferred memory service.
+Vite development proxies `/api` to the same local Caddy origin.
+
+Browser verification uses stateful wire-shaped API doubles and blocks external requests:
+
+```powershell
+python -m pip install --target services/web/.browser-check playwright
+# Use an installed Chromium executable, or install Playwright's browser first.
+$env:HISAAB_BROWSER_EXECUTABLE = 'C:/path/to/chrome.exe'
+python services/web/scripts/check_mvp.py
+```
+
+Checks cover 360/412 px, answer failure/retry and read-confirmed advancement, all questions,
+officer PDF/approve/reject and the sent case tracker. Screenshots are in ignored `test-results/`.

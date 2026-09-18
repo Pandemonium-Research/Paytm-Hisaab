@@ -48,6 +48,59 @@ pointed at `FAKES_URL`. n8n Cloud (live, task 10.1b): the same set with the real
 
 ## Workflows (task 1.5)
 
+### MVP implementation, 18 September
+
+WF10, WF20 and the WF31 app path are implemented locally against the existing contracts.
+`python n8n/build_mvp.py` regenerates WF10/WF20 and applies repeatable channel changes to
+WF30/WF31. Credentials stay in the template; the Sarvam fake uses `Authorization: Bearer`,
+and core webhooks use the `X-N8N-Webhook-Secret` Header Auth credential.
+
+- WF10 reads all credit pages at the snapshot cutoff, skips credits with machine labels,
+  and processes new credits one at a time. Payer history is requested at each credit's
+  timestamp, not the nightly cutoff. Rules and schema-checked Sarvam hard cases append
+  proposals before question selection. Invalid/model-error responses become zero-confidence
+  `unclassified` proposals. Selected questions go serially through WF30. The default channel
+  is `app`; a WhatsApp run needs `channel: "whatsapp"` and a joined `to` number.
+- Question IDs include the IST day and transaction ID. WF31 answers explicit app question IDs;
+  stale taps fail instead of answering the next question. WhatsApp numbered replies still use
+  the oldest open question. Both routes use the simulation clock. App replies avoid the sandbox
+  delay; WhatsApp retains the three-second Wait.
+- WF20 asks core to build the freeze pack from its persisted case and evidence, then uses a
+  five-second Wait loop to read the officer decision. It checks matching case/pack IDs and only
+  sends an `approved` pack through core's gated outbox. Rejected/escalated/sent cases stop.
+  Delivery must report `simulated: true`. Core's frozen contracts have no resume-URL registration
+  endpoint, so the initial loop polls instead of registering `$execution.resumeUrl`.
+- Memory, full-year seed, voice, generated translations, threshold warnings and Cloud import
+  remain deferred. Question-budget proximity uses visible classified receipts and the demo's
+  goods/services threshold; it does not produce a registration verdict or turnover forecast.
+  WF10 and WF20 use the existing narrow `app` credential for their app read-model nodes.
+
+**A handoff:** forward the unchanged `AssistantInboundRequest` JSON to
+`/webhook/hisaab/wf31-assistant`, with `X-N8N-Webhook-Secret`. An M2 tap's `text` is JSON:
+
+```json
+{"type":"question_answer","question_id":"Q-2026-03-10-DM0000002","txn_id":"DM0000002","answer":"family"}
+```
+
+No new inbound fields are required. Core must enforce the persisted IST daily-question count,
+including answered questions, when selecting/appending questions: `GET /app/questions` only
+exposes open questions. For the second gate, `/packs` assembles isolation/decoy/bill/tiers from
+the case; the officer case read model's `status` should expose the current pack decision
+(`awaiting_approval`, `approved`, `rejected`, `escalated`, `sent`). The present O2 contract shows
+totals/timeline/PDF; individual isolation and decoy details need a later read-model handoff.
+
+**Validation:** production web build and Chromium checks at 360/412 px passed. Isolated copies
+in real local n8n passed pagination, both classification branches (Sarvam through the actual
+fake), proposal/question writes, explicit app answers, stale-tap rejection, reruns, approval
+before send and no send after rejection. Test helpers/workflows are removed after the run.
+These checks validate B orchestration; core still serves fixtures, so CP1/CP2 remain pending.
+
+```powershell
+python n8n/tests/run_local.py
+# Once A loads the visible demo and real Phase 4 routes land:
+python n8n/tests/check_first_gate.py --restart-core
+```
+
 Draft by B, 18 Sep. Frozen at Phase 1 sign-off; after that, changes need A's OK in chat
 (LANES.md §2).
 

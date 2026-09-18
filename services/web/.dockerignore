@@ -2,3 +2,5 @@ node_modules
 dist
 npm-debug.log*
 .git
+.browser-check
+test-results
