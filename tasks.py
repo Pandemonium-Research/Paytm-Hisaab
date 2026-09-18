@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
+import hmac
 import json
+import mimetypes
 import os
 import re
 import subprocess
@@ -18,7 +21,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 ROOT = Path(__file__).resolve().parent
@@ -96,6 +99,133 @@ def cmd_test(_args: argparse.Namespace, environment: dict[str, str]) -> None:
     environment = environment.copy()
     environment["HISAAB_LIVE"] = "0"
     run(["uv", "run", "pytest"], cwd=ROOT / "services" / "core", env=environment)
+    run(["uv", "run", "pytest"], cwd=ROOT / "services" / "fakes", env=environment)
+
+
+def twilio_signature(
+    url: str,
+    parameters: Mapping[str, Any],
+    auth_token: str,
+) -> str:
+    """Sign a form request using Twilio's webhook authentication scheme."""
+    payload = url + "".join(
+        f"{name}{value}"
+        for name in sorted(parameters)
+        for value in (
+            parameters[name]
+            if isinstance(parameters[name], (list, tuple))
+            else (parameters[name],)
+        )
+    )
+    digest = hmac.new(
+        auth_token.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha1,
+    ).digest()
+    return base64.b64encode(digest).decode("ascii")
+
+
+def verify_twilio_signature(
+    url: str,
+    parameters: Mapping[str, Any],
+    signature: str,
+    auth_token: str,
+) -> bool:
+    expected = twilio_signature(url, parameters, auth_token)
+    return hmac.compare_digest(expected, signature)
+
+
+def _urlopen_status(request: urllib.request.Request) -> tuple[int, bytes]:
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return response.status, response.read()
+    except urllib.error.HTTPError as exc:
+        return exc.code, exc.read()
+
+
+def _upload_fake_media(path: Path, environment: dict[str, str]) -> dict[str, Any]:
+    base_url = environment.get("FAKES_HOST_URL", "http://localhost:8200").rstrip("/")
+    account_sid = environment.get("TWILIO_ACCOUNT_SID", "ACfake")
+    auth_token = environment.get("TWILIO_AUTH_TOKEN", "fake")
+    content_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    credentials = base64.b64encode(f"{account_sid}:{auth_token}".encode()).decode()
+    request = urllib.request.Request(
+        f"{base_url}/twilio/_local/media",
+        data=path.read_bytes(),
+        headers={
+            "Authorization": f"Basic {credentials}",
+            "Content-Type": content_type,
+            "X-Filename": path.name,
+        },
+        method="POST",
+    )
+    status, body = _urlopen_status(request)
+    if status >= 300:
+        raise RuntimeError(
+            f"fake media upload failed with HTTP {status}: "
+            f"{body.decode('utf-8', errors='replace')}"
+        )
+    return json.loads(body.decode("utf-8"))
+
+
+def _fake_wa_parameters(
+    value: str,
+    environment: dict[str, str],
+) -> dict[str, str]:
+    account_sid = environment.get("TWILIO_ACCOUNT_SID", "ACfake")
+    parameters = {
+        "AccountSid": account_sid,
+        "ApiVersion": "2010-04-01",
+        "Body": value,
+        "From": environment.get("FAKE_WA_FROM", "whatsapp:+919999999999"),
+        "MessageSid": "SM" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:32],
+        "NumMedia": "0",
+        "SmsMessageSid": "SM" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:32],
+        "SmsSid": "SM" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:32],
+        "SmsStatus": "received",
+        "To": environment.get("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886"),
+    }
+    path = Path(value)
+    if path.is_file():
+        media = _upload_fake_media(path, environment)
+        internal_url = environment.get("FAKES_INTERNAL_URL", "http://fakes:8200").rstrip("/")
+        parameters.update(
+            {
+                "Body": "",
+                "MediaContentType0": media["content_type"],
+                "MediaUrl0": internal_url + media["path"],
+                "NumMedia": "1",
+            }
+        )
+    return parameters
+
+
+def cmd_fake_wa(args: argparse.Namespace, environment: dict[str, str]) -> None:
+    webhook_url = environment.get(
+        "FAKE_WA_WEBHOOK_URL",
+        "http://localhost:5678/webhook/hisaab/wf31-whatsapp",
+    )
+    auth_token = environment.get("TWILIO_AUTH_TOKEN", "fake")
+    parameters = _fake_wa_parameters(args.text_or_file, environment)
+    signature = twilio_signature(webhook_url, parameters, auth_token)
+    data = urllib.parse.urlencode(parameters).encode("utf-8")
+    request = urllib.request.Request(
+        webhook_url,
+        data=data,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Twilio-Signature": signature,
+        },
+        method="POST",
+    )
+    status, body = _urlopen_status(request)
+    print(f"Webhook URL: {webhook_url}")
+    print(f"X-Twilio-Signature: {signature}")
+    print(f"Response status: {status}")
+    if body:
+        print(body.decode("utf-8", errors="replace"))
+    if status >= 300:
+        raise SystemExit(1)
 
 
 def cmd_generate(args: argparse.Namespace, environment: dict[str, str]) -> None:
@@ -341,6 +471,13 @@ def parser() -> argparse.ArgumentParser:
     generate.add_argument("--out", help="output root (sim.generate defaults to data)")
     generate.add_argument("--force", action="store_true", help="overwrite a split sim.generate did not write")
     generate.set_defaults(func=cmd_generate)
+
+    fake_wa = subcommands.add_parser(
+        "fake-wa",
+        help="post a signed inbound WhatsApp message to local n8n",
+    )
+    fake_wa.add_argument("text_or_file", help="message text or a path to inbound media")
+    fake_wa.set_defaults(func=cmd_fake_wa)
     return result
 
 
