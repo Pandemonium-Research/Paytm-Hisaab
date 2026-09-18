@@ -89,8 +89,11 @@ beats) → CP3 → 12. A delay on this path delays the demo. Anything off it can
 
 **Owner:** A + B · **When:** Thu, first 30 min · **Refs:** §0, §4, §16, §22
 
-- [ ] **0.1** Redeem the n8n Cloud voucher. Record the plan tier, monthly execution cap,
+- [x] **0.1** Redeem the n8n Cloud voucher. Record the plan tier, monthly execution cap,
       concurrency limit, instance version and public API access in `n8n/README.md`.
+      → **Pro for a month: 10,000 executions, 20 concurrent, 7-day logs, public API
+      included.** The API key expires 16 Dec. The instance version is still to be read once
+      `N8N_BASE_URL` is set.
 - [x] **0.1b** Redeem the **Cognee hackathon credits** at platform.cognee.ai/billing, and note
       the API key, the credit balance and where it runs out.
       → **$45 at $1 per million tokens (about 45M tokens)**. Hosted API docs:
@@ -112,10 +115,9 @@ beats) → CP3 → 12. A delay on this path delays the demo. Anything off it can
       served a test page through the tunnel on 18 Sep. Sleep on AC is already "never". The
       laptop has 32 GB, so WSL2's default of half is about 16 GB and needs no `.wslconfig`.
       Start Docker Desktop before 2A.
-- [ ] **0.6** Create a public `hisaab-anchors` GitHub repo and a fine-grained token for it.
-      → The repo exists; no need to clone it, because core commits through the GitHub API.
-      Still to do: the token (contents read/write on that repo only) as `ANCHOR_GITHUB_TOKEN`,
-      plus `ANCHOR_REPO`.
+- [x] **0.6** Create a public `hisaab-anchors` GitHub repo and a fine-grained token for it.
+      → `Pandemonium-Research/hisaab-anchors`, with the token in `.env.live`. No need to clone
+      it, because core commits through the GitHub API.
 - [x] **0.7** Create branch `bfi`. `git mv` the old tree into `archive/agent-labs-2026-09-12/`
       (`synth/`, `service/`, `tools/`, `phinite/`, `webchat/`, `data/reference/`, old docs,
       `render.yaml`, `requirements.txt`). Leave the new plan files and pitch sources at the
