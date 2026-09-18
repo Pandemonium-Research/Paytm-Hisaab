@@ -632,7 +632,8 @@ verify.
 - **Media.** Voice notes and notice photos arrive as Twilio media URLs, fetched with the
   account SID and auth token into `ops.media` with a sha256. Outbound audio (Bulbul) has to be
   a public URL, which the tunnel provides.
-- **Cost.** Twilio's trial credit covers a demo's worth of messages.
+- **Cost.** The sandbox allows 100 free messages, inbound and outbound both count, and a join
+  costs 2. That's tight, so every live window has a Twilio budget (§16a).
 - **In development, Twilio is the fakes service.** WF30 and WF31 reach Twilio through a
   configurable base URL, so locally they hit `services/fakes`. It captures outbound messages in
   a local outbox page, and `tasks.py fake-wa "1"` posts a signed inbound message. Real WhatsApp
@@ -899,8 +900,11 @@ Docker, and the internet reaches it through a free Cloudflare quick tunnel.
     `GENERIC_TIMEZONE=Asia/Kolkata`) for seeding and as the offline fallback
 
   Named volumes, and health checks on every service.
-- **The tunnel.** `cloudflared tunnel --url http://localhost:8080` gives a free
+- **The tunnel.** `cloudflared tunnel --protocol http2 --url http://localhost:8080` gives a free
   `https://<random>.trycloudflare.com` with no account, no domain and no interstitial page.
+  **Always pass `--protocol http2`.** The default protocol, QUIC, runs over UDP, and behind a
+  VPN (ProtonVPN on the build laptop) its streams time out every few seconds ("failed to accept
+  QUIC stream: timeout"). HTTP/2 over TCP is stable; this was tested on 18 Sep.
   One hostname serves everything because Caddy routes by path and the PWA calls `/api/...` on
   its own origin. HTTPS is what makes the PWA installable and the microphone usable on the
   phones.
@@ -983,17 +987,27 @@ and reused for the rest of the build.
 
 **Live windows and starting budgets**
 
-These are the only times credits are spent. Adjust the numbers once the balances are known
-(tasks 0.1, 0.1b and 0.3). If a window needs more than its budget, stop and decide; don't let
-it run on.
+These are the only times credits are spent. If a window needs more than its budget, stop and
+decide; don't let it run on.
 
-| Window | When | What runs live | Sarvam calls | Twilio messages | Cognee ops | n8n Cloud executions |
+**Balances on 18 Sep (Phase 0):**
+- Twilio: 100 free sandbox messages, **98 left**. Inbound and outbound both count, and a sandbox
+  join costs 2.
+- Cognee: $45 at $1 per million tokens, so about 45M tokens. Concurrency limits are still to be
+  checked in S6.
+- Sarvam: 100 credits. What one call costs per model is still to be measured in L1, so the
+  Sarvam column may need to shrink.
+- n8n Cloud: from 0.1.
+
+| Window | When | What runs live | Sarvam calls | Twilio messages (in + out) | Cognee ops | n8n Cloud executions |
 |---|---|---|---|---|---|---|
-| **L1 live checks** | Thu night (2B) | S1–S8 with one or two calls each, and one batched translation of the i18n templates, all recorded as cassettes | ≤ 60 | ≤ 10 | ≤ 10 | ≤ 10 |
-| **L2 integration pass** | CP3, Sat 00:30 | Import to n8n Cloud; one `beats --live` pass; the final demo seed on the real model; snapshot | ≤ 500 | ≤ 30 | ≤ 300 | ≤ 60 |
+| **L1 live checks** | Thu night (2B) | S1–S8 with one or two calls each, and one batched translation of the i18n templates, all recorded as cassettes | ≤ 60 | ≤ 6 | ≤ 10 | ≤ 10 |
+| **L2 integration pass** | CP3, Sat 00:30 | Import to n8n Cloud; one `beats --live` pass; the final demo seed on the real model; snapshot | ≤ 500 | ≤ 25 | ≤ 300 | ≤ 60 |
 | **L3 agent measurement** (P1, optional) | After L2, only if the budget allows | `agent_eval` on a sample of eval hard cases, and the WF10-eval run | ≤ 200 | 0 | 0 | ≤ 5 |
-| **L4 live rehearsal** | Sat morning | Exactly one full rehearsal on real services; the others use the fakes | ≤ 80 | ≤ 30 | ≤ 30 | ≤ 30 |
+| **L4 live rehearsal** | Sat morning | Exactly one full rehearsal on real services; the others use the fakes | ≤ 80 | ≤ 25 | ≤ 30 | ≤ 30 |
 | **L5 demo** | Judging | The warm-up and the demo itself | ≤ 80 | ≤ 30 | ≤ 30 | ≤ 30 |
+
+The Twilio budgets add up to 86 of the 98 messages, leaving 12 for re-joins and mistakes.
 
 Everything outside these windows spends zero. If money is short, L3 is the first thing to drop.
 

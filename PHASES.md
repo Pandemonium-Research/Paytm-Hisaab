@@ -35,7 +35,7 @@ Cognee, WhatsApp, web)
 | 2D | Design foundation and PWA shell | B | Thu night | 1 | P0 |
 | 2F | Fakes, live switch and credit guard | A | Thu night | 1 | P0 |
 | 2L | Legal verification | whoever is blocked | by Fri 16:00 | 0 | P0 |
-| 3 | Synthetic world v2 · **built, not yet committed** (3.16–3.21 pending) | A | Thu night → Fri 10:00 | 1 | P0 |
+| 3 | Synthetic world v2 · **built and committed** (3.17–3.19 and 3.21 pending) | A | Thu night → Fri 10:00 | 1 | P0 |
 | 4 | Rails, clock and provenance skills | A | Fri 08:00–13:00 | 2A, 3 | P0 |
 | 5 | Memory and conversation loop | B | Fri 08:00–13:00 | 2B, 2C, 2D (and 4 as it lands) | P0 |
 | **CP1** | **Ordinary Tuesday, end to end** | A + B | **Fri 13:00** | 4, 5 | gate |
@@ -91,23 +91,37 @@ beats) → CP3 → 12. A delay on this path delays the demo. Anything off it can
 
 - [ ] **0.1** Redeem the n8n Cloud voucher. Record the plan tier, monthly execution cap,
       concurrency limit, instance version and public API access in `n8n/README.md`.
-- [ ] **0.1b** Redeem the **Cognee hackathon credits** at platform.cognee.ai/billing, and note
+- [x] **0.1b** Redeem the **Cognee hackathon credits** at platform.cognee.ai/billing, and note
       the API key, the credit balance and where it runs out.
-- [ ] **0.2** Add `N8N CREDITS .docx.pdf`, `.env`, `data/` and `design/reference/` to
+      → **$45 at $1 per million tokens (about 45M tokens)**. Hosted API docs:
+      `api.aws.cognee.ai/docs`, plus the tenant's own `/docs`. Check concurrency limits in S6.
+- [x] **0.2** Add `N8N CREDITS .docx.pdf`, `.env`, `data/` and `design/reference/` to
       `.gitignore`.
-- [ ] **0.3** Get the Sarvam API key and check the credit balance.
-- [ ] **0.4** Create the Twilio account, open the **WhatsApp sandbox**, and join both phones
+- [x] **0.3** Get the Sarvam API key and check the credit balance. → **100 credits**. The cost
+      per call is still to be measured in L1.
+- [x] **0.4** Create the Twilio account, open the **WhatsApp sandbox**, and join both phones
       by sending `join <code>` to `+1 415 523 8886`. Note the code and the sandbox's inbound
       webhook setting. No Meta business portfolio or verification is involved.
-- [ ] **0.5** No server: install `cloudflared` and confirm
-      `cloudflared tunnel --url http://localhost:8080` gives a working
+      → **100 free messages, 98 left**. Inbound counts too, and a join costs 2. The §16a
+      budgets now total 86.
+- [x] **0.5** No server: install `cloudflared` and confirm
+      `cloudflared tunnel --protocol http2 --url http://localhost:8080` gives a working
       `https://<random>.trycloudflare.com`. Disable laptop sleep and give Docker Desktop
       (WSL2) at least 8 GB.
+      → **Use `--protocol http2`.** QUIC drops every few seconds behind ProtonVPN; HTTP/2
+      served a test page through the tunnel on 18 Sep. Sleep on AC is already "never". The
+      laptop has 32 GB, so WSL2's default of half is about 16 GB and needs no `.wslconfig`.
+      Start Docker Desktop before 2A.
 - [ ] **0.6** Create a public `hisaab-anchors` GitHub repo and a fine-grained token for it.
-- [ ] **0.7** Create branch `bfi`. `git mv` the old tree into `archive/agent-labs-2026-09-12/`
+      → The repo exists; no need to clone it, because core commits through the GitHub API.
+      Still to do: the token (contents read/write on that repo only) as `ANCHOR_GITHUB_TOKEN`,
+      plus `ANCHOR_REPO`.
+- [x] **0.7** Create branch `bfi`. `git mv` the old tree into `archive/agent-labs-2026-09-12/`
       (`synth/`, `service/`, `tools/`, `phinite/`, `webchat/`, `data/reference/`, old docs,
       `render.yaml`, `requirements.txt`). Leave the new plan files and pitch sources at the
       root.
+      → Also archived: the old README, `pitch/` (the Agent Labs deck), the old `.env.example`
+      and its images. New root `README.md` and `.env.example` (everyday and live sections).
 
 **Done when:** every account is set up and its keys are stored in `.env.live` (logging in is
 free; the first paid calls happen in the L1 live checks, 2B), a joined phone has received the
@@ -276,12 +290,10 @@ Unverified citations block approval, so this must be done before CP2.
 
 **Owner:** A · **When:** Thu night → Fri 10:00 · **Depends on:** 1 · **Refs:** §5, §15
 
-> **Status, 17 Sep 2026: built and verified locally, not yet committed.**
-> - `sim/` and `eval/` are new, untracked folders.
+> **Status, 18 Sep 2026: built, verified locally and committed on `main` (3.16).**
 > - All four splits generate in about 30 s, pass validation, and are byte-identical across runs.
 > - Phase 3 has nothing to deploy until 2A and 4 load the data, so a tick here means "built and
 >   verified locally".
-> - Commit (3.16) before Phase 4 starts.
 >
 > Run it with `python -m sim.generate [--only demo]`. The schema and the demo answer key are
 > documented in [sim/README.md](sim/README.md).
@@ -383,7 +395,7 @@ up to a day later and more family money comes by QR.
 
 ### Still pending
 
-- [ ] **3.16** Commit `sim/` and `eval/` (with the task IDs in the message).
+- [x] **3.16** Commit `sim/` and `eval/` (`db5c16b`, `cb47fe0`).
 - [ ] **3.17** Wire `tasks.py generate` to `python -m sim.generate` (lands with 2A.1).
 - [ ] **3.18** Grep test proving nothing under `services/` or `n8n/` reads `hidden/` (add with
       2A.8; `services/` doesn't exist yet).
@@ -391,8 +403,8 @@ up to a day later and more family money comes by QR.
       ₹60.98L) and 68 credits on 8–9 Mar (deck v2 says 39). **Recommended:** update deck v2
       from measured data in 12.6, rather than calibrating the data to old numbers. The Round 1
       figures (₹4,200, 339, 14 Mar) already hold.
-- [ ] **3.20** Point the tracked v1 docs at v2: `data/README.md` and `DATA.md` still describe
-      v1. Do this with the 0.7 archive.
+- [x] **3.20** Point the tracked v1 docs at v2: `data/README.md` now points at `sim/README.md`,
+      and `DATA.md` moved to the archive with 0.7.
 - [ ] **3.21** Run the baseline on dev, and on sweep for the accuracy-vs-difficulty curve. Only
       eval has been scored so far. (P1)
 
@@ -698,6 +710,7 @@ Saturday is fix-only. No new features.
 **Before judging**
 - [ ] **12.10** Feature freeze 2 hours before judging.
 - [ ] **12.11** `reset`, then warm up: one nightly run and one Sarvam call (counted in L5).
-- [ ] **12.12** Phones charged and **re-joined to the Twilio sandbox** (the join expires after
-      three days), hotspot ready, laptop on charger with sleep disabled, tunnel up and
+- [ ] **12.12** Phones charged. Check the **Twilio sandbox join** is still active: it lasts three
+      days, and the phones joined on 18 Sep. Re-join only if it has lapsed, because each join
+      costs 2 of the 98 messages. Hotspot ready, laptop on charger with sleep disabled, tunnel up and
       `tasks.py publish` run once more.
