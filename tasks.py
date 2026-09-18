@@ -265,6 +265,16 @@ def cmd_generate(args: argparse.Namespace, environment: dict[str, str]) -> None:
     run(command, env=environment)
 
 
+def cmd_replay(args: argparse.Namespace, environment: dict[str, str]) -> None:
+    base = environment.get("CORE_HOST_URL", "http://localhost:8080/api").rstrip("/")
+    result = _request_json(
+        f"{base}/sim/replay", method="POST",
+        headers={"X-Hisaab-Key": environment.get("KEY_ADMIN", "dev-admin")},
+        body={"split": args.split, "until": args.until}, timeout=900,
+    )
+    print(json.dumps(result, indent=2))
+
+
 def cmd_tunnel(_args: argparse.Namespace, environment: dict[str, str]) -> None:
     RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
     command = [
@@ -326,6 +336,7 @@ def _request_json(
     method: str = "GET",
     headers: dict[str, str] | None = None,
     body: dict[str, Any] | None = None,
+    timeout: int = 20,
 ) -> dict[str, Any]:
     request_headers = {"Accept": "application/json", **(headers or {})}
     data = None
@@ -334,7 +345,7 @@ def _request_json(
         request_headers["Content-Type"] = "application/json"
     request = urllib.request.Request(url, data=data, headers=request_headers, method=method)
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
@@ -509,6 +520,11 @@ def parser() -> argparse.ArgumentParser:
     generate.add_argument("--out", help="output root (sim.generate defaults to data)")
     generate.add_argument("--force", action="store_true", help="overwrite a split sim.generate did not write")
     generate.set_defaults(func=cmd_generate)
+
+    replay = subcommands.add_parser("replay", help="load visible synthetic payments to a business-time cutoff")
+    replay.add_argument("--split", default="demo")
+    replay.add_argument("--until", required=True, help="ISO timestamp with timezone, e.g. 2026-03-10T02:00:00+05:30")
+    replay.set_defaults(func=cmd_replay)
 
     fake_wa = subcommands.add_parser(
         "fake-wa",

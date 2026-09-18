@@ -14,7 +14,7 @@ app = FastAPI(
     title="Paytm Hisaab core",
     version="0.1.0",
     root_path="/api",
-    description="Contract-complete fixture API for the Phase 2A hand-off.",
+    description="Persistent payment/question API for the prototype; remaining backlog routes serve fixtures.",
 )
 
 for router in (

@@ -523,24 +523,29 @@ up to a day later and more family money comes by QR.
 
 Each item replaces its stub in the running stack as soon as it lands.
 
-- [ ] **4.1** `clock.py` (`sim_now`), `POST /sim/clock`.
-- [ ] **4.2** `POST /rails/credits|bills|events` and `POST /sim/replay`, with an optional
-      real-time factor.
-- [ ] **4.3** SQL function `ledger.current_view(merchant, as_of)`: machine label, claim label,
+- [x] **4.1** `clock.py` (`sim_now`), `POST /sim/clock`.
+- [x] **4.2** `POST /rails/credits|bills|events` and `POST /sim/replay`, with an optional
+      real-time factor. Prototype uses cutoff replay; pacing is deferred.
+- [x] **4.3** SQL function `ledger.current_view(merchant, as_of)`: machine label, claim label,
       effective label, conflict flag and entry refs. The tier column comes in 6.1.
-- [ ] **4.4** `payer_history`, counting **strictly prior** payments only.
-- [ ] **4.5** `classify_rules`, with the §21 fixes (duplicates, strictly-prior counts).
-- [ ] **4.6** `POST /ledger/proposals`: enum check, agent confidence capped at 0.85.
-- [ ] **4.7** `question_budget` and `POST /skills/select-questions` (≤3 a day, priority,
+- [x] **4.4** `payer_history`, counting **strictly prior** payments only.
+- [x] **4.5** `classify_rules`, with the §21 fixes (duplicates, strictly-prior counts).
+- [x] **4.6** `POST /ledger/proposals`: enum check, agent confidence capped at 0.85.
+- [x] **4.7** `question_budget` and `POST /skills/select-questions` (≤3 a day, priority,
       7-day expiry, `payer_facts` skip).
-- [ ] **4.8** `POST /ledger/questions` and `POST /ledger/claims`, which also update
+- [x] **4.8** `POST /ledger/questions` and `POST /ledger/claims`, which also update
       `payer_facts`.
 - [ ] **4.9** Guards needed by replies: `numbers` (lakh/crore, Indic digits) and `language`.
-- [ ] **4.10** `GET /prompts/{name}` and `GET /config`.
+- [ ] **4.10** `GET /prompts/{name}` and `GET /config`. Config is real; prompts remain fixtures.
 - [ ] **4.11** Read models `/app/home`, plus `/assistant/inbound|stream|outbound`: SSE, with
       inbound forwarded to the WF31 webhook along with `N8N_WEBHOOK_SECRET`.
+      M1/M2/payment reads, language preference, assistant forwarding and persisted outbound
+      messages are real. Assistant SSE is deferred with M6 in the prototype queue.
 - [ ] **4.12** Tests: 10 Mar selects exactly the 3 seeded credits; the ₹23 payment is never
       asked about; no data after `as_of` leaks through; rules golden cases.
+      Running-container check: all 68 visible credits on 8–9 Mar select ₹7,500, ₹4,850 and
+      ₹15,000 only; ₹23 is skipped and Raghu has exactly two strictly prior payments.
+      Cutoff/idempotency/answer tests pass. Broader golden cases and B's workflow check remain.
 
 **Done when:** 4.12 is green in the running stack, and B's workflows call real endpoints for everything
 in this phase.

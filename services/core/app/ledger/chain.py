@@ -25,6 +25,18 @@ HASH_FIELDS = (
 ENTRY_ADAPTER = TypeAdapter(LedgerEntryVariant)
 
 
+def lock_head(connection, merchant_id):
+    connection.execute(
+        text("""INSERT INTO ledger.chain_heads (merchant_id, chain_index, hash)
+                VALUES (:merchant, -1, :genesis) ON CONFLICT (merchant_id) DO NOTHING"""),
+        {"merchant": merchant_id, "genesis": GENESIS_HASH},
+    )
+    return connection.execute(
+        text("SELECT chain_index, hash FROM ledger.chain_heads WHERE merchant_id = :merchant FOR UPDATE"),
+        {"merchant": merchant_id},
+    ).mappings().one()
+
+
 def _normalise(value: Any) -> Any:
     if isinstance(value, Enum):
         return _normalise(value.value)
@@ -87,15 +99,7 @@ def append(
     stored_payload = connection.execute(
         text("SELECT CAST(:payload AS jsonb)"), {"payload": payload_model.model_dump_json()},
     ).scalar_one()
-    connection.execute(
-        text("""INSERT INTO ledger.chain_heads (merchant_id, chain_index, hash)
-                VALUES (:merchant, -1, :genesis) ON CONFLICT (merchant_id) DO NOTHING"""),
-        {"merchant": merchant_id, "genesis": GENESIS_HASH},
-    )
-    head = connection.execute(
-        text("SELECT chain_index, hash FROM ledger.chain_heads WHERE merchant_id = :merchant FOR UPDATE"),
-        {"merchant": merchant_id},
-    ).mappings().one()
+    head = lock_head(connection, merchant_id)
     row = {
         "merchant_id": merchant_id, "chain_index": head["chain_index"] + 1,
         "kind": kind.value, "txn_id": txn_id, "payload": stored_payload,

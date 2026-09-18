@@ -12,12 +12,13 @@ Machine labels remain visible alongside those answers. Answers survive a service
 
 | Owner | Next work | Status |
 |---|---|---|
-| A | Persistent clock, rails ingestion/replay and merchant/credit reads | Starting |
-| A | Real proposals, questions, claims and derived current view | Next |
-| A | Rules, question selection, M1/M2 read models and app-message forwarding | Next |
+| A | Persistent clock, rails ingestion/replay and merchant/credit reads | Complete |
+| A | Real proposals, questions, claims and derived current view | Complete |
+| A | Rules, question selection, M1/M2 reads and language preference | Complete |
+| A | App-message forwarding and persisted assistant delivery | Complete; live workflow smoke pending |
 | A | Repeatable demo seed/reset and first-gate integration check | Next |
-| B | Pull `e499483`; build minimal WF10, including the hard-case Sarvam branch | Built/imported locally; orchestration checks pass; H6 pending |
-| B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Built/running locally; 360/412 px browser checks pass; H6 pending |
+| B | Minimal WF10, including the hard-case Sarvam branch | Built/imported locally (`6152c98`); real integration pending |
+| B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Built/running locally (`6152c98`); real integration pending |
 | Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | Pending |
 
 ## Second gate: freeze and approval
@@ -39,20 +40,48 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
 - B: WF30 and WF31's signed numbered-reply path work against the fixtures (`e5b25ab`).
 - A: database roles/migrations, chain append/verify and mutation controls (`e499483`).
 - A: B's local n8n environment settings and workflow import/export task commands.
-- Latest validation: 198 core, 26 real Postgres and 19 fakes tests; running-core chain smoke
-  and HTTPS health check passed.
+- A: Phase 4 payment backend now persists rails, proposals, questions and merchant answers.
+  M1/M2 and payment/history reads use Postgres; preferred language is saved.
+- A: assistant inbound forwards unchanged JSON to B's WF31; WF30 app messages persist in
+  `ops.conversations`. A failed workflow connection returns 502 instead of fixture success.
+- Running-core smoke: a saved family answer closes the question, retains its machine label
+  and survives a core restart. The generated 68-credit window selects exactly the expected
+  ₹7,500, ₹4,850 and ₹15,000 payments; ₹23 is skipped and Raghu has two prior purchases.
+- Validation: 173 core, 35 Postgres and 19 fakes tests passed. The real container replay
+  loaded 37,054 transactions and one event through 10 March 2026 at 02:00 IST.
+- `python tasks.py replay --split demo --until 2026-03-10T02:00:00+05:30` loads visible
+  records only; repeating it does not duplicate source records or observed-credit evidence.
 
-**Current limitation:** the product HTTP routes still return fixtures. A successful fixture
-acknowledgement does not persist evidence. Replace these routes before calling the first gate done.
+**Current limitation:** assistant SSE, case processing, evidence packs, officer
+approvals, turnover/threshold and reset still return fixtures. The first gate remains open until
+B's WF10/screens and the shared app/WhatsApp path run against the real backend. Persisting raw
+rails events does not yet open cases or process a freeze.
 
-B's first-gate runner is ready: `python n8n/tests/check_first_gate.py --restart-core`.
-Its preflight currently reports **PENDING H6** because `/app/home` still returns the
-`MID_DEMO_SAHANA` fixture for `MID_DEMO_BLR`. No joint gate is marked passed.
+### Integration notes for B
+
+- B's `6152c98` supplies the app envelope and uses the demo clock for WhatsApp replies.
+  A forwards unchanged `AssistantInboundRequest` JSON to `/webhook/hisaab/wf31-assistant`
+  with `X-N8N-Webhook-Secret`; app taps carry explicit question identity in `text`.
+- Ledger response hashes use hexadecimal strings; the stored/internal digests remain 32 bytes.
+- The demo merchant is `MID_DEMO_SAHANA`. Fetch its language and current time from real reads.
+  Keep WF10's lookback at 8–9 March for the ordinary Tuesday check. Rules use stored payment
+  features; shared-surname QR payments need confirmation even when the payer has prior credits.
+- Question IDs must stay the same on retries. Both selection and question writes enforce
+  three per merchant per business day; answers preserve the machine label.
+- `GET /config` is real; prompts and other unlisted skills remain fixtures.
+
+B's first-gate runner is ready:
+`python n8n/tests/check_first_gate.py --merchant MID_DEMO_SAHANA --restart-core`.
+Use `/?merchant=MID_DEMO_SAHANA` for B's web app; its current default merchant is
+`MID_DEMO_BLR`, which is absent from generated demo data. WF10 currently processes all
+unlabelled history; B must limit classification/question candidates to the ordinary Tuesday
+window (8–9 Mar) or classify prior history separately before this checkpoint.
+No joint gate is marked passed.
 The exact WF31 app envelope and WF20 status/approval handoffs are in `n8n/README.md`.
 
 ## Deferred until the two gates work
 
-Voice/TTS, Cognee enrichment, generated translations, additional languages, M6, Cloud migration,
+Voice/TTS, Cognee enrichment, generated translations, additional languages, M6/assistant SSE, Cloud migration,
 full-year workflow seeding, anchors and tamper presentation, comprehensive security matrices,
 additional legal research/guards, evaluations, extra screens and visual polish. Keep existing
 controls, input validation, approval before sending, synthetic/simulated labels and fake/live

@@ -15,7 +15,8 @@ authority asks:
 > Teammates, 19 September 2026). All data is synthetic, and every person, business and case
 > reference in it is fictional.
 
-**Status: under construction.** Progress is tracked in [PHASES.md](PHASES.md).
+**Status: under construction.** The active prototype queue and handoffs are in
+[PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md); the full backlog is in [PHASES.md](PHASES.md).
 
 ## Stack
 
@@ -56,8 +57,10 @@ heads and operational state. Both roles are stopped by the ledger's mutation tri
 only the owner can deliberately disable one. `test --postgres` prepares a separate
 `hisaab_ledger_test` database, so the tamper and truncate checks cannot affect demo data.
 
-The chain library is implemented; the HTTP mutation and read routes still return fixtures
-until Phase 4 replaces them. A successful reply from those fixtures does not persist evidence.
+Payment ingestion, visible-data replay, proposals, questions, claims, rules, question selection
+and merchant/payment/history reads now use Postgres. Home and Confirm reads reflect saved answers.
+Assistant inbound forwards to local WF31 and outbound messages persist. Assistant SSE, cases,
+evidence/approval, turnover and reset remain fixtures; see the active queue.
 
 For B's local workflows:
 
@@ -80,8 +83,16 @@ Simulator generation remains available through the same runner:
 
 ```bash
 python tasks.py generate                 # all four splits, about 30 s
-python tasks.py generate --only demo
+python tasks.py generate --only demo --force
+python tasks.py replay --split demo --until 2026-03-10T02:00:00+05:30
+curl -H "X-Hisaab-Key: dev-app" \
+  "http://localhost:8080/api/app/home?merchant=MID_DEMO_SAHANA"
 ```
+
+Replay uses only `visible/`, saves complete bills and observed credits, and sets the persistent
+business clock. Repeating it is safe. It loads payments without running WF10 or answering questions.
+For the first demo load it can take a few minutes. Workflow writes must use `home.as_of` rather
+than the wall clock; advance `/sim/clock` before writing at a later demo time.
 
 Then the rules-only baseline and its score on the eval split, which need no stack:
 

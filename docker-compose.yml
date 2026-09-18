@@ -25,8 +25,10 @@ services:
     environment:
       DATABASE_URL: postgresql://hisaab_app:${HISAAB_DB_APP_PASSWORD:-local-app}@db:5432/hisaab
       HISAAB_RUNTIME_CONFIG: /runtime/config.json
+      HISAAB_DATA_DIR: /datasets
     volumes:
       - ./services/core/runtime:/runtime
+      - ./data:/datasets:ro
     depends_on:
       db:
         condition: service_healthy

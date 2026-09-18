@@ -8,8 +8,9 @@ waiting for each other or editing the same files.
 **B = Agent and surfaces:** n8n workflows, Sarvam, Cognee, WhatsApp, the PWA, prompts, legal.
 
 **Current queue, 18 Sep:** [PROTOTYPE_STATUS.md](PROTOTYPE_STATUS.md) overrides the historical
-ordering below. A starts Phase 4 real data/persistence now; the remaining credit-guard block
-does not block it. B builds minimal WF10 and M1/M2 in parallel. After the first gate works,
+ordering below. A has completed Phase 4.1–4.8 and M1/M2/payment reads plus assistant
+forwarding/delivery; repeatable reset is next. The remaining credit-guard block does not block
+this queue. B has built WF10 and M1/M2 and now integrates them with the real routes. After the first gate works,
 A builds freeze/pack/approval endpoints and B builds WF20/O1/O2/M5. Keep lane ownership and
 contracts; defer extra security, legal research, measurement, memory/voice and polish.
 
