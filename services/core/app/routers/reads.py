@@ -21,7 +21,8 @@ def get_merchant(id: str, role=Depends(require_role("GET /merchants/{id}")), con
 @router.get("/credits", response_model=models.CreditsResponse)
 def get_credits(query: Annotated[models.CreditsQuery, Query()], role=Depends(require_role("GET /credits")), connection=Depends(get_connection)):
     as_of = query.as_of or sim_now(connection)
-    items, cursor = read_credits(connection, query.merchant, as_of, query.limit, query.cursor)
+    items, cursor = read_credits(connection, query.merchant, as_of, query.limit, query.cursor,
+                                 since=query.from_, until=query.to)
     return {"items": items, "next_cursor": cursor, "as_of": as_of}
 
 

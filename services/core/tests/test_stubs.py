@@ -236,7 +236,8 @@ def test_openapi_contains_every_contracted_operation() -> None:
 
 def test_openapi_declares_each_contracted_query_parameter() -> None:
     expected = {
-        ("GET", "/credits"): {"merchant": True, "as_of": False, "limit": False, "cursor": False},
+        ("GET", "/credits"): {"merchant": True, "as_of": False, "from": False, "to": False,
+                              "limit": False, "cursor": False},
         ("GET", "/payers/{cp}/history"): {"merchant": True, "as_of": False},
         ("GET", "/ledger/verify"): {"merchant": True},
         ("GET", "/ledger/{m}/entries"): {"limit": False, "cursor": False},

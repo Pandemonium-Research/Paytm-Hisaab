@@ -136,6 +136,43 @@ def test_pagination_and_business_time_hide_future_rows_and_answers(api):
     assert history["strictly_prior_credit_count"] == 1
 
 
+def test_credit_window_is_half_open_and_reads_the_same_instant_in_either_zone(api):
+    client, connection, profile = api
+    days = {day: payment(client, profile, ts=f"2026-03-{day}T10:00:00+05:30") for day in (20, 21, 22)}
+
+    def window(start, end, **extra):
+        response = read(client, "/credits", profile["merchant_id"], role="provenance",
+                        **{"from": start, "to": end}, **extra)
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    # from is inclusive and to is exclusive, so the payment exactly at the end is left out.
+    inside = window("2026-03-21T10:00:00+05:30", "2026-03-22T10:00:00+05:30")
+    assert [row["transaction"]["txn_id"] for row in inside["items"]] == [days[21]["txn_id"]]
+
+    # The chain stores UTC and the screens speak IST. The same instant written either way
+    # must select the same payments; this is the comparison that has already bitten us once.
+    assert window("2026-03-21T04:30:00Z", "2026-03-22T04:30:00Z")["items"] == inside["items"]
+
+    # A window still pages, and the cursor stays inside it.
+    first = window("2026-03-20T00:00:00+05:30", "2026-03-22T00:00:00+05:30", limit=1)
+    second = window("2026-03-20T00:00:00+05:30", "2026-03-22T00:00:00+05:30", limit=1, cursor=first["next_cursor"])
+    assert [first["items"][0]["transaction"]["txn_id"], second["items"][0]["transaction"]["txn_id"]] == \
+        [days[20]["txn_id"], days[21]["txn_id"]]
+    assert second["next_cursor"] is None
+
+    # A window cannot outrun business time even when it asks to.
+    request(client, "/sim/clock", {"sim_at": "2026-03-21T00:00:00+05:30"}, "admin").raise_for_status()
+    assert [row["transaction"]["txn_id"] for row in
+            window("2026-03-19T00:00:00+05:30", "2026-03-25T00:00:00+05:30")["items"]] == [days[20]["txn_id"]]
+
+    # An empty or unzoned window is a caller mistake, not an empty page.
+    assert read(client, "/credits", profile["merchant_id"], role="provenance",
+                **{"from": "2026-03-22T00:00:00+05:30", "to": "2026-03-21T00:00:00+05:30"}).status_code == 422
+    assert read(client, "/credits", profile["merchant_id"], role="provenance",
+                **{"from": "2026-03-21T00:00:00"}).status_code == 422
+
+
 def test_question_budget_is_enforced_at_write_and_retries_do_not_spend_twice(api):
     client, connection, profile = api
     value = payment(client, profile)

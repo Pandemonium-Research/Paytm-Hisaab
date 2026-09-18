@@ -58,13 +58,25 @@ def cursor_decode(value):
         raise HTTPException(422, "Use the next_cursor returned by this endpoint.") from exc
 
 
-def read_credits(connection, merchant_id, as_of, limit, cursor=None, *, descending=False):
+def read_credits(connection, merchant_id, as_of, limit, cursor=None, *, since=None, until=None, descending=False):
+    """Read one page of credits, optionally narrowed to the half-open window [since, until).
+
+    The window only drops rows. ledger.current_view derives each label from the merchant's
+    whole bill history, not from the rows returned, so a narrowed page labels them the same
+    way a full one does.
+    """
     merchant(connection, merchant_id)
     filters, values = "", {"merchant": merchant_id, "as_of": as_of, "limit": limit + 1}
     if cursor:
         values["cursor_ts"], values["cursor_txn"] = cursor_decode(cursor)
         operator = "<" if descending else ">"
         filters = f"AND (c.ts, c.txn_id) {operator} (:cursor_ts, :cursor_txn)"
+    if since is not None:
+        filters += " AND c.ts >= :since"
+        values["since"] = since
+    if until is not None:
+        filters += " AND c.ts < :until"
+        values["until"] = until
     direction = "DESC" if descending else "ASC"
     rows = connection.execute(text(f"""SELECT c.*, v.machine_label, v.claim_label, v.effective_label,
         v.conflict, v.entry_refs, v.tier FROM rails.credits c

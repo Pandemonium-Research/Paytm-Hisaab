@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import AwareDatetime, Field
+from pydantic import AwareDatetime, Field, model_validator
 
 from ..common import (
     ContractModel,
@@ -28,6 +28,34 @@ class CreditsQuery(Pagination):
         AwareDatetime | None,
         Field(description="Snapshot cutoff; when omitted, uses now on the sim clock."),
     ] = None
+    # A caller that wants one day's credits should say so here rather than page the whole
+    # history and discard it. Both bounds carry an offset on purpose: the chain stores UTC
+    # and the screens speak IST, so a bare date would have to guess which one was meant.
+    from_: Annotated[
+        AwareDatetime | None,
+        Field(
+            alias="from",
+            description=(
+                "Inclusive start of the credit window, with a UTC offset; "
+                "when omitted, starts at the merchant's first credit."
+            ),
+        ),
+    ] = None
+    to: Annotated[
+        AwareDatetime | None,
+        Field(
+            description=(
+                "Exclusive end of the credit window, with a UTC offset; a credit exactly "
+                "at to is not returned; when omitted, ends at as_of."
+            )
+        ),
+    ] = None
+
+    @model_validator(mode="after")
+    def window_must_hold_something(self) -> "CreditsQuery":
+        if self.from_ is not None and self.to is not None and self.from_ >= self.to:
+            raise ValueError("The credit window must be [from, to) with from before to.")
+        return self
 
 
 class PayerHistoryQuery(ContractModel):

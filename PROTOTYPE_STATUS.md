@@ -17,10 +17,11 @@ Machine labels remain visible alongside those answers. Answers survive a service
 | A | Rules, question selection, M1/M2 reads and language preference | Complete |
 | A | App-message forwarding and persisted assistant delivery | Complete; real local WF31/WF30 smoke passed |
 | A | Repeatable demo snapshot/reset | Complete; `snapshot` 4 s, `reset` 36 s, verified round trip |
+| A | Credit window on `GET /credits` so WF10 stops paging the whole history | Complete; `from`/`to`, 36 Postgres tests |
 | A | Freeze detector, cases and approvals (second gate) | Next |
 | B | Minimal WF10, including the hard-case Sarvam branch | Complete; passes against the real stack |
 | B | M1 Home and M2 Confirm; app taps through WF31; minimal language selection | Complete; real reads and persisted taps |
-| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **Passes on B's machine**; did not reproduce on A's (see below). Real-provider path (L1) pending |
+| Both | Run first gate on local n8n/core/fakes, then validate the real-provider path | **Passes cold on B's machine** (117 s); A's machine is ~10x slower and timed out. Awaiting a re-run on A's with the credit window. Real-provider path (L1) pending |
 
 ## Second gate: freeze and approval
 
@@ -82,6 +83,28 @@ Then add turnover/threshold and the notice report. A selected specimen notice ca
   database keeps both append-only triggers, `hisaab_app`'s insert-only grants, `ledger.current_view`
   and the sim clock. `GET /ledger/verify` returns ok afterwards, and an owner `UPDATE` is still
   refused by the trigger. Take the snapshot straight after `replay`, before any workflow run (D33).
+- **A: half-open credit window on `GET /credits` (18 Sep, D34).** `from` and `to` are optional
+  aware instants bounding `[from, to)` on the payment's `ts`: `from` is inclusive, `to` exclusive,
+  either may be given alone, `as_of` still caps the page, and paging works inside the window. A
+  bare date is refused, because the chain stores UTC and the screens answer IST. Verified by 36
+  Postgres tests covering both edges, the same instant written as `+05:30` and as `Z` selecting
+  the same payments, a cursor that stays inside its window, a window that cannot outrun business
+  time, and 422 for a backwards or unzoned bound. This is B's requested fix for A's WF10 failure:
+  the run was paging all 12,097 credits through a Code node to keep 68, so every page was a
+  task-runner job over a large payload. WF10 can now ask for the window in one call.
+
+- **B answered A's CP1 question (18 Sep, `26d6e9b`): CP1 does reproduce, and A's reading of the
+  resumed run was right.** B's passing run did print `(resumed run: ...)`, and its WF10 execution
+  had in fact errored in 4.7 s at Read credits; the gate still printed PASS because three
+  questions from an earlier run were already there. Classification had nonetheless completed in a
+  single cold invocation on B's machine (execution 60, success in 111.9 s), and a fresh cold run
+  from empty volumes after `tasks.py reset` succeeded in 117.4 s, 132 s for the whole gate. B saw
+  no `pg-pool` or task-runner errors and has 15.5 GiB for Docker, so the same workload takes
+  roughly ten times as long on A's machine. B's fixes: `--timeout` defaulting to 1800 s in place
+  of the hard 180 s, an assertion that WF10's own execution succeeded (read from n8n's database,
+  printed as `WF10 execution: success in 117.4s`), and an empty webhook body that now errors in
+  0.1 s instead of classifying a whole window, closing the footgun that poisoned A's database.
+
 - **A could not reproduce CP1 (18 Sep).** On a cold database (zero proposals, zero questions) the
   WF10 run did not finish inside `check_first_gate.py`'s 180 s wait. Two n8n executions ended at
   1220 s (error) and 1632 s (cancelled), with `pg-pool` `timeout exceeded when trying to connect`
@@ -109,6 +132,10 @@ rails events does not yet open cases or process a freeze.
   features; shared-surname QR payments need confirmation even when the payer has prior credits.
 - Question IDs must stay the same on retries. Both selection and question writes enforce
   three per merchant per business day; answers preserve the machine label.
+- `GET /credits` accepts `from` and `to`: a half-open `[from, to)` window on the payment's `ts`,
+  both aware instants (a bare date is refused). WF10 should pass its `window_from`/`window_to`
+  straight through instead of paging and filtering in the Code node. `services/core/CONTRACTS.md`
+  has the full semantics.
 - `GET /config` is real; prompts and other unlisted skills remain fixtures.
 - `tasks.py import-n8n --target local --activate` fills missing local environment values from
   `.env.example`. This keeps imported credentials aligned with core's fake defaults, even

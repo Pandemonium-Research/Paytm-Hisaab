@@ -530,6 +530,10 @@ A real app tap also passes core forwarding → B's WF31 → persisted claim → 
 acknowledgement, with the machine proposal preserved.
 B's workflows/screens are available in `6152c98`; combined CP1 remains pending the WF10
 window/default-merchant integration. SSE, extra guards and polishing are deferred by the active queue.
+`GET /credits` now also takes a half-open `[from, to)` window of aware instants (D34), so WF10
+asks for the ordinary Tuesday instead of paging the whole history and discarding it: 36 Postgres
+tests pass, including the window's two edges, the same instant written in UTC and in IST, paging
+inside a window, and 422 for a backwards or unzoned bound.
 
 - [x] **4.1** `clock.py` (`sim_now`), `POST /sim/clock`.
 - [x] **4.2** `POST /rails/credits|bills|events` and `POST /sim/replay`, with an optional

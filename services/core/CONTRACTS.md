@@ -60,7 +60,7 @@ merchant in an explicit correction.
 | `POST /rails/bills` | — | `RailsBillsRequest` | `RailsBillsResponse` | rails |
 | `POST /rails/events` | — | `RailsEventsRequest` | `RailsEventsResponse` | rails |
 | `GET /merchants/{id}` | — | — | `MerchantResponse` | provenance, conversation, evidence |
-| `GET /credits` | `merchant` (required), `as_of`, `limit`, `cursor` | — | `CreditsResponse` | provenance, conversation, evidence |
+| `GET /credits` | `merchant` (required), `as_of`, `from`, `to`, `limit`, `cursor` | — | `CreditsResponse` | provenance, conversation, evidence |
 | `GET /credits/{txn}` | — | — | `CreditResponse` | provenance, conversation, evidence |
 | `GET /credits/by-utr/{utr}` | — | — | `CreditByUtrResponse` | provenance, conversation, evidence |
 | `GET /payers/{cp}/history` | `merchant` (required), `as_of` | — | `PayerHistoryResponse` | provenance, conversation, evidence |
@@ -129,6 +129,15 @@ state and echoes that state with `saved` in `AppProfileResponse`. Consent create
 `GET /app/officer/outbox` returns the simulated delivery stamp, outcome and usable balance, plus
 explicit `freeze_to_pack_seconds` and `pack_to_approval_seconds` durations alongside its
 timestamps.
+
+`GET /credits` takes an optional `from` and `to`, a **half-open window `[from, to)`** on the
+payment's `ts`: a credit exactly at `from` is returned, one exactly at `to` is not. Both need a
+UTC offset, because the chain stores UTC and the screens answer IST, so a bare date would have
+to guess which was meant; `2026-03-08T00:00:00+05:30` and `2026-03-07T18:30:00Z` select the same
+payments. Either bound may be given alone. `as_of` still caps the page, so a `to` beyond business
+time returns nothing extra, and `from` at or after `to` is a 422 rather than an empty page.
+Paging works inside the window and the cursor stays in it. A caller that wants one day's credits
+should ask for that day instead of paging the whole history and discarding it.
 
 ## Short examples
 
