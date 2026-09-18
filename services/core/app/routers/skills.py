@@ -6,6 +6,7 @@ from ..skills.classify_rules import classify
 from ..skills.isolate import isolate
 from ..skills.question_budget import select_questions
 from ..skills.tiers import tiers
+from ..skills.turnover import turnover
 
 from ..schemas.api import skills as models
 from ._stub import add_post
@@ -33,8 +34,12 @@ def evidence_tiers(body: models.TiersRequest, role=Depends(require_role("POST /s
     return tiers(connection, body)
 
 
+@router.post("/skills/turnover", response_model=models.TurnoverResponse)
+def turnover_skill(body: models.TurnoverRequest, role=Depends(require_role("POST /skills/turnover")), connection=Depends(get_connection)):
+    return turnover(connection, body)
+
+
 for endpoint, path, request, response in (
-    ("POST /skills/turnover", "/skills/turnover", models.TurnoverRequest, models.TurnoverResponse),
     ("POST /skills/threshold", "/skills/threshold", models.ThresholdRequest, models.ThresholdResponse),
     ("POST /skills/escalation-check", "/skills/escalation-check", models.EscalationCheckRequest, models.EscalationCheckResponse),
 ):

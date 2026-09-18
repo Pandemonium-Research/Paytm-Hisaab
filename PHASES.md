@@ -652,8 +652,13 @@ in this phase.
       `current_view` takes an optional `p_opened_at`, so the tier is decided beside
       `effective_label` and the two cannot drift. Boundary crossing is covered on both sides;
       all four tiers are always returned. 92 Postgres tests pass (`cc79297`).
-- [ ] **6.2** `POST /skills/turnover`: apportionment by value for unbilled QR sales, excluded
+- [x] **6.2** `POST /skills/turnover`: apportionment by value for unbilled QR sales, excluded
       buckets with txn IDs, coverage, workings.
+      Billed sales split by bill line, exactly; only unbilled sales are apportioned, at the shop's
+      billed exempt share, and the taxable estimate is the remainder so the two never fail to sum.
+      A linked bill classifies a credit when nothing else has (D43). With no billed mix the share
+      is 0.0 and unbilled sales are taxable, never quietly exempt. On the demo year: aggregate
+      ₹13,67,199, 76.7% exempt, coverage 0.28 with 7,972 credits still unlabelled.
 - [ ] **6.3** `POST /skills/threshold`: aware of `gst_status`; projected date and days of
       warning; exclusively-exempt verdict.
 - [x] **6.4** `POST /skills/isolate`: matching by UTR **and independently** by amount and date;

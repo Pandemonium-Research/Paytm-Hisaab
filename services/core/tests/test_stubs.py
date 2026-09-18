@@ -122,6 +122,7 @@ REAL_ENDPOINTS = {
     "POST /skills/select-questions",
     "POST /skills/isolate",
     "POST /skills/tiers",
+    "POST /skills/turnover",
     "POST /guards/numbers",
     "POST /guards/citations",
     "POST /guards/no-innocence",
