@@ -6,6 +6,7 @@ from ..skills.classify_rules import classify
 from ..skills.isolate import isolate
 from ..skills.question_budget import select_questions
 from ..skills.tiers import tiers
+from ..skills.threshold import threshold
 from ..skills.turnover import turnover
 
 from ..schemas.api import skills as models
@@ -39,8 +40,12 @@ def turnover_skill(body: models.TurnoverRequest, role=Depends(require_role("POST
     return turnover(connection, body)
 
 
+@router.post("/skills/threshold", response_model=models.ThresholdResponse)
+def threshold_skill(body: models.ThresholdRequest, role=Depends(require_role("POST /skills/threshold")), connection=Depends(get_connection)):
+    return threshold(connection, body)
+
+
 for endpoint, path, request, response in (
-    ("POST /skills/threshold", "/skills/threshold", models.ThresholdRequest, models.ThresholdResponse),
     ("POST /skills/escalation-check", "/skills/escalation-check", models.EscalationCheckRequest, models.EscalationCheckResponse),
 ):
     add_post(router, area="skills", endpoint=endpoint, path=path, request_model=request, response_model=response)

@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
-from fastapi import HTTPException
-from sqlalchemy import text
-
-from ..clock import sim_now
 from ..ledger.projection import merchant
 from ..schemas.api.skills import (
     ExcludedTransaction,
@@ -16,8 +10,12 @@ from ..schemas.api.skills import (
     TurnoverWorking,
 )
 from ..schemas.common import PredictionLabel
-
-SALE_LABELS = frozenset({PredictionLabel.TAXABLE_SUPPLY.value, PredictionLabel.EXEMPT_SUPPLY.value})
+from .turnover_sales import (
+    SALE_LABELS,
+    effective_as_of,
+    load_billed_by_txn,
+    load_period_credit_rows,
+)
 
 EXCLUSION_REASONS = {
     PredictionLabel.INTER_ACCOUNT.value: "Transfer from a linked own account.",
@@ -29,53 +27,17 @@ EXCLUSION_REASONS = {
 }
 
 
-def _effective_as_of(connection, as_of: datetime) -> datetime:
-    return min(as_of, sim_now(connection))
-
-
 def _usable_label(label: str | None) -> bool:
     return label is not None and label != PredictionLabel.UNCLASSIFIED.value
 
 
 def turnover(connection, body: TurnoverRequest) -> TurnoverResponse:
     merchant(connection, body.merchant_id)
-    as_of = _effective_as_of(connection, body.as_of)
-
-    rows = connection.execute(
-        text("""SELECT c.txn_id, c.amount, v.effective_label
-                FROM rails.credits c
-                JOIN ledger.current_view(:merchant, :as_of) v USING (txn_id)
-                WHERE c.merchant_id = :merchant AND c.ts <= :as_of
-                  AND (c.ts AT TIME ZONE 'Asia/Kolkata')::date
-                      BETWEEN :period_from AND :period_to
-                ORDER BY c.txn_id"""),
-        {
-            "merchant": body.merchant_id,
-            "as_of": as_of,
-            "period_from": body.period_from,
-            "period_to": body.period_to,
-        },
-    ).mappings().all()
-
-    billed_rows = connection.execute(
-        text("""SELECT b.txn_id,
-                       coalesce(sum(l.line_amount) FILTER (WHERE h.exempt), 0) AS exempt,
-                       coalesce(sum(l.line_amount), 0) AS total
-                FROM rails.bills b
-                JOIN rails.bill_lines l
-                  ON l.pos_bill_id = b.pos_bill_id
-                 AND l.merchant_id = b.merchant_id
-                 AND l.txn_id = b.txn_id
-                LEFT JOIN rails.hsn_catalog h USING (item, hsn)
-                WHERE b.merchant_id = :merchant AND b.sim_at <= :as_of
-                GROUP BY b.txn_id
-                HAVING count(l.line_no) > 0"""),
-        {"merchant": body.merchant_id, "as_of": as_of},
-    ).mappings().all()
-    billed_by_txn = {
-        row["txn_id"]: (int(row["exempt"]), int(row["total"]) - int(row["exempt"]))
-        for row in billed_rows
-    }
+    as_of = effective_as_of(connection, body.as_of)
+    rows = load_period_credit_rows(
+        connection, body.merchant_id, as_of, body.period_from, body.period_to,
+    )
+    billed_by_txn = load_billed_by_txn(connection, body.merchant_id, as_of)
 
     billed_exempt = 0
     billed_taxable = 0

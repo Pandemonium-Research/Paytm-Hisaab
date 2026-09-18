@@ -659,8 +659,12 @@ in this phase.
       A linked bill classifies a credit when nothing else has (D43). With no billed mix the share
       is 0.0 and unbilled sales are taxable, never quietly exempt. On the demo year: aggregate
       ₹13,67,199, 76.7% exempt, coverage 0.28 with 7,972 credits still unlabelled.
-- [ ] **6.3** `POST /skills/threshold`: aware of `gst_status`; projected date and days of
+- [x] **6.3** `POST /skills/threshold`: aware of `gst_status`; projected date and days of
       warning; exclusively-exempt verdict.
+      ₹40L goods / ₹20L services, crossing strictly above. `crossed_on` is evidence-backed — the
+      day the ledger's own running total first crossed — and stays null when the ledger cannot
+      support one. The projection is emitted only while it can still mean something (D44):
+      unregistered, not exclusively exempt, at or below the threshold, not already crossed.
 - [x] **6.4** `POST /skills/isolate`: matching by UTR **and independently** by amount and date;
       same-amount candidates; bill, device and geo; the 7-day count.
       Persistent, as-of reads validated on the actual visible demo: `DM0038619` matched by both
