@@ -1,6 +1,6 @@
 """M1/M2 and payment screens backed by persisted business state."""
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import text
 
@@ -49,6 +49,29 @@ def home(connection, merchant_id):
         "questions_due": len(questions), "open_cases": cases,
         "alerts": [{"kind": "question", "title": f"{len(questions)} payments to confirm",
                     "body": "Tell us what these payments were for.", "href": "/merchant/confirm"}] if questions else []}
+
+
+def _message_sim_at(value):
+    if isinstance(value, str):
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    return value
+
+
+def conversation(connection, merchant_id):
+    merchant(connection, merchant_id)
+    as_of = sim_now(connection)
+    row = connection.execute(text("SELECT data FROM ops.conversations WHERE conversation_id = :id"),
+        {"id": f"wf31-{merchant_id}"}).scalar_one_or_none()
+    if not row:
+        return {"items": []}
+    items = []
+    for message in row.get("messages", []):
+        if _message_sim_at(message["sim_at"]) > as_of:
+            continue
+        items.append({"message_id": message["message_id"], "direction": message["direction"],
+            "text": message.get("text") or "", "content_type": message.get("content_type", "text"),
+            "language": message.get("language"), "sim_at": message["sim_at"]})
+    return {"items": items}
 
 
 def questions(connection, merchant_id):

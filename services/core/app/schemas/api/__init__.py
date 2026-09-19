@@ -96,6 +96,7 @@ ENDPOINT_MODELS = {
     ),
     "GET /app/home": (None, app_screens.AppHomeResponse),
     "GET /app/questions": (None, app_screens.AppQuestionsResponse),
+    "GET /app/conversation": (None, app_screens.AppConversationResponse),
     "GET /app/payments": (None, app_screens.AppPaymentsResponse),
     "GET /app/payments/{txn}": (None, app_screens.AppPaymentDetailResponse),
     "GET /app/cases": (None, app_screens.AppCasesResponse),

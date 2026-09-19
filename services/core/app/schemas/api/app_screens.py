@@ -105,6 +105,19 @@ class AppQuestionsResponse(ContractModel):
     closing_text: str
 
 
+class AppConversationMessage(ContractModel):
+    message_id: str
+    direction: Literal["in", "out"]
+    text: str
+    content_type: str
+    language: str | None
+    sim_at: AwareDatetime
+
+
+class AppConversationResponse(ContractModel):
+    items: list[AppConversationMessage]
+
+
 class PaymentRow(ContractModel):
     txn_id: TransactionId
     ts: AwareDatetime

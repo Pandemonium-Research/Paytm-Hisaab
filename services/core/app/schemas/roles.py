@@ -93,6 +93,7 @@ ENDPOINT_PERMISSIONS: dict[str, frozenset[Role]] = {
     "POST /assistant/outbound": frozenset({Role.CONVERSATION}),
     "GET /app/home": frozenset({Role.APP}),
     "GET /app/questions": frozenset({Role.APP}),
+    "GET /app/conversation": frozenset({Role.APP}),
     "GET /app/payments": frozenset({Role.APP}),
     "GET /app/payments/{txn}": frozenset({Role.APP}),
     "GET /app/cases": frozenset({Role.APP}),

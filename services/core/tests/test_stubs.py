@@ -96,6 +96,7 @@ QUERY_SAMPLES: dict[str, dict[str, Any]] = {
     "GET /assistant/stream": {"merchant": "MID_DEMO_SAHANA"},
     "GET /app/home": {"merchant": "MID_DEMO_SAHANA"},
     "GET /app/questions": {"merchant": "MID_DEMO_SAHANA"},
+    "GET /app/conversation": {"merchant": "MID_DEMO_SAHANA"},
     "GET /app/payments": {
         "merchant": "MID_DEMO_SAHANA",
         "limit": 25,
@@ -116,6 +117,7 @@ REAL_ENDPOINTS = {
     "GET /credits/by-utr/{utr}", "GET /credits/{txn}", "GET /payers/{cp}/history",
     "POST /ledger/proposals", "POST /ledger/questions", "POST /ledger/claims",
     "GET /ledger/verify", "GET /ledger/{m}/entries", "GET /app/home", "GET /app/questions",
+    "GET /app/conversation",
     "GET /app/payments", "GET /app/payments/{txn}",
     "GET /app/cases", "GET /app/officer/queue", "GET /app/officer/cases/{id}", "GET /app/officer/outbox",
     "POST /skills/classify-rules",

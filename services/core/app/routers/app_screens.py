@@ -22,6 +22,11 @@ def questions(query: Annotated[models.MerchantAppQuery, Query()], role=Depends(r
     return screens.questions(connection, query.merchant)
 
 
+@router.get("/app/conversation", response_model=models.AppConversationResponse)
+def conversation(query: Annotated[models.MerchantAppQuery, Query()], role=Depends(require_role("GET /app/conversation")), connection=Depends(get_connection)):
+    return screens.conversation(connection, query.merchant)
+
+
 @router.get("/app/payments", response_model=models.AppPaymentsResponse)
 def payments(query: Annotated[models.AppPaymentsQuery, Query()], role=Depends(require_role("GET /app/payments")), connection=Depends(get_connection)):
     return screens.payments(connection, query.merchant, query.limit, query.cursor)

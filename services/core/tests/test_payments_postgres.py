@@ -276,8 +276,10 @@ def test_assistant_workflow_acceptance_failure_and_persisted_delivery(api, monke
     response = request(client, "/assistant/outbound", outgoing, "conversation")
     assert response.status_code == 200 and response.json()["published"]
     stored = connection.execute(text("SELECT data FROM ops.conversations WHERE conversation_id=:id"), {"id": conversation}).scalar_one()
-    assert stored["messages"][0]["text"] == outgoing["text"]
-    assert stored["messages"][0]["message_id"] == response.json()["message_id"]
+    assert stored["messages"][0]["direction"] == "in"
+    assert stored["messages"][1]["text"] == outgoing["text"]
+    assert stored["messages"][1]["direction"] == "out"
+    assert stored["messages"][1]["message_id"] == response.json()["message_id"]
     monkeypatch.undo()
     def unavailable(*args, **kwargs):
         raise urllib.error.URLError("local workflow offline")
