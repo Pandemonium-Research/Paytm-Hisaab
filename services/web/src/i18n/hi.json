@@ -49,5 +49,10 @@
   "cases.status.rejected": "अस्वीकृत",
   "cases.status.escalated": "आगे बढ़ाया गया",
   "cases.officerReviewing": "अधिकारी अगले कदम की समीक्षा कर रहे हैं।",
-  "cases.deliverySimulated": "साक्ष्य भेजना अनुकरण है। रोक बदलनी है या नहीं, यह बैंक तय करता है।"
+  "cases.deliverySimulated": "साक्ष्य भेजना अनुकरण है। रोक बदलनी है या नहीं, यह बैंक तय करता है।",
+  "confirm.chip.sale": "बिक्री",
+  "confirm.chip.family": "परिवार",
+  "confirm.chip.own_money": "मेरा अपना पैसा",
+  "confirm.chip.loan_or_gift": "ऋण / अन्य",
+  "confirm.chip.not_sure": "पक्का नहीं"
 }

@@ -49,5 +49,10 @@
   "cases.status.rejected": "rejected",
   "cases.status.escalated": "escalated",
   "cases.officerReviewing": "An officer is reviewing the next steps.",
-  "cases.deliverySimulated": "Evidence delivery is simulated. The bank decides whether to change the hold."
+  "cases.deliverySimulated": "Evidence delivery is simulated. The bank decides whether to change the hold.",
+  "confirm.chip.sale": "Sale",
+  "confirm.chip.family": "Family",
+  "confirm.chip.own_money": "My own money",
+  "confirm.chip.loan_or_gift": "Loan / other",
+  "confirm.chip.not_sure": "Not sure"
 }

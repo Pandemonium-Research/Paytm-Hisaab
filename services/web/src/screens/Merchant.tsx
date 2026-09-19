@@ -10,6 +10,13 @@ import type { Language, Translator } from '../i18n'
 export function Notice({ error, retry, t = translator('en-IN') }: { error: Error; retry: () => void; t?: Translator }) {
   return <Card className="m-4" role="alert"><p className="text-sm text-danger">{error.message}</p><button className="mt-2 min-h-touch text-sm font-semibold text-navy" onClick={retry}>{t('action.tryAgain')}</button></Card>
 }
+// Core sends the chip's English text; the answer value is the stable enum, so the label comes
+// from the catalogue and follows the picker. Falls back to core's text if a key is ever missing.
+function chipLabel(t: Translator, answer: string, fallback: string): string {
+  const key = `confirm.chip.${answer}`
+  const label = t(key)
+  return label === key ? fallback : label
+}
 function useHome() {
   return useQuery({ queryKey: ['home', merchant], queryFn: () => api<Home>(forMerchant('/app/home')), refetchInterval: 3000 })
 }
@@ -92,7 +99,7 @@ function Confirm({ t, language, navigate }: { t: Translator; language: Language;
       <p className="mt-1 text-xs text-muted">{new Date(question.ts).toLocaleString(language, { timeZone: 'Asia/Kolkata' })} · {question.channel}</p>
       <div className="mt-4"><AmountText amount={question.amount_text} size="large" /></div>
       <h2 lang={question.language} className="mb-5 mt-3 text-base font-semibold text-navy">{question.question}</h2>
-      <ChipGroup label={t('confirm.whatFor')} options={question.answer_chips.map(c => ({ value: c.answer, label: c.text, disabled: Boolean(pending) || send.isPending }))}
+      <ChipGroup label={t('confirm.whatFor')} options={question.answer_chips.map(c => ({ value: c.answer, label: chipLabel(t, c.answer, c.text), disabled: Boolean(pending) || send.isPending }))}
         value={selected?.id === question.question_id ? selected.answer : undefined} onChange={answer => { setSelected({ id: question.question_id, answer }); send.reset(); setTimedOut(false) }} />
       <button disabled={selected?.id !== question.question_id || send.isPending || Boolean(pending) || !home.data}
         onClick={() => send.mutate()} className="mt-5 min-h-touch w-full rounded-chip bg-cyan px-5 text-sm font-bold text-navy disabled:bg-hairline disabled:text-muted">

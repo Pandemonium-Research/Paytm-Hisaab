@@ -49,5 +49,10 @@
   "cases.status.rejected": "ತಿರಸ್ಕೃತ",
   "cases.status.escalated": "ಮೇಲಿನ ಹಂತಕ್ಕೆ ಕಳುಹಿಸಲಾಗಿದೆ",
   "cases.officerReviewing": "ಅಧಿಕಾರಿ ಮುಂದಿನ ಕ್ರಮ ಪರಿಶೀಲಿಸುತ್ತಿದ್ದಾರೆ.",
-  "cases.deliverySimulated": "ಸಾಕ್ಷ್ಯ ರವಾನೆ ಅನುಕರಣೆಯಾಗಿದೆ. ತಡೆಹಿಡಿಯುವಿಕೆಯನ್ನು ಬದಲಾಯಿಸಬೇಕೆ ಎಂಬುದನ್ನು ಬ್ಯಾಂಕ್ ನಿರ್ಧರಿಸುತ್ತದೆ."
+  "cases.deliverySimulated": "ಸಾಕ್ಷ್ಯ ರವಾನೆ ಅನುಕರಣೆಯಾಗಿದೆ. ತಡೆಹಿಡಿಯುವಿಕೆಯನ್ನು ಬದಲಾಯಿಸಬೇಕೆ ಎಂಬುದನ್ನು ಬ್ಯಾಂಕ್ ನಿರ್ಧರಿಸುತ್ತದೆ.",
+  "confirm.chip.sale": "ಮಾರಾಟ",
+  "confirm.chip.family": "ಕುಟುಂಬ",
+  "confirm.chip.own_money": "ನನ್ನದೇ ಹಣ",
+  "confirm.chip.loan_or_gift": "ಸಾಲ / ಇತರೆ",
+  "confirm.chip.not_sure": "ಖಚಿತವಿಲ್ಲ"
 }
