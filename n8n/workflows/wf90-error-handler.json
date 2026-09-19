@@ -27,7 +27,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "\nconst input = $input.first().json;\n// A node failure carries `execution`; a trigger that could not start carries `trigger` instead.\nconst run = input.execution || input.trigger || {};\nconst flow = input.workflow || {};\nconst error = run.error || {};\nconst node = run.lastNodeExecuted || error.node?.name || 'trigger';\nconst message = (error.message || 'Unknown failure').split('\n')[0].slice(0, 300);\nconst summary = `${flow.name || flow.id || 'unknown workflow'} failed at ${node}: ${message}`;\nreturn [{json: {summary, workflow_id: flow.id || null, workflow_name: flow.name || null,\n  node, message, execution_id: run.id || null, execution_url: run.url || null,\n  mode: run.mode || null, retry_of: run.retryOf || null, at: new Date().toISOString()}}];\n"
+        "jsCode": "\nconst input = $input.first().json;\n// A node failure carries `execution`; a trigger that could not start carries `trigger` instead.\nconst run = input.execution || input.trigger || {};\nconst flow = input.workflow || {};\nconst error = run.error || {};\nconst node = run.lastNodeExecuted || error.node?.name || 'trigger';\nconst message = (error.message || 'Unknown failure').split('\\n')[0].slice(0, 300);\nconst summary = `${flow.name || flow.id || 'unknown workflow'} failed at ${node}: ${message}`;\nreturn [{json: {summary, workflow_id: flow.id || null, workflow_name: flow.name || null,\n  node, message, execution_id: run.id || null, execution_url: run.url || null,\n  mode: run.mode || null, retry_of: run.retryOf || null, at: new Date().toISOString()}}];\n"
       }
     },
     {

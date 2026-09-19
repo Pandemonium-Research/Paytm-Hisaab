@@ -33,6 +33,14 @@
 		reverse_proxy memory:8100
 	}
 
+	# n8n's health probe and the demo-remote webhooks, so /demo works over HTTPS through the
+	# tunnel. A browser on another device cannot reach localhost:5678, and an http:// fetch from
+	# an https:// page is blocked as mixed content. The webhooks still require the secret header
+	# the page already sends; nothing else of n8n is exposed.
+	handle_path /n8n/* {
+		reverse_proxy n8n:5678
+	}
+
 	handle {
 		reverse_proxy web:80
 	}
