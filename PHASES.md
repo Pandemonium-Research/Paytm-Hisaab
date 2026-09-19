@@ -572,8 +572,13 @@ in this phase.
 **Owner:** B · **When:** Fri 08:00–13:00 · **Depends on:** 2B, 2C, 2D (and 4 as it lands) ·
 **Refs:** §8, §9, §10, §11, §12.2
 
-- [ ] **5.1** `services/memory`: Cognee wrapper (`/remember`, `/recall`, `/improve`,
+- [x] **5.1** `services/memory`: Cognee wrapper (`/remember`, `/recall`, `/improve`,
       `/forget`) with `MEMORY_BACKEND=hosted|self|stub` and the `degraded: true` fallback.
+      Built by A on demo day, B's lane being occupied. **Proven against the hosted tenant:**
+      recall answers "Sunitha Murthy is the merchant's spouse", which is CP1's one open line.
+      The tenant's own `/remember/entry` (400) and `/recall` (timeout) are unusable, so the
+      adapter uses `add_text` → `cognify` → `search`; search cannot answer until cognify has
+      run, which is what `/improve` is for. 16 tests pass with no network.
       Development uses `stub`, or `self` with its LLM pointed at the fakes; `hosted` (the
       credits) is used only in live windows.
 - [x] **5.2** Local n8n credentials, all pointing at the fakes: one HTTP Header Auth per role,
