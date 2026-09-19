@@ -8,7 +8,6 @@ from ..cases import reads as case_reads
 from ..ops import screens
 
 from ..schemas.api import app_screens as models
-from ._stub import add_get
 
 router = APIRouter(tags=["app screens"])
 
@@ -52,7 +51,7 @@ def officer_case(id: str, role=Depends(require_role("GET /app/officer/cases/{id}
 def officer_outbox(role=Depends(require_role("GET /app/officer/outbox")), connection=Depends(get_connection)):
     return case_reads.officer_outbox(connection)
 
-for endpoint, path, response, query in (
-    ("GET /app/turnover", "/app/turnover", models.AppTurnoverResponse, models.MerchantAppQuery),
-):
-    add_get(router, area="app_screens", endpoint=endpoint, path=path, response_model=response, query_model=query)
+
+@router.get("/app/turnover", response_model=models.AppTurnoverResponse)
+def turnover(query: Annotated[models.MerchantAppQuery, Query()], role=Depends(require_role("GET /app/turnover")), connection=Depends(get_connection)):
+    return screens.turnover_screen(connection, query.merchant)

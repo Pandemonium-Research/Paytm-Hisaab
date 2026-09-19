@@ -670,7 +670,9 @@ in this phase.
       Persistent, as-of reads validated on the actual visible demo: `DM0038619` matched by both
       badges, one decoy, recorded bill/device/geo and 339 seven-day credits. Ambiguous and missing
       matches remain explicit; merchant and clock bounds are covered by Postgres tests.
-- [ ] **6.5** `POST /skills/escalation-check`, with the rules and thresholds read from config.
+- [x] **6.5** `POST /skills/escalation-check`, with the rules and thresholds read from config.
+      All seven routes to a specialist, each with its own officer-facing reason. Boundaries are
+      tested on both sides. The four thresholds stay provisional until §22 verifies them.
 - [x] **6.6** Guards: `citations` (the allowlist; unverified entries block approval),
       `no-innocence`, `extraction`. **`numbers` is done too** — it shares the figure parser with
       `extraction`, so writing them apart would have meant two number parsers disagreeing.
@@ -725,7 +727,9 @@ in this phase.
       (73 total across the full existing suite and focused follow-up), plus 166 core and 19 fakes.
       Rebuilt core returns real empty lists and unknown-case 404. An isolated HTTP lifecycle
       passed open → awaiting approval → approved → sent → rewind; its data was rolled back.
-- [ ] **6.11 turnover follow-up** `/app/turnover` remains a fixture until 6.2 is real.
+- [x] **6.11 turnover follow-up** `/app/turnover` is real: M7 wraps 6.2 and 6.3 over the
+      financial year and says plainly what share of the period's payments carry a label.
+      On the demo year it reads ₹14,45,368, not the fixture's ₹41,00,000.
 - [ ] **6.12** Tests against the demo answer key:
       - turnover within target; crossing date; isolation plus decoy
       - the guards

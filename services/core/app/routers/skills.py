@@ -7,11 +7,10 @@ from ..skills.isolate import isolate
 from ..skills.question_budget import select_questions
 from ..skills.tiers import tiers
 from ..skills.threshold import threshold
+from ..skills.escalation import escalation_check
 from ..skills.turnover import turnover
 
 from ..schemas.api import skills as models
-from ._stub import add_post
-
 router = APIRouter(tags=["skills"])
 
 
@@ -45,7 +44,6 @@ def threshold_skill(body: models.ThresholdRequest, role=Depends(require_role("PO
     return threshold(connection, body)
 
 
-for endpoint, path, request, response in (
-    ("POST /skills/escalation-check", "/skills/escalation-check", models.EscalationCheckRequest, models.EscalationCheckResponse),
-):
-    add_post(router, area="skills", endpoint=endpoint, path=path, request_model=request, response_model=response)
+@router.post("/skills/escalation-check", response_model=models.EscalationCheckResponse)
+def escalation(body: models.EscalationCheckRequest, role=Depends(require_role("POST /skills/escalation-check")), connection=Depends(get_connection)):
+    return escalation_check(connection, body)

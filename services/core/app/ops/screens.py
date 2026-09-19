@@ -1,10 +1,15 @@
 """M1/M2 and payment screens backed by persisted business state."""
 
+from datetime import date
+
 from sqlalchemy import text
 
 from ..clock import sim_now
 from ..ledger.mutations import day_start
 from ..ledger.projection import merchant, read_credit, read_credits
+from ..schemas.api.skills import ThresholdRequest, TurnoverRequest
+from ..skills.threshold import threshold
+from ..skills.turnover import turnover
 
 
 def amount_text(amount):
@@ -89,3 +94,36 @@ def payment_detail(connection, merchant_id, txn_id):
     pending = {row["txn_id"] for row in open_questions(connection, merchant_id, as_of)}
     return {**payment_row(item, txn_id in pending), "utr": item.transaction.utr, "note": item.transaction.note,
         "machine_label": item.machine_label, "claim_label": item.claim_label, "conflict": item.conflict, "evidence": []}
+
+
+def financial_year(as_of):
+    """India's financial year runs 1 April to 31 March; a March date belongs to the year before."""
+    day = as_of.date()
+    start_year = day.year if day.month >= 4 else day.year - 1
+    return date(start_year, 4, 1), date(start_year + 1, 3, 31), f"FY {start_year}-{str(start_year + 1)[-2:]}"
+
+
+def turnover_screen(connection, merchant_id):
+    """M7: the real aggregate against the threshold, not a fixture. Wraps 6.2 and 6.3."""
+    profile, as_of = merchant(connection, merchant_id), sim_now(connection)
+    period_from, period_to, period = financial_year(as_of)
+    figures = turnover(connection, TurnoverRequest(
+        merchant_id=merchant_id, period_from=period_from, period_to=period_to, as_of=as_of))
+    verdict = threshold(connection, ThresholdRequest(
+        merchant_id=merchant_id, period_from=period_from, period_to=period_to, as_of=as_of,
+        supply_kind=profile.supply_kind, gst_status=profile.gst_status,
+        aggregate_turnover=figures.aggregate,
+        exclusively_exempt=figures.taxable == 0 and figures.exempt > 0))
+    estimated = figures.estimated_unbilled_taxable + figures.estimated_unbilled_exempt
+    explanation = "Aggregate turnover includes taxable and exempt supplies."
+    if estimated:
+        explanation += f" {amount_text(estimated)} is estimated from sales without an itemised bill."
+    if figures.coverage_fraction < 1:
+        explanation += (f" {round(figures.coverage_fraction * 100)}% of the period's payments carry"
+                        " a recorded label; the rest are not counted yet.")
+    return {"period": period, "aggregate": figures.aggregate, "aggregate_text": amount_text(figures.aggregate),
+            "threshold": verdict.threshold, "threshold_text": amount_text(verdict.threshold),
+            "bands": [{"label": label, "amount": amount, "amount_text": amount_text(amount)}
+                      for label, amount in (("Taxable", figures.taxable), ("Exempt", figures.exempt))],
+            "crossed_on": verdict.crossed_on, "projected_crossing_on": verdict.projected_crossing_on,
+            "registration_required": verdict.registration_required, "explanation": explanation}
