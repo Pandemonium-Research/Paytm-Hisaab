@@ -75,6 +75,27 @@ notice report over 6.2/6.3. Two things worth knowing before that work starts:
 - `python tasks.py replay --split demo --until 2026-03-10T02:00:00+05:30` loads visible
   records only; repeating it does not duplicate source records or observed-credit evidence.
 
+- **B: full rehearsal on the demo laptop from `256749e` (19 Sep).** Both gates and all three
+  languages, on one machine, after rebuilding core and web on A's i18n commit. Gate 1 cold from
+  `tasks.py reset`: 115 s wall, WF10 73.8 s, three new Kannada questions, two real browser taps
+  and one signed WhatsApp reply, answers surviving a core restart. Gate 2 cold straight after:
+  the real lien opened its case through the after-commit hook, both isolation badges, the excluded
+  decoy, 1 of 339, the hashed PDF, an early send refused 409, O2 approval at 360 px driving WF20's
+  simulated send, M5 advancing to `sent`, a fresh 412 px session seeing it, one delivery, verified
+  chain, and a sent-case retry adding nothing. M1 and M5 then rendered in English, Kannada and
+  Hindi with no missing key, no English left in the other two and no sideways scroll at 360 px.
+- **B: `/demo` verified against a freshly reset database (19 Sep).** This is the recovery path if
+  a beat dies on stage, and it is the one the earlier check could not reach: on a database that
+  had never seen those events, **Run nightly** classified the window and created the three
+  questions (which M2 then showed in all three languages), and **Start declines and lien** ingested
+  all four events and opened `CASE-FREEZE-DME00002` - `accepted 4`, not the idempotent `accepted 0`
+  of a repeat run. Health dots were green for core and n8n, the nightly lock held for its three
+  minutes, and no page error or external request occurred in any of it.
+- **B: 8.5 seeding the year is cut, by agreement (19 Sep).** WF10 has no seed mode - `Run context`
+  throws on `mode: 'seed'` - so seeding needs a proposals-only WF10 change plus roughly 1.5-2 hours
+  of classification, on the workflow both gates depend on, hours before the demo. Turnover is
+  therefore presented as what it provably is: Rs 13,81,592 traced to 4,325 itemised bills, with the
+  screen stating its own coverage. A figure we can source beats one we cannot.
 - **B: the second gate passes cold, end to end (18 Sep).** From the `cp2-before-freeze` snapshot,
   `python n8n/tests/check_freeze_gate.py --prepare` replayed to one second before the visible lien,
   posted that lien through `/rails/events`, and core's after-commit hook started WF20. WF20 built
