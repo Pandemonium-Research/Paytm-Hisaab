@@ -1,0 +1,71 @@
+{
+  "id": "hisaabWF90err001",
+  "name": "hisaab/WF90 error-handler",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "nodes": [
+    {
+      "id": "4cc082cc-20cd-58a9-b7be-1dd22644f607",
+      "name": "Error trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "d3e48a9e-5f6f-539b-9749-984ce30cc2c6",
+      "name": "Summarise",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\nconst input = $input.first().json;\n// A node failure carries `execution`; a trigger that could not start carries `trigger` instead.\nconst run = input.execution || input.trigger || {};\nconst flow = input.workflow || {};\nconst error = run.error || {};\nconst node = run.lastNodeExecuted || error.node?.name || 'trigger';\nconst message = (error.message || 'Unknown failure').split('\n')[0].slice(0, 300);\nconst summary = `${flow.name || flow.id || 'unknown workflow'} failed at ${node}: ${message}`;\nreturn [{json: {summary, workflow_id: flow.id || null, workflow_name: flow.name || null,\n  node, message, execution_id: run.id || null, execution_url: run.url || null,\n  mode: run.mode || null, retry_of: run.retryOf || null, at: new Date().toISOString()}}];\n"
+      }
+    },
+    {
+      "id": "6499b117-1e8d-570c-92dd-53d93bce03b3",
+      "name": "Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        0
+      ],
+      "parameters": {
+        "jsCode": "\n// Throwing is the point: it puts the one-line summary on WF90's own execution row, so the\n// executions list is the log. WF90 is never its own error workflow, so this cannot recurse.\nconst e = $input.first().json;\nthrow new Error(e.summary + (e.execution_url ? ' | ' + e.execution_url : ''));\n"
+      }
+    }
+  ],
+  "connections": {
+    "Error trigger": {
+      "main": [
+        [
+          {
+            "node": "Summarise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarise": {
+      "main": [
+        [
+          {
+            "node": "Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

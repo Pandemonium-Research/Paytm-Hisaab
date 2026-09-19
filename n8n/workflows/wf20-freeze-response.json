@@ -3,7 +3,8 @@
   "name": "hisaab/WF20 freeze-response",
   "active": false,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "errorWorkflow": "hisaabWF90err001"
   },
   "nodes": [
     {

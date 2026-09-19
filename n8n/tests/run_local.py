@@ -69,6 +69,20 @@ def cleanup(ids):
                f"DELETE FROM {table} WHERE {column} IN ({listed})", capture=True)
 
 
+def error_workflow_runs():
+    sql = ('SELECT count(*) FROM execution_entity '
+           "WHERE \"workflowId\" = 'testhisaabWF90err001'")
+    return int(docker('exec', '-T', 'db', 'psql', '-U', 'hisaab', '-d', 'n8n-local', '-tAc', sql,
+                      capture=True).stdout.strip() or 0)
+
+
+def last_error_workflow_message():
+    sql = ('SELECT d.data FROM execution_entity e JOIN execution_data d ON d."executionId" = e.id '
+           "WHERE e.\"workflowId\" = 'testhisaabWF90err001' ORDER BY e.id DESC LIMIT 1")
+    return docker('exec', '-T', 'db', 'psql', '-U', 'hisaab', '-d', 'n8n-local', '-tAc', sql,
+                  capture=True).stdout
+
+
 def freeze_execution():
     sql = ('SELECT e.status, d.data FROM execution_entity e JOIN execution_data d ON d."executionId" = e.id '
            "WHERE e.\"workflowId\" = 'testhisaabWF20mvp001' ORDER BY e.id DESC LIMIT 1")
@@ -86,6 +100,10 @@ def run_tests():
             workflow = json.loads(json.dumps(workflow).replace("http://core:8000", "http://core:8300"))
             workflow["id"] = ids[workflow["id"]]
             workflow["name"] = "test/" + workflow["name"]
+            # Point the isolated copies at the isolated WF90, or a test failure would land in
+            # the product error workflow and read as a real one.
+            if workflow["settings"].get("errorWorkflow") in ids:
+                workflow["settings"]["errorWorkflow"] = ids[workflow["settings"]["errorWorkflow"]]
             schedule = {n["name"] for n in workflow["nodes"] if n["type"].endswith("scheduleTrigger")}
             workflow["nodes"] = [n for n in workflow["nodes"] if n["name"] not in schedule]
             for name in schedule:
@@ -178,6 +196,12 @@ def run_tests():
         time.sleep(7)
         assert len(mock()['deliveries']) == 2
         print('PASS: approval wait stops at its budget; retry reads approval and sent retries do not send again')
+        # 7.2: the expired WF20 above is a real failure, so WF90 must have picked it up and
+        # named the workflow and the node rather than re-printing a stack.
+        assert error_workflow_runs() >= 1, 'WF90 did not run for the failed WF20'
+        reported = last_error_workflow_message()
+        assert 'WF20 freeze-response' in reported and 'Approval wait expired' in reported, reported[:400]
+        print('PASS: WF90 receives a real failure and names the workflow, node and message')
     finally:
         cleanup(ids.values())
         docker("restart", "n8n")

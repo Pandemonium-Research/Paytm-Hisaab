@@ -745,7 +745,14 @@ in this phase.
 §10, §10.1, §12.2, §12.3
 
 - [ ] **7.1** **WF50 escalation-handoff** (sub-workflow).
-- [ ] **7.2** **WF90 error-handler**, set as the error workflow on every workflow.
+- [x] **7.2** **WF90 error-handler**, set as the error workflow on every workflow.
+      → It normalises both shapes the Error Trigger delivers (a node failure carries
+      `execution`, a trigger that could not start carries `trigger`) into one line — workflow,
+      node, first line of the message, execution URL — and throws it, so the executions list
+      filtered to WF90 is the error log rather than a pile of stacks. WF10, WF20, WF30 and WF31
+      all set `errorWorkflow`; WF90 is deliberately not its own, so it cannot recurse. It sends
+      the merchant nothing: an internal failure is not their message. `run_local.py` proves it
+      fires on a real failure (the expired WF20 wait) and names that workflow and node.
 - [ ] **7.3** Prompts: `notice_extract`, `grievance_facts`, `ca_explainer`, `handoff_summary`.
 - [x] **7.4** **WF20 freeze-response** (prototype freeze scope):
       - isolate → tiers → escalation → grievance → pack

@@ -40,7 +40,7 @@ function HomeScreen({ kn, navigate }: { kn: boolean; navigate: (path: string) =>
     <div className="space-y-4 p-4">
       <Card><p className="text-sm text-muted">{kn ? 'ಬಳಸಬಹುದಾದ ಶಿಲ್ಕು' : 'Available balance'}</p><AmountText amount={data.balance.amount_text} size="large" /></Card>
       <Card>
-        <h2 className="text-base font-semibold text-navy">{kn ? 'ಪಾವತಿ ದೃಢೀಕರಣ' : `${data.questions_due} payments to confirm`}</h2>
+        <h2 className="text-base font-semibold text-navy">{kn ? 'ಪಾವತಿ ದೃಢೀಕರಣ' : `${data.questions_due} payment${data.questions_due === 1 ? '' : 's'} to confirm`}</h2>
         <p className="mt-1 text-sm text-muted">{kn ? `${data.questions_due} ಪಾವತಿಗಳಿಗೆ ನಿಮ್ಮ ಉತ್ತರ ಬೇಕು.` : 'Help us record what these payments were for.'}</p>
         <button onClick={() => navigate('/confirm')} className="mt-4 flex min-h-touch w-full items-center justify-between rounded-chip bg-cyan px-4 text-sm font-bold text-navy">
           {kn ? 'ಪಾವತಿಗಳನ್ನು ನೋಡಿ' : data.questions_due ? 'Confirm payments' : 'View confirmations'}<ArrowRight className="h-4 w-4" />
@@ -50,7 +50,7 @@ function HomeScreen({ kn, navigate }: { kn: boolean; navigate: (path: string) =>
         <h2 className="text-sm font-semibold">{alert.title}</h2><p className="mt-1 text-sm text-muted">{alert.body}</p>
         <button className="mt-2 min-h-touch text-sm font-semibold text-navy" onClick={() => navigate(alert.kind === 'question' ? '/confirm' : '/cases')}>{kn ? 'ನೋಡಿ' : 'View details'}</button>
       </Card>)}
-      {data.open_cases > 0 && <button className="min-h-touch w-full rounded-card bg-card p-4 text-left text-sm font-semibold text-navy" onClick={() => navigate('/cases')}>{data.open_cases} open cases →</button>}
+      {data.open_cases > 0 && <button className="min-h-touch w-full rounded-card bg-card p-4 text-left text-sm font-semibold text-navy" onClick={() => navigate('/cases')}>{data.open_cases} open case{data.open_cases === 1 ? '' : 's'} →</button>}
     </div>
   </>
 }

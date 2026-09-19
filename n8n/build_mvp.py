@@ -23,6 +23,9 @@ class Workflow:
     def __init__(self, wid, name):
         self.data = dict(id=wid, name=name, active=False,
                          settings={"executionOrder": "v1"}, nodes=[], connections={})
+        # Every workflow but WF90 itself reports failures to WF90 (7.2).
+        if wid != "hisaabWF90err001":
+            self.data["settings"]["errorWorkflow"] = "hisaabWF90err001"
 
     def node(self, name, kind, params=None, version=1, role=None, **extra):
         node = dict(id=str(uuid.uuid5(uuid.NAMESPACE_URL, self.data["id"] + name)),
@@ -278,6 +281,11 @@ return $input.first().json.selected.map(q => {
 
 
 def patch_channels():
+    def route_errors(data):
+        # WF30/WF31 are patched from their committed JSON, so they never pass through the
+        # Workflow constructor that sets this (7.2).
+        data.setdefault("settings", {})["errorWorkflow"] = ERROR_WORKFLOW
+
     path = ROOT / "workflows" / "wf31-merchant-inbound.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     nodes = {n["name"]: n for n in data["nodes"]}
@@ -359,6 +367,7 @@ return [{json: {merchant_id:inbound.merchant_id, text, language:inbound.language
   channel:inbound.channel, to:inbound.from, conversation_id:'wf31-' + inbound.merchant_id,
   sim_at:inbound.sim_at}}];
 """
+    route_errors(data)
     w.save(path.name)
     path = ROOT / "workflows" / "wf30-merchant-outbound.json"
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -371,6 +380,7 @@ return [{json: {merchant_id:inbound.merchant_id, text, language:inbound.language
     if "WhatsApp needs a joined recipient" not in code:
         code = code.replace("if (!input.text) throw", "if (input.channel === 'whatsapp' && !input.to) throw new Error('WhatsApp needs a joined recipient');\n  if (!input.text) throw")
     nodes["Prepare message"]["parameters"]["jsCode"] = code
+    route_errors(data)
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
@@ -428,6 +438,43 @@ return [{json:{merchant_id:$('Freeze context').first().json.merchant_id,
     w.save("wf20-freeze-response.json")
 
 
+
+ERROR_WORKFLOW = "hisaabWF90err001"
+
+
+def wf90():
+    """7.2 The error workflow every other workflow points at.
+
+    n8n already marks a failed execution red, but the list shows the raw node error, and a
+    failure inside a sub-workflow or a Code node reads as a stack rather than a sentence. This
+    normalises both shapes the Error Trigger can deliver into one line, then throws it, so the
+    executions list filtered to WF90 is a readable log of what broke, at which node, and where
+    to open it. It sends nothing to the merchant: an internal failure is not their message.
+    """
+    w = Workflow(ERROR_WORKFLOW, "hisaab/WF90 error-handler")
+    w.node("Error trigger", "errorTrigger")
+    w.code("Summarise", """
+const input = $input.first().json;
+// A node failure carries `execution`; a trigger that could not start carries `trigger` instead.
+const run = input.execution || input.trigger || {};
+const flow = input.workflow || {};
+const error = run.error || {};
+const node = run.lastNodeExecuted || error.node?.name || 'trigger';
+const message = (error.message || 'Unknown failure').split('\n')[0].slice(0, 300);
+const summary = `${flow.name || flow.id || 'unknown workflow'} failed at ${node}: ${message}`;
+return [{json: {summary, workflow_id: flow.id || null, workflow_name: flow.name || null,
+  node, message, execution_id: run.id || null, execution_url: run.url || null,
+  mode: run.mode || null, retry_of: run.retryOf || null, at: new Date().toISOString()}}];
+""")
+    w.code("Report", """
+// Throwing is the point: it puts the one-line summary on WF90's own execution row, so the
+// executions list is the log. WF90 is never its own error workflow, so this cannot recurse.
+const e = $input.first().json;
+throw new Error(e.summary + (e.execution_url ? ' | ' + e.execution_url : ''));
+""")
+    w.chain("Error trigger", "Summarise", "Report")
+    w.save("wf90-error-handler.json")
+
 if __name__ == "__main__":
     credentials_path = ROOT / "credentials" / "local.json"
     credentials = json.loads(credentials_path.read_text(encoding="utf-8"))
@@ -442,3 +489,4 @@ if __name__ == "__main__":
     wf10()
     patch_channels()
     wf20()
+    wf90()
