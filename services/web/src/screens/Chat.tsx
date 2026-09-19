@@ -10,6 +10,15 @@ function newMessageId(): string {
   return `MSG-${crypto.randomUUID().replace(/-/g, '')}`
 }
 
+// The Confirm screen posts its answers down the same pipe, as a JSON envelope the workflow
+// parses. That is machine traffic, not conversation, so it is kept out of the thread rather
+// than shown to the merchant as a wall of braces.
+function isMachineEnvelope(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed.startsWith('{')) return false
+  try { return typeof (JSON.parse(trimmed) as { type?: unknown }).type === 'string' } catch { return false }
+}
+
 function hasReplyAfter(items: Conversation['items'], inMessageId: string): boolean {
   const index = items.findIndex(item => item.message_id === inMessageId)
   if (index < 0) return false
@@ -30,7 +39,7 @@ export function ChatScreen({ t, language, formatTime }: { t: Translator; languag
     refetchInterval: 2000
   })
 
-  const items = conversation.data?.items ?? []
+  const items = (conversation.data?.items ?? []).filter(item => !isMachineEnvelope(item.text))
 
   useEffect(() => {
     if (awaitingInId && hasReplyAfter(items, awaitingInId)) setAwaitingInId(null)
