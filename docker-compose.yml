@@ -82,6 +82,8 @@ services:
       HISAAB_RECORD: ${HISAAB_RECORD:-0}
       HISAAB_LIVE_WINDOW: ${HISAAB_LIVE_WINDOW:-L1}
       SARVAM_API_KEY: ${SARVAM_API_KEY:-fake}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-ACfake}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-fake}
       FAKES_INTERNAL_URL: http://fakes:8200
     volumes:
       # Cassettes recorded in a live window must survive the container: B commits them (2F.2).
