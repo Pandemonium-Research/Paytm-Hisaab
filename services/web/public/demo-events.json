@@ -1,0 +1,68 @@
+{
+  "events": [
+    {
+      "event_id": "DME00002",
+      "type": "lien_marked",
+      "merchant_id": "MID_DEMO_SAHANA",
+      "ts": "2026-03-24T09:30:00+05:30",
+      "freeze_type": "debit_freeze",
+      "scope": "entire account",
+      "authority": {
+        "unit": "Cyber Crime Police Station, Hyderabad",
+        "state": "Telangana",
+        "city": "Hyderabad"
+      },
+      "ncrp_ack": "SYN-31703260045812",
+      "case_ref": "SYN Cr. No. 412/2026",
+      "disputed_amount": 4200,
+      "disputed_date": "2026-03-21",
+      "intimation": "Lien marked by the bank on a law-enforcement request; the account holder was not notified.",
+      "disputed_utr": "608019038619"
+    },
+    {
+      "event_id": "DME00003",
+      "type": "payment_declined",
+      "merchant_id": "MID_DEMO_SAHANA",
+      "ts": "2026-03-24T09:41:00+05:30",
+      "direction": "DR",
+      "amount": 29690,
+      "channel": "UPI_OUT",
+      "reason_code": "SYN-DEBIT-FREEZE",
+      "reason": "Debit not allowed: account under lien / debit freeze",
+      "purpose": "supplier payment",
+      "counterparty_id": "PF1E3B4BF63",
+      "counterparty_name": "NAIK AGRO TRADERS",
+      "counterparty_handle": "naikagrotrader1@okaxis"
+    },
+    {
+      "event_id": "DME00004",
+      "type": "payment_declined",
+      "merchant_id": "MID_DEMO_SAHANA",
+      "ts": "2026-03-24T09:46:00+05:30",
+      "direction": "DR",
+      "amount": 29690,
+      "channel": "UPI_OUT",
+      "reason_code": "SYN-DEBIT-FREEZE",
+      "reason": "Debit not allowed: account under lien / debit freeze",
+      "purpose": "supplier payment (retry)",
+      "counterparty_id": "PF1E3B4BF63",
+      "counterparty_name": "NAIK AGRO TRADERS",
+      "counterparty_handle": "naikagrotrader1@okaxis"
+    },
+    {
+      "event_id": "DME00005",
+      "type": "payment_declined",
+      "merchant_id": "MID_DEMO_SAHANA",
+      "ts": "2026-03-24T10:05:00+05:30",
+      "direction": "DR",
+      "amount": 29690,
+      "channel": "UPI_OUT",
+      "reason_code": "SYN-DEBIT-FREEZE",
+      "reason": "Debit not allowed: account under lien / debit freeze",
+      "purpose": "supplier payment (retry)",
+      "counterparty_id": "PF1E3B4BF63",
+      "counterparty_name": "NAIK AGRO TRADERS",
+      "counterparty_handle": "naikagrotrader1@okaxis"
+    }
+  ]
+}

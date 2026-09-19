@@ -21,7 +21,7 @@ export function MerchantScreens({ path, navigate }: { path: string; navigate: (p
       trailing={<select aria-label="Language" className="min-h-touch rounded-chip bg-cyan-50 px-2 text-sm text-navy" value={language} onChange={e => {
         setLanguage(e.target.value); localStorage.setItem('hisaab-language', e.target.value); document.documentElement.lang = e.target.value
       }}><option value="en-IN">English</option><option value="kn-IN">ಕನ್ನಡ</option></select>} />
-    {confirm ? <Confirm kn={kn} navigate={navigate} /> : cases ? <Cases /> : <HomeScreen kn={kn} navigate={navigate} />}
+    {confirm ? <Confirm kn={kn} navigate={navigate} /> : cases ? <Cases kn={kn} /> : <HomeScreen kn={kn} navigate={navigate} />}
     <BottomNav ariaLabel="Merchant navigation" activeId={confirm ? '/confirm' : cases ? '/cases' : '/'} onChange={navigate} items={[
       { id: '/', label: kn ? 'ಮುಖಪುಟ' : 'Home', icon: <HomeIcon /> },
       { id: '/confirm', label: kn ? 'ದೃಢೀಕರಿಸಿ' : 'Confirm', icon: <ListChecks /> },
@@ -36,7 +36,7 @@ function HomeScreen({ kn, navigate }: { kn: boolean; navigate: (path: string) =>
   const data = home.data
   return <>
     <HeaderBand businessName={data.business_name} collectionLabel={kn ? 'ಇಂದಿನ ಸ್ವೀಕೃತಿ' : 'Received today'} amount={data.today_received.amount_text}
-      paymentSummary={new Date(data.as_of).toLocaleDateString(kn ? 'kn-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' })} />
+      paymentSummary={new Date(data.as_of).toLocaleDateString(kn ? 'kn-IN' : 'en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }).replace(/,(\S)/g, ', $1')} />
     <div className="space-y-4 p-4">
       <Card><p className="text-sm text-muted">{kn ? 'ಬಳಸಬಹುದಾದ ಶಿಲ್ಕು' : 'Available balance'}</p><AmountText amount={data.balance.amount_text} size="large" /></Card>
       <Card>
@@ -50,7 +50,7 @@ function HomeScreen({ kn, navigate }: { kn: boolean; navigate: (path: string) =>
         <h2 className="text-sm font-semibold">{alert.title}</h2><p className="mt-1 text-sm text-muted">{alert.body}</p>
         <button className="mt-2 min-h-touch text-sm font-semibold text-navy" onClick={() => navigate(alert.kind === 'question' ? '/confirm' : '/cases')}>{kn ? 'ನೋಡಿ' : 'View details'}</button>
       </Card>)}
-      {data.open_cases > 0 && <button className="min-h-touch w-full rounded-card bg-card p-4 text-left text-sm font-semibold text-navy" onClick={() => navigate('/cases')}>{data.open_cases} open case{data.open_cases === 1 ? '' : 's'} →</button>}
+      {data.open_cases > 0 && <button className="min-h-touch w-full rounded-card bg-card p-4 text-left text-sm font-semibold text-navy" onClick={() => navigate('/cases')}>{kn ? `${data.open_cases} ಸಕ್ರಿಯ ಪ್ರಕರಣ${data.open_cases === 1 ? '' : 'ಗಳು'}` : `${data.open_cases} open case${data.open_cases === 1 ? '' : 's'}`} →</button>}
     </div>
   </>
 }
@@ -103,19 +103,31 @@ function Confirm({ kn, navigate }: { kn: boolean; navigate: (path: string) => vo
     <p className="text-xs text-muted">{kn ? 'ನಿಮ್ಮ ಉತ್ತರ ಪ್ರತ್ಯೇಕವಾಗಿ ದಾಖಲಾಗುತ್ತದೆ.' : 'Your answer is recorded alongside the automatic classification.'}</p>
   </div>
 }
-function Cases() {
+function Cases({ kn }: { kn: boolean }) {
   const cases = useQuery({ queryKey: ['cases', merchant], queryFn: () => api<{ items: MerchantCase[] }>(forMerchant('/app/cases')), refetchInterval: 3000 })
   if (cases.isPending) return <div className="p-4"><Skeleton className="h-48" /></div>
   if (cases.error) return <Notice error={cases.error} retry={() => void cases.refetch()} />
-  if (!cases.data.items.length) return <EmptyState icon={<ShieldCheck />} title="No open cases" description="Case updates will appear here." />
-  const stages = ['Case opened', 'Evidence pack built', 'Officer approved', 'Sent to bank and police (simulated)']
+  if (!cases.data.items.length) return <EmptyState icon={<ShieldCheck />}
+    title={kn ? 'ಸಕ್ರಿಯ ಪ್ರಕರಣಗಳಿಲ್ಲ' : 'No open cases'}
+    description={kn ? 'ಪ್ರಕರಣದ ಮಾಹಿತಿ ಇಲ್ಲಿ ಕಾಣಿಸುತ್ತದೆ.' : 'Case updates will appear here.'} />
+  const stages = kn
+    ? ['ಪ್ರಕರಣ ದಾಖಲಾಗಿದೆ', 'ಸಾಕ್ಷ್ಯ ಕಡತ ಸಿದ್ಧವಾಗಿದೆ', 'ಅಧಿಕಾರಿ ಅನುಮೋದಿಸಿದ್ದಾರೆ', 'ಬ್ಯಾಂಕ್ ಮತ್ತು ಪೊಲೀಸರಿಗೆ ಕಳುಹಿಸಲಾಗಿದೆ (ಅನುಕರಣೆ)']
+    : ['Case opened', 'Evidence pack built', 'Officer approved', 'Sent to bank and police (simulated)']
   const statusIndex: Record<string, number> = { open: 0, building: 0, pack_built: 1, awaiting_approval: 1, approved: 2, sent: 3 }
+  // Core's `title` and `status` are English. `/app/cases` already carries case_type and status,
+  // so the merchant's own screen names them here rather than waiting on a locale in the read
+  // model. English is unchanged, so it still reads exactly as core wrote it.
+  const statusText: Record<string, string> = {
+    open: 'ದಾಖಲಾಗಿದೆ', building: 'ಸಿದ್ಧವಾಗುತ್ತಿದೆ', pack_built: 'ಕಡತ ಸಿದ್ಧ',
+    awaiting_approval: 'ಅನುಮೋದನೆಗೆ ಕಾಯುತ್ತಿದೆ', approved: 'ಅನುಮೋದಿತ', rejected: 'ತಿರಸ್ಕ್ರತ',
+    escalated: 'ಮೇಲ್ಮನವಿಗೆ ಕಳುಹಿಸಲಾಗಿದೆ', sent: 'ಕಳುಹಿಸಲಾಗಿದೆ'
+  }
   return <div className="space-y-4 p-4">{cases.data.items.map(c => <Card key={c.case_id}>
-    <h2 className="text-base font-semibold text-navy">{c.title}</h2><p className="mt-1 text-xs text-muted">{c.case_id}</p>
+    <h2 className="text-base font-semibold text-navy">{kn && c.case_type === 'freeze' ? 'ತಡೆಹಿಡಿದ ಪಾವತಿಗಳು' : c.title}</h2><p className="mt-1 text-xs text-muted">{c.case_id}</p>
     {c.disputed_amount_text && <div className="mt-3"><AmountText amount={c.disputed_amount_text} /></div>}
-    <p role="status" className="my-4 text-sm font-semibold">{c.status.replaceAll('_', ' ')}</p>
-    {['rejected', 'escalated'].includes(c.status) ? <p className="text-sm text-muted">An officer is reviewing the next steps.</p> : <Stepper ariaLabel="Case progress" steps={stages.map((title, i) => ({ id: String(i), title,
+    <p role="status" className="my-4 text-sm font-semibold">{kn ? statusText[c.status] ?? c.status : c.status.replaceAll('_', ' ')}</p>
+    {['rejected', 'escalated'].includes(c.status) ? <p className="text-sm text-muted">{kn ? 'ಅಧಿಕಾರಿ ಮುಂದಿನ ಕ್ರಮ ಪರಿಶೀಲಿಸುತ್ತಿದ್ದಾರೆ.' : 'An officer is reviewing the next steps.'}</p> : <Stepper ariaLabel="Case progress" steps={stages.map((title, i) => ({ id: String(i), title,
       status: i < (statusIndex[c.status] ?? 0) || c.status === 'sent' ? 'complete' : i === (statusIndex[c.status] ?? 0) ? 'current' : 'upcoming' }))} />}
-    {c.case_type === 'freeze' && <p className="mt-4 text-xs text-muted">Evidence delivery is simulated. The bank decides whether to change the hold.</p>}
+    {c.case_type === 'freeze' && <p className="mt-4 text-xs text-muted">{kn ? 'ಸಾಕ್ಷ್ಯ ರವಾನೆ ಅನುಕರಣೆ ಮಾತ್ರ. ತಡೆ ಬದಲಾಯಿಸುವ ನಿರ್ಧಾರ ಬ್ಯಾಂಕಿನದು.' : 'Evidence delivery is simulated. The bank decides whether to change the hold.'}</p>}
   </Card>)}</div>
 }

@@ -37,16 +37,29 @@ export interface FreezePack {
   }
 }
 
+export interface AppConfig {
+  environment: string; live: boolean; default_locale: string; supported_locales: string[]
+  vapid_public_key: string | null
+}
+export interface SimClockResponse { sim_at: string }
+export interface SimReplayResponse {
+  split: string; sim_at: string; transactions_replayed: number; events_replayed: number
+}
+export interface SimResetResponse { split: string; reset: boolean; sim_at: string }
+export interface RailsEventsResponse { accepted: number; opened_case_ids: string[] }
+
 export const merchant = new URLSearchParams(location.search).get('merchant') || 'MID_DEMO_SAHANA'
 const base = import.meta.env.VITE_API_BASE || '/api'
-function roleKey(officer: boolean) {
-  return officer
-    ? sessionStorage.getItem('hisaab-officer-key') || import.meta.env.VITE_OFFICER_KEY || 'dev-officer'
-    : import.meta.env.VITE_APP_KEY || 'dev-app'
+type ApiRole = 'app' | 'officer' | 'admin' | 'rails'
+function roleKey(role: ApiRole) {
+  if (role === 'officer') return sessionStorage.getItem('hisaab-officer-key') || import.meta.env.VITE_OFFICER_KEY || 'dev-officer'
+  if (role === 'admin') return sessionStorage.getItem('hisaab-admin-key') || import.meta.env.VITE_ADMIN_KEY || 'dev-admin'
+  if (role === 'rails') return sessionStorage.getItem('hisaab-rails-key') || import.meta.env.VITE_RAILS_KEY || 'dev-rails'
+  return import.meta.env.VITE_APP_KEY || 'dev-app'
 }
-export async function api<T>(path: string, options: RequestInit = {}, officer = false): Promise<T> {
+async function roleApi<T>(path: string, options: RequestInit, role: ApiRole): Promise<T> {
   const response = await fetch(base + path, {
-    ...options, cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Hisaab-Key': roleKey(officer), ...options.headers }
+    ...options, cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Hisaab-Key': roleKey(role), ...options.headers }
   })
   if (!response.ok) {
     let detail = `Request failed (${response.status})`
@@ -58,10 +71,19 @@ export async function api<T>(path: string, options: RequestInit = {}, officer = 
   }
   return response.json() as Promise<T>
 }
+export function api<T>(path: string, options: RequestInit = {}, officer = false): Promise<T> {
+  return roleApi<T>(path, options, officer ? 'officer' : 'app')
+}
+export function adminApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return roleApi<T>(path, options, 'admin')
+}
+export function railsApi<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return roleApi<T>(path, options, 'rails')
+}
 export async function downloadPack(url: string) {
   const target = new URL(url, location.origin)
   if (target.origin !== location.origin || !target.pathname.startsWith('/api/packs/')) throw new Error('Invalid pack download URL')
-  const response = await fetch(target, { cache: 'no-store', headers: { 'X-Hisaab-Key': roleKey(true) } })
+  const response = await fetch(target, { cache: 'no-store', headers: { 'X-Hisaab-Key': roleKey('officer') } })
   if (!response.ok) throw new Error(`Pack download failed (${response.status})`)
   const objectUrl = URL.createObjectURL(await response.blob())
   const link = document.createElement('a')

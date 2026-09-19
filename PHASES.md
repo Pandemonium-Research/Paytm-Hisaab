@@ -856,8 +856,19 @@ Work top to bottom. **The P0 block comes first.** The P1 block is in priority or
 runs out, cut from the bottom.
 
 **P0**
-- [ ] **9.1** `/demo` remote: jump-to presets, run nightly, declines and lien, specimen notice
-      upload, police inquiry, tamper a/b, refusal probe, reset, health dots.
+- [x] **9.1** `/demo` remote (prototype scope): jump-to presets, run nightly, declines and lien,
+      reset, health dots. Specimen notice upload, police inquiry, tamper a/b and the refusal probe
+      wait on 7.5, 8.2 and 9.2.
+      → Touch-first at 360 px. Health polls core (`/config`, red if live mode is on) and n8n
+      (`no-cors`, so reachability only, which the code says). Jump presets set the clock then
+      replay to it. Run nightly locks for three minutes: WF10 acknowledges on receipt, so the page
+      cannot see the run end, and a second concurrent run poisons the window. The lien posts the
+      four staged events through core's own rails endpoint from a generated fixture, and because
+      that ingest is idempotent a repeat run names the case already open rather than reporting
+      `accepted 0` and looking dead. Reset is two-tap; no `alert`/`confirm` anywhere, since a
+      modal dialog freezes browser automation. Every action logs its result or its error.
+      Verified in a real browser: both dots healthy, the 24 Mar preset, the lien button, no page
+      error, no external request and no horizontal scroll.
 - [ ] **9.2** **WF99 refusal-probe** (the evidence key hitting `/ledger/claims` gets a 403), and
       the `hide_income` fixed refusal in WF31.
 - [ ] **9.3** Playwright suite at 412 px and 360 px, in Kannada and English, covering M1, M2, M5
