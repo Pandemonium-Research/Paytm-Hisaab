@@ -155,13 +155,16 @@ export function DemoScreen() {
       if (!fixture || !Array.isArray(fixture.events) || fixture.events.length !== 4) throw new Error('Demo event fixture must contain exactly four events')
       const eventTimes = fixture.events.map(event => event.ts).filter((ts): ts is string => typeof ts === 'string').sort()
       if (eventTimes.length !== fixture.events.length) throw new Error('Every demo event must have a timestamp')
-      // Core refuses future observations. Move business time through the complete staged burst
-      // before the one idempotent rails ingest, so this works from the 09:25 jump preset.
+      // Load the payments first, stopping five minutes short of the lien. The disputed payment
+      // is on 21 March, two weeks past the nightly's window, so without this the pack isolates
+      // nothing and every tier reads zero. Stopping short matters just as much: replay also
+      // carries these same four events, and a case opened by replay does not start WF20 (D36),
+      // so replaying through the lien leaves the case open with no pack ever built.
+      const beforeLien = new Date(new Date(eventTimes[0]).getTime() - 5 * 60_000).toISOString()
+      await adminApi<SimReplayResponse>('/sim/replay', post({ split: 'demo', until: beforeLien }))
+      // Core refuses future observations, so business time has to cover the whole burst before
+      // the one idempotent rails ingest that opens the case and wakes WF20.
       await adminApi<SimClockResponse>('/sim/clock', post({ sim_at: eventTimes[eventTimes.length - 1] }))
-      // And load the payments up to that day. The disputed payment is on 21 March, two weeks
-      // after the nightly's window, so without this the pack isolates nothing and every tier
-      // reads zero -- an evidence pack with no evidence, which is the whole pitch inverted.
-      await adminApi<SimReplayResponse>('/sim/replay', post({ split: 'demo', until: eventTimes[eventTimes.length - 1] }))
       const response = await railsApi<RailsEventsResponse>('/rails/events', post(fixture))
       if (response.opened_case_ids.length) {
         addLog(action, `accepted ${response.accepted}; opened ${response.opened_case_ids.join(', ')}`)
