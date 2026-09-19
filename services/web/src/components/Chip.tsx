@@ -30,7 +30,7 @@ export interface ChipGroupProps<T extends string> {
 export function ChipGroup<T extends string>({ label, options, value, onChange, className }: ChipGroupProps<T>) {
   return (
     <div role="group" aria-label={label} className={cn('flex flex-wrap gap-2', className)}>
-      {options.map((option) => <Chip key={option.value} selected={option.value === value} disabled={option.disabled} onClick={() => onChange(option.value)}>{option.label}</Chip>)}
+      {options.map((option) => <Chip key={option.value} className="max-w-full flex-[1_1_132px] justify-center whitespace-normal text-center" selected={option.value === value} disabled={option.disabled} onClick={() => onChange(option.value)}>{option.label}</Chip>)}
     </div>
   )
 }

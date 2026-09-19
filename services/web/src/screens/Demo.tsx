@@ -197,24 +197,26 @@ export function DemoScreen() {
     <div className="space-y-5 p-4">
       <section aria-labelledby="health-heading">
         <h2 id="health-heading" className="mb-2 text-sm font-semibold text-navy">Health</h2>
-        <Card className="space-y-3">
-          {(['core', 'n8n'] as const).map(name => <div key={name} className="flex min-w-0 items-center gap-3">
-            {health[name].ok === null ? <Skeleton className="h-3 w-3 shrink-0 rounded-chip" /> : <span aria-label={health[name].ok ? 'healthy' : 'unhealthy'} className={`h-3 w-3 shrink-0 rounded-chip ${health[name].ok ? 'bg-credit' : 'bg-alert'}`} />}
-            <div className="min-w-0 flex-1"><p className="text-sm font-semibold">{name}</p><p className="break-words text-xs text-muted">Last check {formatCheckTime(health[name].checkedAt)}{health[name].detail ? ` · ${health[name].detail}` : ''}</p></div>
+        <Card className="divide-y divide-hairline" padding="compact">
+          {(['core', 'n8n'] as const).map(name => <div key={name} className="flex min-w-0 items-center gap-4 px-1 py-3 first:pt-1 last:pb-1">
+            {health[name].ok === null ? <Skeleton className="h-4 w-4 shrink-0 rounded-chip" /> : <span aria-label={health[name].ok ? 'healthy' : 'unhealthy'} className={`h-4 w-4 shrink-0 rounded-chip ring-4 ${health[name].ok ? 'bg-credit ring-credit/15' : 'bg-alert ring-alert/15'}`} />}
+            <div className="min-w-0 flex-1"><p className="text-base font-semibold">{name}</p><p className="break-words text-xs leading-5 text-muted">Last check {formatCheckTime(health[name].checkedAt)}{health[name].detail ? ` · ${health[name].detail}` : ''}</p></div>
           </div>)}
         </Card>
       </section>
 
       <section aria-labelledby="jump-heading">
         <h2 id="jump-heading" className="mb-2 text-sm font-semibold text-navy">Jump to</h2>
-        <div className="space-y-3">{jumpPresets.map(preset => <button type="button" key={preset.instant} className={primaryButton} disabled={activeAction !== null} onClick={() => void jumpTo(preset.label, preset.instant)}>{activeAction === `Jump to ${preset.label}` ? 'Jumping and replaying…' : preset.label}</button>)}</div>
+        <Card className="space-y-3">{jumpPresets.map(preset => <button type="button" key={preset.instant} className={primaryButton} disabled={activeAction !== null} onClick={() => void jumpTo(preset.label, preset.instant)}>{activeAction === `Jump to ${preset.label}` ? 'Jumping and replaying…' : preset.label}</button>)}</Card>
       </section>
 
-      <section aria-labelledby="actions-heading" className="space-y-3">
-        <h2 id="actions-heading" className="text-sm font-semibold text-navy">Run demo actions</h2>
-        <button type="button" className={secondaryButton} disabled={nightlyLocked || activeAction !== null} onClick={() => void runNightly()}>{nightlyRunning ? <span className="inline-flex items-center gap-2"><LoaderCircle aria-hidden="true" className="h-5 w-5 animate-spin" />Running nightly · {elapsed} s</span> : nightlyLocked ? 'Nightly running · locked for 3 min' : 'Run nightly'}</button>
-        <p className="text-xs text-muted">WF10 usually takes about 55 seconds. After one trigger this control locks for three minutes, so two runs cannot overlap.</p>
-        <button type="button" className={secondaryButton} disabled={activeAction !== null} onClick={() => void startDeclinesAndLien()}>{activeAction === 'Start declines and lien' ? 'Starting…' : 'Start declines and lien'}</button>
+      <section aria-labelledby="actions-heading">
+        <h2 id="actions-heading" className="mb-2 text-sm font-semibold text-navy">Run demo actions</h2>
+        <Card className="space-y-3">
+          <button type="button" className={secondaryButton} disabled={nightlyLocked || activeAction !== null} onClick={() => void runNightly()}>{nightlyRunning ? <span className="inline-flex items-center gap-2"><LoaderCircle aria-hidden="true" className="h-5 w-5 animate-spin" />Running nightly · {elapsed} s</span> : nightlyLocked ? 'Nightly running · locked for 3 min' : 'Run nightly'}</button>
+          <p className="text-xs leading-5 text-muted">WF10 usually takes about 55 seconds. After one trigger this control locks for three minutes, so two runs cannot overlap.</p>
+          <button type="button" className={secondaryButton} disabled={activeAction !== null} onClick={() => void startDeclinesAndLien()}>{activeAction === 'Start declines and lien' ? 'Starting…' : 'Start declines and lien'}</button>
+        </Card>
       </section>
 
       {latestResult && <Snackbar visible message={latestResult} tone={logs[0]?.error ? 'error' : 'success'} className="min-w-0 break-all" />}

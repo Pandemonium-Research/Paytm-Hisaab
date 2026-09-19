@@ -23,10 +23,10 @@ export function Stepper({ steps, ariaLabel, className }: StepperProps) {
       {steps.map((step, index) => (
         <li key={step.id} aria-current={step.status === 'current' ? 'step' : undefined} className="grid grid-cols-[32px_1fr] gap-3">
           <div className="flex flex-col items-center">
-            <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold', step.status === 'complete' && 'border-tier1 bg-tier1 text-white', step.status === 'current' && 'border-cyan bg-cyan-50 text-navy', step.status === 'upcoming' && 'border-hairline bg-card text-muted')}>
+            <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-bold', step.status === 'complete' && 'border-credit bg-credit text-white', step.status === 'current' && 'border-cyan bg-cyan text-navy ring-4 ring-cyan-50', step.status === 'upcoming' && 'border-hairline bg-card text-muted')}>
               {step.status === 'complete' ? <Check aria-hidden="true" className="h-4 w-4 animate-tick" /> : index + 1}
             </span>
-            {index < steps.length - 1 && <span className={cn('min-h-10 w-0.5 flex-1', step.status === 'complete' ? 'bg-tier1' : 'bg-hairline')} />}
+            {index < steps.length - 1 && <span className={cn('min-h-10 w-0.5 flex-1', step.status === 'complete' ? 'bg-credit' : 'bg-hairline')} />}
           </div>
           <div className="pb-5 pt-1">
             <div className="flex items-baseline justify-between gap-2">

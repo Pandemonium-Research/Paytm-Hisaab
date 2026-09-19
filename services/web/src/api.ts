@@ -4,6 +4,11 @@ export interface Home {
   balance: DisplayAmount; today_received: DisplayAmount; questions_due: number; open_cases: number
   alerts: { kind: string; title: string; body: string; href: string }[]
 }
+export interface Turnover {
+  period: string; aggregate: number; aggregate_text: string; threshold: number; threshold_text: string
+  bands: (DisplayAmount & { label: string })[]; crossed_on: string | null; projected_crossing_on: string | null
+  registration_required: boolean; explanation: string
+}
 export type Answer = 'sale' | 'family' | 'own_money' | 'loan_or_gift' | 'not_sure'
 export interface Question {
   question_id: string; txn_id: string; amount_text: string; ts: string; payer_name: string
