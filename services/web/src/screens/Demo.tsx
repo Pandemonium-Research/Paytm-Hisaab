@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { LoaderCircle } from 'lucide-react'
 import { AppBar, Card, Skeleton, Snackbar } from '../components'
 import { adminApi, api, forMerchant, merchant, post, railsApi } from '../api'
-import type { AppConfig, Home, MerchantCase, RailsEventsResponse, SimClockResponse, SimReplayResponse, SimResetResponse } from '../api'
+import type { AppConfig, Home, MerchantCase, RailsEventsResponse, SimClockResponse, SimReplayResponse } from '../api'
 
 type HealthState = { ok: boolean | null; checkedAt: Date | null; detail?: string }
 type LogEntry = { id: string; at: Date; action: string; message: string; error: boolean }
@@ -54,7 +54,6 @@ export function DemoScreen() {
     return Number.isFinite(until) && until > Date.now()
   })
   const [elapsed, setElapsed] = useState(0)
-  const [resetArmed, setResetArmed] = useState(false)
   const [latestResult, setLatestResult] = useState<string | null>(null)
   const nightlyInFlight = useRef(false)
 
@@ -73,8 +72,11 @@ export function DemoScreen() {
       const controller = new AbortController()
       const timeout = window.setTimeout(() => controller.abort(), 5000)
       try {
-        // no-cors yields an opaque response, so a resolved fetch proves reachability only.
-        await fetch('http://localhost:5678/healthz', { mode: 'no-cors', cache: 'no-store', signal: controller.signal })
+        // Same-origin through Caddy, not http://localhost:5678 directly: the page is served
+        // over HTTPS via the tunnel, where a plain-http fetch is blocked as mixed content, and
+        // on any other device localhost is that device. Caddy proxies only this health path.
+        const response = await fetch('/n8n/healthz', { cache: 'no-store', signal: controller.signal })
+        if (!response.ok) return { ok: false, checkedAt, detail: `n8n returned ${response.status}` }
         return { ok: true, checkedAt }
       } catch (error) {
         return { ok: false, checkedAt, detail: messageOf(error) }
@@ -102,7 +104,7 @@ export function DemoScreen() {
   async function jumpTo(label: string, instant: string) {
     if (activeAction) return
     const action = `Jump to ${label}`
-    setResetArmed(false); setActiveAction(action)
+    setActiveAction(action)
     try {
       await adminApi<SimClockResponse>('/sim/clock', post({ sim_at: instant }))
       const replay = await adminApi<SimReplayResponse>('/sim/replay', post({ split: 'demo', until: instant }))
@@ -121,10 +123,10 @@ export function DemoScreen() {
     sessionStorage.setItem(nightlyLockKey, String(startedAt + nightlyLockMs))
     setNightlyLocked(true)
     window.setTimeout(() => { sessionStorage.removeItem(nightlyLockKey); setNightlyLocked(false) }, nightlyLockMs)
-    setResetArmed(false); setActiveAction('Run nightly'); setElapsed(0); setNightlyStartedAt(startedAt)
+    setActiveAction('Run nightly'); setElapsed(0); setNightlyStartedAt(startedAt)
     try {
       const home = await api<Home>(forMerchant('/app/home'))
-      const response = await fetchJson<unknown>('http://localhost:5678/webhook/hisaab/wf10-nightly', {
+      const response = await fetchJson<unknown>('/n8n/webhook/hisaab/wf10-nightly', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-N8N-Webhook-Secret': import.meta.env.VITE_N8N_WEBHOOK_SECRET || 'dev-webhook-secret' },
         body: JSON.stringify({ merchant_id: merchant, as_of: home.as_of, mode: 'live', channel: 'app', window_from: '2026-03-08', window_to: '2026-03-10' })
@@ -147,7 +149,7 @@ export function DemoScreen() {
   async function startDeclinesAndLien() {
     if (activeAction) return
     const action = 'Start declines and lien'
-    setResetArmed(false); setActiveAction(action)
+    setActiveAction(action)
     try {
       const fixture = await fetchJson<DemoEvents>('/demo-events.json')
       if (!fixture || !Array.isArray(fixture.events) || fixture.events.length !== 4) throw new Error('Demo event fixture must contain exactly four events')
@@ -156,6 +158,10 @@ export function DemoScreen() {
       // Core refuses future observations. Move business time through the complete staged burst
       // before the one idempotent rails ingest, so this works from the 09:25 jump preset.
       await adminApi<SimClockResponse>('/sim/clock', post({ sim_at: eventTimes[eventTimes.length - 1] }))
+      // And load the payments up to that day. The disputed payment is on 21 March, two weeks
+      // after the nightly's window, so without this the pack isolates nothing and every tier
+      // reads zero -- an evidence pack with no evidence, which is the whole pitch inverted.
+      await adminApi<SimReplayResponse>('/sim/replay', post({ split: 'demo', until: eventTimes[eventTimes.length - 1] }))
       const response = await railsApi<RailsEventsResponse>('/rails/events', post(fixture))
       if (response.opened_case_ids.length) {
         addLog(action, `accepted ${response.accepted}; opened ${response.opened_case_ids.join(', ')}`)
@@ -175,20 +181,10 @@ export function DemoScreen() {
     }
   }
 
-  async function resetDemo() {
-    if (activeAction) return
-    const action = 'Reset sim clock and demo state'
-    setActiveAction(action)
-    try {
-      const response = await adminApi<SimResetResponse>('/sim/reset', post({ split: 'demo' }))
-      sessionStorage.removeItem(nightlyLockKey)
-      setNightlyLocked(false)
-      addLog(action, `sim_at ${response.sim_at}`)
-    } catch (error) {
-      addLog(action, messageOf(error), true)
-    } finally {
-      setResetArmed(false); setActiveAction(null)
-    }
+  function clearNightlyLock() {
+    sessionStorage.removeItem(nightlyLockKey)
+    setNightlyLocked(false)
+    addLog('Clear nightly lock', 'the Run nightly button is available again')
   }
 
   const nightlyRunning = nightlyStartedAt !== null
@@ -223,8 +219,12 @@ export function DemoScreen() {
 
       <section aria-labelledby="reset-heading" className="border-t border-hairline pt-5">
         <h2 id="reset-heading" className="mb-2 text-sm font-semibold text-alert">Reset</h2>
-        <button type="button" className={`min-h-[64px] w-full rounded-card px-4 py-3 text-base font-bold disabled:opacity-50 ${resetArmed ? 'bg-alert text-white' : 'border-2 border-alert bg-card text-alert'}`} disabled={activeAction !== null} onClick={() => resetArmed ? void resetDemo() : setResetArmed(true)}>{activeAction === 'Reset sim clock and demo state' ? 'Resetting…' : resetArmed ? 'Tap again to confirm reset' : 'Reset sim clock and demo state'}</button>
-        {resetArmed && <button type="button" className="mt-2 min-h-touch w-full rounded-chip text-sm font-semibold text-muted" onClick={() => setResetArmed(false)}>Cancel reset</button>}
+        <Card className="space-y-3">
+          <p className="text-sm leading-6 text-ink">The ledger refuses UPDATE and DELETE, so a rerun needs the snapshot restored on the laptop. Run this in the repo, then wait for n8n:</p>
+          <code className="block break-all rounded-card bg-bg px-3 py-2 text-xs text-navy">python tasks.py reset --name demo --local-n8n</code>
+          <p className="text-xs leading-5 text-muted">A second nightly on an unreset database produces no questions: WF10 skips credits that already carry a label.</p>
+          <button type="button" className={secondaryButton} disabled={!nightlyLocked || activeAction !== null} onClick={clearNightlyLock}>Clear nightly lock</button>
+        </Card>
       </section>
 
       <section aria-labelledby="log-heading">

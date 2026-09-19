@@ -10,6 +10,7 @@ export const colors = {
   ink: '#101828',
   muted: '#667085',
   credit: '#12A150',
+  personal: '#7C3AED',
   alert: '#E5484D',
   notice: '#B45309',
   tier1: '#15803D',

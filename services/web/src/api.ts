@@ -16,10 +16,21 @@ export interface Question {
   answer_chips: { answer: Answer; text: string }[]
 }
 export interface Questions { items: Question[]; automatically_settled_count: number; closing_text: string }
+export type PaymentLabel = 'taxable_supply' | 'exempt_supply' | 'personal_transfer' | 'inter_account' | 'duplicate' | 'refund_reversal' | 'non_business' | 'unclassified'
+export interface Payment {
+  txn_id: string; ts: string; counterparty_name: string; amount: number; amount_text: string
+  channel: string; effective_label: PaymentLabel | null; needs_answer: boolean
+}
+export interface Payments { items: Payment[]; next_cursor: string | null }
 export interface MerchantCase {
   case_id: string; case_type: string; status: string; opened_at: string; title: string
   disputed_amount_text: string | null
 }
+export interface ConversationMessage {
+  message_id: string; direction: 'in' | 'out'; text: string; content_type: string
+  language: string | null; sim_at: string
+}
+export interface Conversation { items: ConversationMessage[] }
 export interface OfficerCaseRow {
   case_id: string; merchant_id: string; business_name: string; case_type: string
   opened_at: string; disputed_amount_text: string | null; weak_evidence_share: number
