@@ -269,6 +269,7 @@ async def chat_completions(
             query=dict(request.query_params),
             headers={"content-type": "application/json", "authorization": authorization or ""},
             raw_body=json.dumps(body).encode("utf-8"),
+            timeout=240.0,
         )
         recorded = json.loads(raw) if raw else None
         cassettes.save(

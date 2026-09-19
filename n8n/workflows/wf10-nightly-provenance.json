@@ -439,7 +439,7 @@
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {
-          "timeout": 30000
+          "timeout": 240000
         },
         "method": "POST",
         "sendBody": true,

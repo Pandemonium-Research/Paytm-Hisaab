@@ -81,6 +81,7 @@ services:
       HISAAB_LIVE: ${HISAAB_LIVE:-0}
       HISAAB_RECORD: ${HISAAB_RECORD:-0}
       HISAAB_LIVE_WINDOW: ${HISAAB_LIVE_WINDOW:-L1}
+      SARVAM_API_KEY: ${SARVAM_API_KEY:-fake}
       FAKES_INTERNAL_URL: http://fakes:8200
     volumes:
       # Cassettes recorded in a live window must survive the container: B commits them (2F.2).
