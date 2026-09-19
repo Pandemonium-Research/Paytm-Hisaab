@@ -62,10 +62,14 @@ def questions(connection, merchant_id):
         "amount_text": amount_text(row["amount"]), "ts": row["ts"], "payer_name": row["counterparty_name"],
         "channel": row["channel"], "question": row["data"]["text"], "language": row["data"]["language"],
         "answer_chips": chips, "position": index + 1, "total": len(rows)} for index, row in enumerate(rows)]
-    settled = connection.execute(text("""SELECT count(*) FROM ledger.current_view(:merchant, :as_of) v
-        JOIN rails.credits c USING (txn_id) WHERE c.merchant_id = :merchant
-          AND c.ts >= :start AND v.machine_label IS NOT NULL AND NOT EXISTS (
-              SELECT 1 FROM ops.questions q WHERE q.merchant_id = :merchant AND q.txn_id = c.txn_id
+    # Counted by when the label was recorded, not when the payment arrived: the nightly run
+    # classifies the days *before* it, so dating this by the credit counted only payments made
+    # after the run and always read zero.
+    settled = connection.execute(text("""SELECT count(DISTINCT e.txn_id) FROM ledger.entries e
+        JOIN rails.credits c ON c.txn_id = e.txn_id AND c.merchant_id = e.merchant_id
+        WHERE e.merchant_id = :merchant AND e.kind = 'label.proposed'
+          AND e.sim_at >= :start AND e.sim_at <= :as_of AND NOT EXISTS (
+              SELECT 1 FROM ops.questions q WHERE q.merchant_id = e.merchant_id AND q.txn_id = e.txn_id
                 AND q.asked_at <= :as_of)"""), {"merchant": merchant_id, "as_of": as_of, "start": day_start(as_of)}).scalar_one()
     return {"items": items, "automatically_settled_count": settled,
             "closing_text": "All payments confirmed." if not rows else "At most three questions a day."}
