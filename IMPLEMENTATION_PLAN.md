@@ -25,7 +25,7 @@ Team: 2 people · Build Thu 17 to Fri 18 Sep · Harden and demo on Sat 19 Sep
 
 ## 0. Context
 
-`hisaab-proposal.tex` (the Round 1 deck) and `hisaab-deck-v2.md` (the narrative and objection
+`proposal/hisaab-proposal.tex` (the Round 1 deck) and `deck/hisaab-deck-v2.md` (the narrative and objection
 handling) describe **Paytm Hisaab**: an autonomous AI teammate that keeps a tamper-evident
 **provenance ledger** of every UPI credit a small merchant receives. When an authority asks
 questions, it answers from that ledger:
